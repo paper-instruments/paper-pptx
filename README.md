@@ -65,10 +65,10 @@ prs = Presentation("deck.pptx")
 
 run = prs.slides[0].shapes.title.text_frame.paragraphs[0].runs[0]
 font = run.effective_font()
-print(font.size.value_pt)
+print(font.size.value_pt)              # resolved through layout/master/theme, e.g. 36.0
 
-replace_text(prs, "FY25", "FY26")
-prs.save("deck.v2.pptx")
+replace_text(prs, "FY25", "FY26")      # preserves untouched run formatting
+prs.save("deck.v2.pptx")               # atomic: the old file survives any failure
 
 delta = diff_decks("deck.pptx", "deck.v2.pptx", detail="text")
 print(len(delta.slide_changes), "slides changed")
