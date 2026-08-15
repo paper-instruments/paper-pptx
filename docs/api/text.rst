@@ -52,7 +52,10 @@ future other presentation text objects.
 *paper-pptx addition.* Read and set real bullet/numbering on a paragraph, accessed through the
 :attr:`._Paragraph.bullet` property. Retires the fake-glyph anti-pattern (a literal "•" typed
 into the text): these write genuine ``a:buChar`` / ``a:buAutoNum`` / ``a:buNone`` markup with
-hanging-indent control.
+hanging-indent control. This object reads and writes the paragraph's own markup; to see which
+bullet actually renders once the layout and master chain is taken into account, use the
+effective-style inspection API in :ref:`inspect_api` —
+:func:`~pptx.inspect.effective_paragraph_format` reports it as an |EffectiveBullet|.
 
 .. autoclass:: pptx.text.bullet.BulletFormat()
    :members:
