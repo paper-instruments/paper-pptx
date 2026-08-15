@@ -71,7 +71,7 @@ Confirm the install:
 
 ```bash
 paper-pptx-doctor
-# paper-pptx-doctor: OK (paper-pptx 0.1.2)
+# paper-pptx-doctor: OK (paper-pptx 0.1.3)
 ```
 
 The doctor verifies that `paper-pptx` metadata is present, `python-pptx` is
@@ -392,7 +392,7 @@ corruption prevention:
   `import pptx` fails loudly when both `python-pptx` and `paper-pptx` metadata
   are installed, because a mixed site-packages can silently run a blend of the
   two libraries. `pptx.__version__` stays `"1.0.2"` (the upstream API surface),
-  and `pptx.__paper_version__` (`"0.1.2"`) identifies the fork release — so
+  and `pptx.__paper_version__` (`"0.1.3"`) identifies the fork release — so
   callers can distinguish "which upstream surface" from "which paper release".
 
 ## The safety contract
@@ -446,9 +446,9 @@ from `pptx` itself; import from the module named below.
 | `pptx.package` | Semantic package diff and byte-minimal `patch_save` | [docs](docs/api/package.rst) |
 | `pptx.errors` | The `PaperRefusal` typed-refusal hierarchy | [docs](docs/api/errors.rst) |
 
-Methods added to inherited classes: `Slides.clone` / `delete` / `reorder` /
-`move`; `SlideShapes.delete` / `move` / `add_copy` and the `*_by_name`
-lookups; `Table.insert_row` / `delete_row` / `insert_column` /
+Methods added to inherited classes: `Presentation.batch`; `Slides.clone` /
+`delete` / `reorder` / `move`; `SlideShapes.delete` / `move` / `add_copy` and
+the `*_by_name` lookups; `Table.insert_row` / `delete_row` / `insert_column` /
 `delete_column`; `Picture.replace_image`; `Chart.replace_data_safe`;
 `TextFrame.normalize_autofit`, `font_scale`, `line_space_reduction`;
 `_Paragraph.bullet` and field helpers; `Slide.read_notes_text` /
@@ -560,7 +560,7 @@ If you reference paper-pptx in research or writing:
   title   = {paper-pptx: an agent-first structure editor for PowerPoint files},
   author  = {{Paper Instruments, Inc.}},
   year    = {2026},
-  version = {0.1.2},
+  version = {0.1.3},
   url     = {https://github.com/paper-instruments/paper-pptx}
 }
 ```

@@ -14,6 +14,20 @@ _ACTIVE_TRANSACTIONS: ContextVar[tuple[object, ...]] = ContextVar(
 )
 
 
+def package_has_open_transaction(package: "OpcPackage") -> bool:
+    """Whether `package` has an unclosed transaction in the current context.
+
+    Uses the same identity test as `PackageTransaction._is_outermost`, so a transaction
+    on a *different* package never reports true. Contexts are per-thread and per-task, so
+    a transaction open in another thread is correctly invisible here.
+    """
+    return any(
+        transaction._package is package
+        for transaction in _ACTIVE_TRANSACTIONS.get()
+        if isinstance(transaction, PackageTransaction)
+    )
+
+
 class TransactionRollbackError(RuntimeError):
     """A mutation failed and one or more rollback steps also failed.
 
