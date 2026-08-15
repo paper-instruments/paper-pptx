@@ -1,22 +1,14 @@
-"""Bounded, unambiguous ZIP reads for OPC packages.
+"""Unambiguous ZIP reads for OPC packages.
 
-These limits are a safety envelope, not OOXML validity rules. They are
-deliberately generous for ordinary PowerPoint presentations while keeping one package
-from consuming unbounded CPU, memory, or disk-backed input:
-
-* 256 MiB compressed package size;
-* 4,096 members;
-* 64 MiB for one XML member and 256 MiB for one binary member; and
-* 512 MiB expanded across the package.
-
-There is deliberately no expanded-to-compressed ratio limit: legitimate machine-generated
-decks (thousands of near-identical paragraphs or rows) routinely exceed any ratio a zip
-bomb would need, and every expansion is already capped absolutely by the member and
-package limits above. A ratio rule would refuse files this package itself saves.
+An OPC package must have exactly one interpretation. Archives whose structure admits
+more than one are refused rather than resolved by guesswork: ambiguous or multi-disk
+end-of-central-directory records, member counts and offsets that disagree, duplicate or
+case-equivalent member names, local headers that contradict the central directory, and
+data that overlaps or trails a member's declared extent.
 
 Only the two compression methods permitted by the OPC ZIP mapping (stored and
 deflated) are accepted. Every member is inflated from its raw compressed bytes
-rather than through ``ZipFile.read()``. This allows actual output length and
+rather than through ``ZipFile.read()``. This allows actual output length, CRC, and
 deflate end-of-stream to be checked even when central-directory sizes lie.
 """
 
@@ -34,21 +26,6 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 from lxml import etree
 
 from pptx.errors import PackageLimitError
-
-_MIB = 1024 * 1024
-
-#: Maximum physical size of a ZIP package before any member is expanded.
-MAX_COMPRESSED_BYTES = 256 * _MIB
-#: Maximum number of central-directory records in one package.
-MAX_MEMBER_COUNT = 4_096
-#: Maximum bytes occupied by central-directory records.
-MAX_CENTRAL_DIRECTORY_BYTES = 16 * _MIB
-#: Maximum expanded size of one XML or relationships part.
-MAX_XML_MEMBER_BYTES = 64 * _MIB
-#: Maximum expanded size of one non-XML part, such as an image or embedding.
-MAX_BINARY_MEMBER_BYTES = 256 * _MIB
-#: Maximum expanded bytes across all members in one package.
-MAX_TOTAL_EXPANDED_BYTES = 512 * _MIB
 
 _READ_CHUNK_BYTES = 64 * 1024
 _LOCAL_HEADER = struct.Struct("<4s5H3L2H")
@@ -126,47 +103,15 @@ def compressed_size(source: object) -> Optional[int]:
     return size if isinstance(size, int) and not isinstance(size, bool) else None
 
 
-def enforce_compressed_size(source: object) -> Optional[int]:
-    """Refuse `source` when its physical size exceeds the package bound."""
-    size = compressed_size(source)
-    if size is not None and size > MAX_COMPRESSED_BYTES:
-        raise PackageLimitError(
-            "ZIP package compressed size "
-            f"{size} bytes exceeds the {MAX_COMPRESSED_BYTES}-byte limit"
-        )
-    return size
-
-
-def read_compressed_bytes(path: Union[str, "os.PathLike[str]"]) -> bytes:
-    """Read a package file in chunks while enforcing its actual byte count."""
-    enforce_compressed_size(path)
-    chunks: List[bytes] = []
-    total = 0
-    with open(path, "rb") as stream:
-        while True:
-            chunk = stream.read(min(_READ_CHUNK_BYTES, MAX_COMPRESSED_BYTES - total + 1))
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > MAX_COMPRESSED_BYTES:
-                raise PackageLimitError(
-                    "ZIP package actual compressed size exceeds the "
-                    f"{MAX_COMPRESSED_BYTES}-byte limit"
-                )
-            chunks.append(chunk)
-    return b"".join(chunks)
-
-
 def preflight_zip(source: object) -> None:
-    """Validate bounded central-directory metadata before ``ZipFile`` opens.
+    """Validate central-directory metadata before ``ZipFile`` parses it.
 
-    ``zipfile.ZipFile`` creates one ``ZipInfo`` object per central-directory
-    record. A forged but physically small archive can otherwise force an
-    unbounded allocation before the ordinary member-count guard runs. This
-    preflight reads only fixed-size records and skips variable fields without
-    retaining them.
+    An archive must declare one unambiguous central-directory region: a single
+    end-of-central-directory record, no multi-disk structure, and member counts,
+    offsets, and sizes that agree with each other and with the records actually
+    present. This preflight reads only fixed-size records and skips variable
+    fields without retaining them.
     """
-    enforce_compressed_size(source)
     if isinstance(source, (str, os.PathLike)):
         path = cast(Union[str, "os.PathLike[str]"], source)
         with open(path, "rb") as stream:
@@ -197,11 +142,6 @@ def _preflight_zip_stream(stream: BinaryIO) -> None:
             # ZipFile's central-directory parser with this result type.
             return
         archive_size = archive_size_value
-        if archive_size > MAX_COMPRESSED_BYTES:
-            raise PackageLimitError(
-                "ZIP package compressed size "
-                f"{archive_size} bytes exceeds the {MAX_COMPRESSED_BYTES}-byte limit"
-            )
 
         end_offset, end_fields = _find_end_record(stream, archive_size)
         (
@@ -235,16 +175,6 @@ def _preflight_zip_stream(stream: BinaryIO) -> None:
 
         if disk_entries != total_entries:
             raise PackageLimitError("ZIP central-directory counts disagree across disks")
-        if total_entries > MAX_MEMBER_COUNT:
-            raise PackageLimitError(
-                f"ZIP member count {total_entries} exceeds the "
-                f"{MAX_MEMBER_COUNT}-member limit"
-            )
-        if central_size > MAX_CENTRAL_DIRECTORY_BYTES:
-            raise PackageLimitError(
-                f"ZIP central directory size {central_size} bytes exceeds the "
-                f"{MAX_CENTRAL_DIRECTORY_BYTES}-byte limit"
-            )
         if central_offset < 0 or central_size < 0:
             raise PackageLimitError("ZIP central-directory metadata is negative")
         if central_offset + central_size != central_end:
@@ -394,10 +324,6 @@ def _scan_central_directory(
             raise PackageLimitError("ZIP central-directory member record exceeds its region")
         cursor += record_size
         actual_count += 1
-        if actual_count > MAX_MEMBER_COUNT:
-            raise PackageLimitError(
-                f"ZIP member count exceeds the {MAX_MEMBER_COUNT}-member limit"
-            )
         if actual_count > expected_count:
             raise PackageLimitError("ZIP central-directory member count exceeds its end record")
 
@@ -408,18 +334,14 @@ def _scan_central_directory(
 class GuardedZipReader:
     """Validate and stream every member of an already-open ``ZipFile``.
 
-    Construction fully validates the archive and caches bounded member bytes.
+    Construction fully validates the archive and caches every member's bytes.
     This makes ordinary ``Document()`` opens and package-kernel reads share the
     same validation, including for members not reachable from OPC relationships.
     """
 
     def __init__(self, zip_file: ZipFile):
         self._zip_file = zip_file
-        enforce_compressed_size(zip_file.fp)
         self._infos = tuple(zip_file.infolist())
-        self._member_limits = {
-            info.filename: _member_limit(info.filename) for info in self._infos
-        }
         self._validate_metadata()
         self._parts = self._read_all_members()
 
@@ -437,15 +359,9 @@ class GuardedZipReader:
         return dict(self._parts), list(self.order)
 
     def _validate_metadata(self) -> None:
-        if len(self._infos) > MAX_MEMBER_COUNT:
-            raise PackageLimitError(
-                f"ZIP member count {len(self._infos)} exceeds the {MAX_MEMBER_COUNT}-member limit"
-            )
-
         seen_names: set[str] = set()
         seen_equivalent_names: set[str] = set()
         seen_offsets: set[int] = set()
-        expanded_total = 0
         for info in self._infos:
             name = info.orig_filename
             if name != info.filename:
@@ -490,17 +406,6 @@ class GuardedZipReader:
 
             if info.file_size < 0 or info.compress_size < 0:
                 raise PackageLimitError(f"ZIP member {name!r} has a negative size")
-            member_limit = self._limit_for(name)
-            if info.file_size > member_limit:
-                raise PackageLimitError(
-                    f"ZIP member {name!r} expanded size {info.file_size} bytes "
-                    f"exceeds the {member_limit}-byte limit"
-                )
-            expanded_total += info.file_size
-            if expanded_total > MAX_TOTAL_EXPANDED_BYTES:
-                raise PackageLimitError(
-                    f"ZIP total expanded size exceeds the {MAX_TOTAL_EXPANDED_BYTES}-byte limit"
-                )
             if info.compress_type == ZIP_STORED and info.file_size != info.compress_size:
                 raise PackageLimitError(
                     f"stored ZIP member {name!r} has inconsistent size metadata"
@@ -536,7 +441,6 @@ class GuardedZipReader:
             original_position = None
 
         parts: Dict[str, bytes] = {}
-        actual_total = 0
         try:
             content_types_info = next(
                 (info for info in self._infos if info.filename == _CONTENT_TYPES_NAME),
@@ -547,49 +451,23 @@ class GuardedZipReader:
                     content_types_info,
                     boundaries[content_types_info.header_offset],
                 )
-                content_types, actual_total = self._inflate_member(
-                    content_types_info,
-                    data_start,
-                    actual_total,
-                )
+                content_types = self._inflate_member(content_types_info, data_start)
                 parts[content_types_info.filename] = content_types
-                self._apply_content_type_limits(content_types)
-                self._validate_declared_member_limits()
+                self._validate_content_types(content_types)
 
             for info in self._infos:
                 if info is content_types_info:
                     continue
                 data_start = self._validate_local_header(info, boundaries[info.header_offset])
-                blob, actual_total = self._inflate_member(info, data_start, actual_total)
-                parts[info.filename] = blob
+                parts[info.filename] = self._inflate_member(info, data_start)
         finally:
             if original_position is not None:
                 with suppress(AttributeError, OSError, TypeError, ValueError):
                     stream.seek(original_position, os.SEEK_SET)
         return parts
 
-    def _apply_content_type_limits(self, content_types: bytes) -> None:
-        defaults, overrides = _parse_content_types(content_types)
-        for info in self._infos:
-            name = info.filename
-            content_type = overrides.get(f"/{name}".casefold())
-            if content_type is None and "." in name.rsplit("/", 1)[-1]:
-                extension = name.rsplit(".", 1)[-1].lower()
-                content_type = defaults.get(extension)
-            if content_type is not None and _is_xml_content_type(content_type):
-                self._member_limits[name] = MAX_XML_MEMBER_BYTES
-
-    def _validate_declared_member_limits(self) -> None:
-        for info in self._infos:
-            member_limit = self._limit_for(info.filename)
-            if info.file_size > member_limit:
-                raise PackageLimitError(
-                    f"ZIP member {info.filename!r} expanded size {info.file_size} bytes "
-                    f"exceeds the {member_limit}-byte limit"
-                )
-
-    def _limit_for(self, name: str) -> int:
-        return self._member_limits[name]
+    def _validate_content_types(self, content_types: bytes) -> None:
+        _parse_content_types(content_types)
 
     def _validate_local_header(self, info: ZipInfo, boundary: int) -> int:
         stream = self._zip_file.fp
@@ -698,9 +576,7 @@ class GuardedZipReader:
                 f"ZIP member {info.filename!r} has inconsistent data-descriptor metadata"
             )
 
-    def _inflate_member(
-        self, info: ZipInfo, data_start: int, actual_total: int
-    ) -> Tuple[bytes, int]:
+    def _inflate_member(self, info: ZipInfo, data_start: int) -> bytes:
         stream = self._zip_file.fp
         if stream is None:
             raise PackageLimitError("ZIP package stream is closed")
@@ -709,24 +585,12 @@ class GuardedZipReader:
         chunks: List[bytes] = []
         actual_size = 0
         crc = 0
-        member_limit = self._limit_for(info.filename)
 
         def consume(data: bytes) -> None:
-            nonlocal actual_size, actual_total, crc
+            nonlocal actual_size, crc
             if not data:
                 return
             actual_size += len(data)
-            actual_total += len(data)
-            if actual_size > member_limit:
-                raise PackageLimitError(
-                    f"ZIP member {info.filename!r} actual expanded size exceeds the "
-                    f"{member_limit}-byte limit"
-                )
-            if actual_total > MAX_TOTAL_EXPANDED_BYTES:
-                raise PackageLimitError(
-                    "ZIP actual total expanded size exceeds the "
-                    f"{MAX_TOTAL_EXPANDED_BYTES}-byte limit"
-                )
             crc = zlib.crc32(data, crc)
             chunks.append(data)
 
@@ -756,10 +620,7 @@ class GuardedZipReader:
                             raise PackageLimitError(
                                 f"ZIP member {info.filename!r} has trailing compressed data"
                             )
-                        output = decompressor.decompress(
-                            pending,
-                            self._next_output_size(member_limit, actual_size, actual_total),
-                        )
+                        output = decompressor.decompress(pending, _READ_CHUNK_BYTES)
                         pending = decompressor.unconsumed_tail
                         consume(output)
                         if decompressor.unused_data:
@@ -768,9 +629,7 @@ class GuardedZipReader:
                             )
 
                 while not decompressor.eof:
-                    output = decompressor.decompress(
-                        b"", self._next_output_size(member_limit, actual_size, actual_total)
-                    )
+                    output = decompressor.decompress(b"", _READ_CHUNK_BYTES)
                     consume(output)
                     if not output:
                         break
@@ -790,13 +649,7 @@ class GuardedZipReader:
             )
         if crc & 0xFFFFFFFF != info.CRC:
             raise PackageLimitError(f"ZIP member {info.filename!r} fails its CRC check")
-        return b"".join(chunks), actual_total
-
-    @staticmethod
-    def _next_output_size(member_limit: int, member_size: int, total_size: int) -> int:
-        member_remaining = member_limit - member_size + 1
-        total_remaining = MAX_TOTAL_EXPANDED_BYTES - total_size + 1
-        return max(1, min(_READ_CHUNK_BYTES, member_remaining, total_remaining))
+        return b"".join(chunks)
 
 
 def _parse_content_types(data: bytes) -> Tuple[Dict[str, str], Dict[str, str]]:
@@ -861,18 +714,6 @@ def _parse_content_types(data: bytes) -> Tuple[Dict[str, str], Dict[str, str]]:
             "[Content_Types].xml contains an unsupported declaration"
         )
     return defaults, overrides
-
-
-def _is_xml_content_type(content_type: str) -> bool:
-    media_type = content_type.partition(";")[0].strip().lower()
-    return media_type in ("application/xml", "text/xml") or media_type.endswith("+xml")
-
-
-def _member_limit(name: str) -> int:
-    lower_name = name.lower()
-    if lower_name.endswith(".xml") or lower_name.endswith(".rels"):
-        return MAX_XML_MEMBER_BYTES
-    return MAX_BINARY_MEMBER_BYTES
 
 
 def _validate_member_name(name: str) -> None:

@@ -1,4 +1,4 @@
-"""Adversarial coverage for bounded package reads and atomic ordinary saves."""
+"""Adversarial coverage for guarded package reads and atomic ordinary saves."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from lxml import etree
 
 from pptx import Presentation
 from pptx.errors import PackageLimitError, PaperRefusal
+from pptx.exc import PackageNotFoundError
 from pptx.opc import serialized
 
 from . import corpus
@@ -51,9 +52,10 @@ def test_saved_repetitive_deck_reopens(tmp_path):
     """Regression: the save -> reopen covenant must hold for this package's OWN output.
 
     Machine-generated decks (thousands of near-identical paragraphs) legitimately
-    exceed any expanded-to-compressed ratio a zip bomb would need. A ratio guard once
-    refused such files at reopen; the absolute member and package byte limits are the
-    safety envelope instead.
+    exceed any expanded-to-compressed ratio a hostile archive would need. A ratio guard once
+    refused such files at reopen. No resource ceiling gates intake now: whatever this
+    package writes, it reads. `test_package_round_trip.py` asserts that covenant at the
+    scales the deleted numeric ceilings used to refuse.
     """
     from pptx.util import Inches
 
@@ -175,33 +177,14 @@ def test_stream_save_failure_restores_existing_bytes_and_position():
     assert destination.tell() == 7
 
 
-def test_oversized_stream_save_refusal_restores_position():
-    from pptx._zipguard import MAX_COMPRESSED_BYTES
+def test_huge_non_zip_path_raises_package_not_found(tmp_path, monkeypatch):
+    """Upstream parity: size never gates intake; a non-zip path is simply not a package."""
+    target = tmp_path / "huge.bin"
+    target.write_bytes(b"not a zip")
+    monkeypatch.setattr(os.path, "getsize", lambda _path: 1 << 40)
 
-    class OversizedDestination(io.BytesIO):
-        def __init__(self, initial):
-            super().__init__(initial)
-            self._at_reported_end = False
-
-        def seek(self, offset, whence=os.SEEK_SET):
-            self._at_reported_end = whence == os.SEEK_END
-            return super().seek(offset, whence)
-
-        def tell(self):
-            if self._at_reported_end:
-                return MAX_COMPRESSED_BYTES + 1
-            return super().tell()
-
-    presentation = Presentation(_minimal_path())
-    original = b"ORIGINAL STREAM CONTENT"
-    destination = OversizedDestination(original)
-    destination.seek(7)
-
-    with pytest.raises(PackageLimitError, match="destination stream exceeds"):
-        presentation.save(destination)
-
-    assert destination.getvalue() == original
-    assert destination.tell() == 7
+    with pytest.raises(PackageNotFoundError):
+        Presentation(target)
 
 
 def test_stream_snapshot_failure_restores_position():
