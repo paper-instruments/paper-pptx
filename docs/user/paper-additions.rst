@@ -136,7 +136,7 @@ Compose across decks
 Production decks are often assembled from many sources:
 a pitch book's bank-overview pages may come from the master deck, its tombstones from the
 credentials library, and its sector pages from the sector team. That relationship and
-inheritance work is where decks get corrupted. The workflow is **import → renumber → scrub →
+inheritance work is where decks get corrupted. The workflow is **import → renumber → deliver →
 diff**.
 
 **Real fields and footers** (:ref:`hf_api`). :meth:`~pptx.presentation.Presentation.apply_footers`
@@ -160,11 +160,29 @@ masters), or ``"bake"`` (freeze effective values into explicit properties). The 
 presentation remains unchanged. Charts travel with their workbooks, and unresolvable
 relationships raise a typed refusal. Each import returns an |ImportReport|.
 
-**Scrub** (:ref:`scrub_api`).
-:meth:`~pptx.presentation.Presentation.scrub` removes selected speaker notes, comments,
-metadata, unused layouts and masters, unreachable media, and embedded fonts. A
-relationship-graph reachability analysis preserves parts reachable from a live slide. Its
-|ScrubReport| part budget matches the operation's package diff.
+**Send-safe delivery.** Stripping speaker notes, review comments, and authorship before a deck
+leaves the building needs no dedicated API: a part leaves the package by becoming unreachable, and
+the serializer never writes an unreachable part. Drop the relationship and the part is gone::
+
+    from pptx import Presentation
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    prs = Presentation("deck.pptx")
+    for slide in prs.slides:
+        for rId, rel in list(slide.part.rels.items()):
+            if not rel.is_external and rel.reltype in (RT.NOTES_SLIDE, RT.COMMENTS):
+                slide.part.drop_rel(rId)          # the notes/comments part stops being written
+    prs.core_properties.author = ""
+    prs.core_properties.last_modified_by = ""
+    prs.save("clean.pptx")
+
+Unused layouts go through :meth:`~pptx.slide.SlideLayouts.remove`, which refuses any layout a
+slide still uses::
+
+    for master in prs.slide_masters:
+        for layout in list(master.slide_layouts):
+            if not layout.used_by_slides:
+                master.slide_layouts.remove(layout)
 
 Verify what changed
 -------------------
@@ -196,7 +214,7 @@ A composition end to end::
         print(shift.text, shift.before["name"]["value"], "->", shift.after["name"]["value"])
 
     prs.apply_footers(footer="Confidential", slide_number=True)   # real a:fld fields
-    prs.scrub(metadata=True, comments=True)                       # remove metadata and comments
+    prs.core_properties.author = ""                               # send-safe, per above
     prs.save(os.path.join(tmp, "after.pptx"))
 
     delta = diff_decks(before, os.path.join(tmp, "after.pptx"), detail="text")

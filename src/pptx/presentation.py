@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from pptx.compose import ImportReport
     from pptx.oxml.presentation import CT_Presentation, CT_SlideId
     from pptx.parts.presentation import PresentationPart
-    from pptx.scrub import ScrubReport
     from pptx.slide import NotesMaster, SlideLayouts
     from pptx.util import Length
 
@@ -144,54 +143,6 @@ class Presentation(PartElementProxy):
         Provides read/write access to the Dublin Core document properties for the presentation.
         """
         return self.part.core_properties
-
-    def scrub(
-        self,
-        *,
-        notes: bool = False,
-        comments: bool = False,
-        metadata: bool = False,
-        hidden_slides: bool = False,
-        unused_layouts: bool = False,
-        unused_masters: bool = False,
-        unreachable_media: bool = False,
-        embedded_fonts: bool = False,
-    ) -> "ScrubReport":
-        """Remove exactly the toggled targets from this deck; return a |ScrubReport|.
-
-        paper-pptx addition — the exit gate before a deck leaves an
-        automated pipeline. Every toggle defaults to False (touch nothing). Removal is
-        relationship-graph surgery: a part leaves the package only by becoming
-        unreachable, so anything reachable from a live slide, layout, or master
-        structurally cannot be removed.
-
-        `notes`: every speaker-notes part (the notes master is retained — declared).
-        `comments`: comment parts and author registries, classic and modern types.
-        `metadata`: clears core-properties text fields (author, title, comments, …;
-        created/modified/revision survive) and removes app.xml, custom-properties, and
-        thumbnail parts. `hidden_slides`: deletes `show="0"` slides (sections and custom
-        shows maintained via the safe delete path). `unused_layouts`/`unused_masters`:
-        layouts no slide references / masters none of whose layouts serve a slide.
-        `unreachable_media`: drops media relationships no XML reference actually uses —
-        referenced media is never touched. `embedded_fonts`: the `p:embeddedFontLst` and
-        every font-data part.
-
-        The report's `parts_removed`/`parts_modified` are the exact zip-member budget of
-        the operation. All toggles False returns an empty report and changes nothing.
-        """
-        from pptx.scrub import scrub_presentation
-
-        return scrub_presentation(
-            self,
-            notes=notes,
-            comments=comments,
-            metadata=metadata,
-            hidden_slides=hidden_slides,
-            unused_layouts=unused_layouts,
-            unused_masters=unused_masters,
-            unreachable_media=unreachable_media,
-            embedded_fonts=embedded_fonts,
-        )
 
     @property
     def notes_master(self) -> NotesMaster:

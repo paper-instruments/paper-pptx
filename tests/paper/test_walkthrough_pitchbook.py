@@ -3,8 +3,8 @@
 Nobody builds a pitch book from scratch: bank-overview pages come from the master deck,
 tombstones from the credentials library, sector pages from the sector team. This module
 freezes that job with shipped API only: assemble from a library deck plus a second source
-deck (one slide per import mode), rebind a library page (the rebind job), renumber,
-scrub — and end with the self-consistency check: the operations' own
+deck (one slide per import mode), rebind a library page (the rebind job), renumber, clear
+the deck for delivery — and end with the self-consistency check: the operations' own
 reports and `diff_decks(input, output)` agree.
 """
 
@@ -47,8 +47,17 @@ def _build_pitchbook(tmp_path):
     # -- renumber: real fields across the assembled deck ----------------------
     prs.apply_footers(footer="Paper Pitch Book", slide_number=True)
 
-    # -- exit gate: metadata and unused furniture go, content stays -----------
-    scrub = prs.scrub(metadata=True, unused_layouts=True, unreachable_media=True)
+    # -- exit gate: authorship and unused furniture go, content stays. Upstream
+    # -- primitives only; `remove` refuses any layout a slide still uses.
+    prs.core_properties.author = ""
+    prs.core_properties.last_modified_by = ""
+    pruned_layouts = []
+    for master in prs.slide_masters:
+        for layout in list(master.slide_layouts):
+            if not layout.used_by_slides:
+                pruned_layouts.append(str(layout.part.partname))
+                master.slide_layouts.remove(layout)
+    assert pruned_layouts  # -- alpha's unused furniture was there to go
 
     out_path = tmp_path / "pitchbook.pptx"
     prs.save(str(out_path))
@@ -57,7 +66,7 @@ def _build_pitchbook(tmp_path):
         "keep": keep,
         "bake": bake,
         "rebind": rebind,
-        "scrub": scrub,
+        "pruned_layouts": pruned_layouts,
     }
 
 
@@ -113,9 +122,15 @@ def test_pitchbook_end_to_end(tmp_path):
         assert any("slidenum" in b.fields for b in blocks), "slide %d" % ordinal
         assert any(b.text == "Paper Pitch Book" for b in blocks)
 
-    # -- scrub held: metadata gone, the assembled content untouched
+    # -- the exit gate held: authorship gone, the assembled content untouched, and the
+    # -- pruned layouts are absent from the delivered package
     assert reopened.core_properties.author == ""
-    assert evidence["scrub"].unused_layouts_removed  # -- alpha's unused furniture went
+    delivered_layouts = {
+        str(master.slide_layouts[idx].part.partname)
+        for master in reopened.slide_masters
+        for idx in range(len(master.slide_layouts))
+    }
+    assert delivered_layouts.isdisjoint(evidence["pruned_layouts"])
 
 
 def test_pitchbook_self_consistency_against_deck_diff(tmp_path):

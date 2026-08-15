@@ -173,3 +173,28 @@ def test_failure_restores_custom_xml_nodes_and_binary_payloads():
     assert xml._element is root
     assert root.get("dirty") is None
     assert root[0] is child
+
+
+def test_mutating_a_digitally_signed_package_refuses_and_changes_nothing():
+    """A signed deck refuses every transacted mutation: rewriting any part would
+    invalidate the OPC signature, and this package will not silently do that."""
+    from pptx.opc.constants import CONTENT_TYPE as CT
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    package = prs.part.package
+    signature_origin = Part(
+        PackURI("/_xmlsignatures/origin.sigs"),
+        CT.OPC_DIGITAL_SIGNATURE_ORIGIN,
+        package,
+        b"signed",
+    )
+    signature_rId = package.relate_to(signature_origin, RT.ORIGIN)
+    before = zip_member_map(save_to_bytes(prs))
+
+    with pytest.raises(UnsupportedStructureError, match="digitally signed"):
+        prs.slides.delete(slide)
+
+    assert len(prs.slides) == 1
+    assert package._rels[signature_rId].target_part is signature_origin
+    assert zip_member_map(save_to_bytes(prs)) == before

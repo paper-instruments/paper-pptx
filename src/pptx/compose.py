@@ -731,7 +731,7 @@ def _live_cache_hit(dest_package, cache, fingerprint, allocated):
     """Return the cached destination part for `fingerprint` only if it is still LIVE.
 
     The cache survives across imports on the destination package, but cached parts can
-    leave the package afterwards (imported slide deleted, then scrub removes the
+    leave the package afterwards (imported slide deleted, then the caller prunes the
     transplanted chain). Reusing such a ghost re-relates a part whose freed partname an
     intervening import may have reallocated - two live parts sharing one partname, and
     save() writing duplicate zip members with different content. A hit therefore counts

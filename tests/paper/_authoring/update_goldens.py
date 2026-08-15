@@ -45,26 +45,6 @@ def manifest_golden_json(fixture_relpath: str) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
 
 
-def scrub_golden_json() -> str:
-    """Return the canonical golden for the full scrub of the scrub_gauntlet fixture.
-
-    The report is the operation's evidence object; the golden pins its
-    exact shape and the exact member budget of scrub-everything on the frozen fixture.
-    """
-    prs = Presentation(str(FIXTURES_DIR / "self_generated/scrub_gauntlet.pptx"))
-    report = prs.scrub(
-        notes=True,
-        comments=True,
-        metadata=True,
-        hidden_slides=True,
-        unused_layouts=True,
-        unused_masters=True,
-        unreachable_media=True,
-        embedded_fonts=True,
-    )
-    return json.dumps(report.to_dict(), indent=2, ensure_ascii=False) + "\n"
-
-
 def import_golden_json() -> str:
     """Return the canonical golden for one keep_appearance import."""
     dest = Presentation(str(FIXTURES_DIR / "self_generated/template_alpha.pptx"))
@@ -95,9 +75,6 @@ def main() -> None:
         out = GOLDENS_DIR / golden_name
         out.write_text(manifest_golden_json(fixture_relpath), encoding="utf-8")
         print("wrote", out)
-    out = GOLDENS_DIR / "scrub_gauntlet.scrub.json"
-    out.write_text(scrub_golden_json(), encoding="utf-8")
-    print("wrote", out)
     out = GOLDENS_DIR / "import_beta_keep.import.json"
     out.write_text(import_golden_json(), encoding="utf-8")
     print("wrote", out)

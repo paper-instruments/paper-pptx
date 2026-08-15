@@ -448,9 +448,40 @@ def test_import_from_libreoffice_authored_source():
     assert len(reopened.slide_masters) == 2
 
 
-def test_import_delete_scrub_reimport_never_duplicates_partnames():
+def _prune_unused_furniture(prs):
+    """Remove masters no slide uses, then unused layouts on the masters that remain.
+
+    Test scaffolding, not an API: this is the caller-side pruning a delivery pipeline
+    does with upstream primitives. Layouts go through upstream `SlideLayouts.remove`;
+    masters need relationship surgery because upstream's `SlideMasters` is a read-only
+    collection.
+    """
+    rId_attr = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    presentation_part = prs.part
+    sldMasterIdLst = prs._element.sldMasterIdLst
+
+    for master in list(prs.slide_masters):
+        layouts = list(master.slide_layouts)
+        if any(layout.used_by_slides for layout in layouts):
+            for layout in layouts:
+                if not layout.used_by_slides:
+                    master.slide_layouts.remove(layout)
+            continue
+        # -- no layout of this master serves a slide: drop the master's id-list entry
+        # -- and its relationship, and the whole chain becomes unreachable
+        for rId, rel in list(presentation_part.rels.items()):
+            if rel.is_external or rel.target_part is not master.part:
+                continue
+            for entry in list(sldMasterIdLst):
+                if entry.get(rId_attr) == rId:
+                    sldMasterIdLst.remove(entry)
+            presentation_part.drop_rel(rId)
+            break
+
+
+def test_import_delete_prune_reimport_never_duplicates_partnames():
     """Regression: the fingerprint-dedupe cache must not
-    resurrect parts that scrub removed - a ghost hit re-relates a part whose freed
+    resurrect parts that left the package - a ghost hit re-relates a part whose freed
     partname a later import reallocated, producing duplicate zip members with different
     content. The cycle below must yield a clean, fully-registered package."""
     import warnings
@@ -461,8 +492,21 @@ def test_import_delete_scrub_reimport_never_duplicates_partnames():
     source_alpha = _open(ALPHA)
     source_beta = _open(BETA)
     dest.import_slide(source_alpha, 0, mode="keep_appearance")
+    transplanted = {
+        str(p.partname)
+        for p in dest.part.package.iter_parts()
+        if "slideMasters/slideMaster" in str(p.partname)
+    }
     dest.slides.delete(len(dest.slides) - 1)
-    dest.scrub(unused_layouts=True, unused_masters=True)
+    _prune_unused_furniture(dest)
+    # -- the prune must genuinely evict the transplanted chain, or the cache below is
+    # -- never asked to distinguish a live part from a ghost and the test proves nothing
+    surviving = {
+        str(p.partname)
+        for p in dest.part.package.iter_parts()
+        if "slideMasters/slideMaster" in str(p.partname)
+    }
+    assert surviving < transplanted
     dest.import_slide(source_beta, 0, mode="keep_appearance")
     dest.import_slide(source_alpha, 0, mode="keep_appearance")
 
@@ -541,21 +585,6 @@ def test_notes_import_enrolls_destination_notes_master():
     assert entry is not None
     target = reopened.part.related_part(entry.rId)
     assert "notesMaster" in str(target.partname)
-
-
-def test_scrub_removes_transplanted_master_once_its_slides_go():
-    """Cross-feature: keep_appearance adds a second master; deleting the imported slide
-    leaves that master unused, and scrub(unused_masters=True) removes the whole chain."""
-    dest = _open(ALPHA)
-    dest.import_slide(_open(BETA), 0, mode="keep_appearance")
-    dest.slides.delete(3)
-    report = dest.scrub(unused_masters=True)
-    assert report.unused_masters_removed == ("/ppt/slideMasters/slideMaster2.xml",)
-    saved = save_to_bytes(dest)
-    _assert_clean(saved)
-    zip_map = zip_member_map(saved)
-    assert "ppt/theme/theme2.xml" not in zip_map  # -- the chain went with it
-    assert "ppt/slideLayouts/slideLayout12.xml" not in zip_map
 
 
 # --------------------------------------------------------------------------------- lo_smoke
