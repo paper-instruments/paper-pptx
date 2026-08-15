@@ -1,8 +1,10 @@
-"""Contracts for slide partname allocation after a delete.
+"""Contracts for slide partname allocation.
 
-Upstream python-pptx could only append slides, so naming the next one `slide{count+1}`
-was always free. `Slides.delete` is a paper-pptx addition that leaves gaps in the
-sequence, after which the count no longer implies a free name.
+Deriving the next slide's name from the slide count collides whenever the partname
+sequence has a gap. This is an upstream defect, not a paper-introduced one: stock
+python-pptx 1.0.2 reaches it by opening any deck whose numbering has a gap, writes
+duplicate zip members, and reopens the result without error while silently dropping a
+slide. `Slides.delete` (a paper addition) only made it easier to reach in-process.
 """
 
 from __future__ import annotations
@@ -75,6 +77,35 @@ def test_repeated_delete_and_add_never_collides():
         assert len(partnames) == len(set(partnames)), partnames
 
     assert len(save_reopen(prs).slides) == 6
+
+
+def test_add_slide_is_safe_on_a_gapped_sequence_not_produced_by_delete():
+    """The upstream-reachable case: a gap that came from the file, not from `delete`.
+
+    Numbering is not required to be contiguous, and tools that remove a slide without
+    renumbering produce exactly this. Stock python-pptx collides here and writes a
+    package that silently loses a slide.
+    """
+    from pptx.opc.packuri import PackURI
+
+    prs = _deck(slide_count=4)
+    for part in list(prs.part.package.iter_parts()):
+        if str(part.partname) == "/ppt/slides/slide4.xml":
+            part.partname = PackURI("/ppt/slides/slide5.xml")
+    assert _slide_partnames(prs) == [
+        "/ppt/slides/slide1.xml",
+        "/ppt/slides/slide2.xml",
+        "/ppt/slides/slide3.xml",
+        "/ppt/slides/slide5.xml",
+    ]
+
+    new_slide = prs.slides.add_slide(prs.slide_layouts[6])
+    shape = new_slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+    shape.text_frame.text = "NEW"
+
+    partnames = _slide_partnames(prs)
+    assert len(partnames) == len(set(partnames))
+    assert _texts(save_reopen(prs)) == ["SLIDE-1", "SLIDE-2", "SLIDE-3", "SLIDE-4", "NEW"]
 
 
 def test_writer_refuses_to_serialize_two_parts_sharing_a_partname(tmp_path):
