@@ -392,6 +392,8 @@ rst_epilog = """
 
 .. |EffectiveValue| replace:: :class:`.EffectiveValue`
 
+.. |EffectiveBullet| replace:: :class:`.EffectiveBullet`
+
 .. |EffectiveParagraphFormat| replace:: :class:`.EffectiveParagraphFormat`
 
 .. |EffectiveShapeFormat| replace:: :class:`.EffectiveShapeFormat`

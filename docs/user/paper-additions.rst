@@ -71,6 +71,20 @@ its provenance intact. See :ref:`inspect_api` for
 :func:`~pptx.inspect.effective_paragraph_format` and
 :func:`~pptx.inspect.effective_shape_format` as well.
 
+:func:`~pptx.inspect.effective_paragraph_format` resolves alignment, line spacing, and the
+paragraph's **bullet** over that same inheritance walk, each reported with its own provenance. The
+bullet arrives as an :class:`~pptx.inspect.EffectiveBullet` naming which of the four kinds actually
+renders — ``"none"``, ``"character"``, ``"numbered"``, or ``"picture"`` — plus the glyph for a
+character bullet, or the numbering scheme and starting number for a numbered one. Two answers
+that read like absences are in fact resolved: a template that explicitly sets *no bullet* resolves
+to ``"none"``, attributed to the rung that set it, and a chain with no bullet anywhere also resolves
+to ``"none"``, through a closing ``rendering default`` provenance step. A paragraph inheriting the
+master's ``•`` is therefore distinguishable from one that renders nothing. The enclosing
+``.to_dict()`` payload is version 2 of ``paper-effective-paragraph-format``. ``"picture"`` is
+reported on read only; there is no picture-bullet writer. Writing bullets is a separate job, done
+with the |BulletFormat| authoring API described under **Edit one deck** below, which reads and
+writes the paragraph's own markup.
+
 Two functions emit deterministic, schema-versioned payloads (dataclasses with ``.to_dict()``)
 built for diffing, golden-file tests, and automation:
 

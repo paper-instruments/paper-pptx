@@ -44,6 +44,11 @@ Resolved values and provenance
    :undoc-members:
    :member-order: bysource
 
+.. autoclass:: EffectiveBullet()
+   :members:
+   :undoc-members:
+   :member-order: bysource
+
 .. autoclass:: EffectiveParagraphFormat()
    :members:
    :undoc-members:

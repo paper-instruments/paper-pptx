@@ -143,6 +143,28 @@ class EffectiveFont:
 
 
 @dataclass(frozen=True)
+class EffectiveBullet:
+    """The bullet that actually renders on one paragraph, with its provenance chain."""
+
+    type: Optional[str]  #: "none", "character", "numbered", "picture"; |None| if unresolved
+    char: Optional[str]  #: the glyph, character bullets only
+    number_scheme: Optional[str]  #: ECMA autonumber token, e.g. "arabicPeriod"; numbered only
+    start_at: Optional[int]  #: first number of the sequence, numbered only
+    resolved: bool
+    provenance: Tuple[ProvenanceStep, ...]
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "char": self.char,
+            "number_scheme": self.number_scheme,
+            "start_at": self.start_at,
+            "resolved": self.resolved,
+            "provenance": [step.to_dict() for step in self.provenance],
+        }
+
+
+@dataclass(frozen=True)
 class BlockAnchor:
     """The pinned anchor shape: part + block index + content hash (detects staleness).
 
@@ -266,28 +288,31 @@ def effective_font(run: "_Run") -> EffectiveFont:
 
 @dataclass(frozen=True)
 class EffectiveParagraphFormat:
-    """Effective alignment and line spacing of one paragraph (paper-pptx addition)."""
+    """Effective alignment, line spacing, and bullet of one paragraph (paper-pptx addition)."""
 
     alignment: EffectiveValue  #: ECMA algn token, e.g. "l", "ctr", "r", "just"
     line_spacing: EffectiveValue  #: float lines (1.0 = single) or EMU |Length| for points
+    bullet: EffectiveBullet  #: the bullet that renders, resolved through the same chain
 
     def to_dict(self) -> dict:
         return {
             "schema": "paper-effective-paragraph-format",
-            "version": 1,
+            "version": 2,  # -- bullet added
             "alignment": self.alignment.to_dict(),
             "line_spacing": self.line_spacing.to_dict(),
+            "bullet": self.bullet.to_dict(),
         }
 
 
 def effective_paragraph_format(paragraph) -> EffectiveParagraphFormat:
-    """Return effective alignment/line-spacing for `paragraph`, with provenance.
+    """Return effective alignment/line-spacing/bullet for `paragraph`, with provenance.
 
     Same inheritance walk as `effective_font`, over paragraph-level properties: the
     paragraph's own `a:pPr`, the shape's `lstStyle` level entry, the placeholder chain (or
-    the presentation's `defaultTextStyle`), ending at the schema defaults (left-aligned,
-    single spacing) — which are explicit in ECMA-376, so exhaustion resolves rather than
-    reporting unresolved.
+    the presentation's `defaultTextStyle`). Exhaustion resolves rather than reporting
+    unresolved: to the ECMA-376 schema default for alignment (left), and to the rendering
+    conventions for line spacing (single) and bullet (no bullet), which the schema does not
+    define.
     """
     p = paragraph._p
     txBody = p.getparent()
@@ -315,6 +340,7 @@ def effective_paragraph_format(paragraph) -> EffectiveParagraphFormat:
     return EffectiveParagraphFormat(
         alignment=resolver.resolve_alignment(chain),
         line_spacing=resolver.resolve_line_spacing(chain),
+        bullet=resolver.resolve_bullet(chain),
     )
 
 
@@ -991,6 +1017,60 @@ class _FontResolver(object):
             ProvenanceStep("rendering default", None, "line spacing defaults to 100%", True)
         )
         return EffectiveValue(1.0, None, True, tuple(steps))
+
+    def resolve_bullet(self, chain) -> EffectiveBullet:
+        """Resolve the `EG_TextBullet` choice over a paragraph chain.
+
+        The first rung supplying any member wins outright — `a:buNone` is a positive answer
+        ("explicitly no bullet"), not an absence. There is no ECMA default bullet, so
+        exhaustion resolves to "none" through a rendering-default step. Attributes are read
+        raw: the generated descriptors are `RequiredAttribute` and would raise on exactly the
+        malformed input this reports honestly.
+        """
+        steps = []
+
+        def malformed(detail):
+            """Report a present-but-unusable member and stop, per `resolve_line_spacing`."""
+            steps.append(ProvenanceStep(label, partname, detail, False))
+            return EffectiveBullet(None, None, None, None, False, tuple(steps))
+
+        def supplied(detail, type_, char=None, scheme=None, start_at=None):
+            steps.append(ProvenanceStep(label, partname, detail, True))
+            return EffectiveBullet(type_, char, scheme, start_at, True, tuple(steps))
+
+        for label, partname, pPr in chain:
+            bullet = pPr.eg_bullet if pPr is not None else None
+            if bullet is None and pPr is not None:
+                bullet = pPr.find(qn("a:buBlip"))
+            if bullet is None:
+                steps.append(
+                    ProvenanceStep(label, partname, self._absence(pPr, "no bullet"), False)
+                )
+                continue
+            if bullet.tag == qn("a:buNone"):
+                return supplied("buNone", "none")
+            if bullet.tag == qn("a:buChar"):
+                char = bullet.get("char")
+                if char is None:
+                    return malformed("buChar with no char")
+                return supplied('buChar char="%s"' % char, "character", char=char)
+            if bullet.tag == qn("a:buAutoNum"):
+                scheme = bullet.get("type")
+                if scheme is None:
+                    return malformed("buAutoNum with no type")
+                raw_start = bullet.get("startAt")
+                try:
+                    start_at = 1 if raw_start is None else int(raw_start)
+                except ValueError:
+                    return malformed('buAutoNum with non-integer startAt="%s"' % raw_start)
+                return supplied(
+                    'buAutoNum type="%s"' % scheme, "numbered", scheme=scheme, start_at=start_at
+                )
+            return supplied("buBlip", "picture")
+        steps.append(
+            ProvenanceStep("rendering default", None, "no bullet renders by default", True)
+        )
+        return EffectiveBullet("none", None, None, None, True, tuple(steps))
 
     def resolve_container_fill(
         self, container, label, partname, style_ref, ref_label
