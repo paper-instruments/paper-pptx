@@ -497,8 +497,6 @@ def test_corrupt_input_speaks_as_typed_refusal():
     with pytest.raises(UnsupportedStructureError, match="relationship graph is broken"):
         diff_decks(corrupt, corrupt)
     with pytest.raises(UnsupportedStructureError, match="relationship graph is broken"):
-        Presentation(corrupt).scrub(notes=True)
-    with pytest.raises(UnsupportedStructureError, match="relationship graph is broken"):
         Presentation(corrupt).apply_footers(slide_number=True)
     dest = Presentation(_path("self_generated/template_alpha.pptx"))
     with pytest.raises(UnsupportedStructureError, match="relationship graph is broken"):

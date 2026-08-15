@@ -99,7 +99,7 @@ print(len(delta.slide_changes), "slides changed")
 ```
 
 A fuller composition workflow (import a slide from another deck, apply live
-footers, scrub, and verify) is in
+footers, and verify) is in
 [A complete example](#compose-assemble-decks-across-files) below and in
 [`docs/user/paper-additions.rst`](docs/user/paper-additions.rst).
 
@@ -129,6 +129,16 @@ additions group into four verbs: **perceive**, **edit**, **compose**,
 **verify**. A handful of existing behaviors are deliberately stricter; those
 are listed honestly in
 [What is deliberately not additive](#what-is-deliberately-not-additive).
+
+**One capability was cut before release.** An earlier plan made a `scrub()`
+verb — a single call bundling eight deletion passes behind toggles, returning a
+report — the "exit gate" for delivery. It was built, then removed. Its stated
+safety property (a part reachable from a live slide cannot be removed) is the
+serializer's, not the verb's: dropping a relationship un-writes a part for any
+caller. What remained was a loop over `drop_rel` with a receipt attached, and a
+four-line recipe does the same job with primitives that were already public.
+Deleting a deck's speaker notes, comments, and authorship is the caller's job,
+and the package it saves is the evidence.
 
 ### Perceive: read what the deck actually renders
 
@@ -288,13 +298,14 @@ PowerPoint's Insert → Header & Footer behavior: genuine `a:fld` slide-number
 and date fields that renumber on reorder, bound to the layout's footer
 placeholders, applied idempotently.
 
-**A scrub gate before the deck leaves.** Speaker notes, comments, and metadata
-leaking in an externally sent deck is a compliance failure, not a cosmetic one.
-`Presentation.scrub()` removes selected notes, comments, metadata, hidden
-slides, unused layouts/masters, unreachable media, and embedded fonts — by
-relationship-graph reachability, so anything a live slide still uses
-structurally cannot be removed — and returns a `ScrubReport` listing exactly
-which parts were removed or modified.
+**Send-safe delivery, no special API needed.** Speaker notes, comments, and
+metadata leaking in an externally sent deck is a compliance failure, not a
+cosmetic one — and removing them is `drop_rel` plus a cleared core property. A
+part leaves the package by becoming unreachable, and the serializer never writes
+an unreachable part, so anything a live slide still uses structurally cannot be
+removed. Unused layouts go through `SlideLayouts.remove()`, which refuses a
+layout still in use. The recipe is in
+[`docs/user/paper-additions.rst`](docs/user/paper-additions.rst).
 
 A complete example:
 
@@ -310,7 +321,7 @@ for shift in report.run_shifts:
     print(shift.text, shift.before["name"]["value"], "->", shift.after["name"]["value"])
 
 prs.apply_footers(footer="Confidential", slide_number=True)
-prs.scrub(metadata=True, comments=True)
+prs.core_properties.author = ""
 prs.save("house_deck.v2.pptx")
 
 delta = diff_decks("house_deck.pptx", "house_deck.v2.pptx", detail="text")
@@ -419,7 +430,6 @@ from `pptx` itself; import from the module named below.
 | `pptx.diff` | Semantic deck-to-deck diff (`diff_decks`) | [docs](docs/api/diff.rst) |
 | `pptx.compose` | Cross-deck slide import and deck append (via `Presentation.import_slide` / `append_deck`) | [docs](docs/api/compose.rst) |
 | `pptx.rebind` | Layout rebinding with shift reports (via `Slide.rebind_layout`) | [docs](docs/api/rebind.rst) |
-| `pptx.scrub` | Reported removal of notes, comments, metadata, unused parts (via `Presentation.scrub`) | [docs](docs/api/scrub.rst) |
 | `pptx.hf` | Real slide-number/date/footer fields (via `apply_footers`) | [docs](docs/api/hf.rst) |
 | `pptx.package` | Semantic package diff and byte-minimal `patch_save` | [docs](docs/api/package.rst) |
 | `pptx.errors` | The `PaperRefusal` typed-refusal hierarchy | [docs](docs/api/errors.rst) |

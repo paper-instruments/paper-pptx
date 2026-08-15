@@ -412,8 +412,6 @@ rst_epilog = """
 
 .. |HeaderFooters| replace:: :class:`.HeaderFooters`
 
-.. |ScrubReport| replace:: :class:`.ScrubReport`
-
 .. |RebindReport| replace:: :class:`.RebindReport`
 
 .. |RunShift| replace:: :class:`.RunShift`

@@ -47,7 +47,7 @@ verifying existing decks (overview: :ref:`paper_additions`):
   placeholder → layout → master → theme chain, with provenance
 * Replace text while preserving formatting (anchored and staleness-detecting); make real bullets;
   read and normalize autofit; swap an image while keeping its crop; replace chart data by shape name
-* Apply real slide-number and date fields; scrub a deck send-safe; rebind a slide to another
+* Apply real slide-number and date fields; rebind a slide to another
   layout; import slides across presentations; diff two decks part-by-part
 * Raise a typed refusal and leave the document byte-identical when an operation cannot be
   completed safely
@@ -132,7 +132,6 @@ API Documentation
    api/edit
    api/package
    api/hf
-   api/scrub
    api/rebind
    api/compose
    api/diff

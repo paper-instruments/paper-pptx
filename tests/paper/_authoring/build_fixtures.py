@@ -855,10 +855,10 @@ def build_footers_applied() -> Path:
 
 
 def build_scrub_gauntlet() -> Path:
-    """Everything scrub must remove, next to everything it must keep.
+    """Every delivery hazard at once, next to everything that must survive.
 
     Live content: 4 slides (slide 4 hidden), notes on slides 1 and 3, a picture on
-    slide 1 (media reachable from a live slide - must survive every scrub), core-props
+    slide 1 (media reachable from a live slide - must survive any pruning), core-props
     personal info. Removal targets added by zip surgery, honestly self-generated:
     classic comments (`p:cmLst` part on slide 1 + `p:cmAuthorLst` on the presentation),
     a custom-properties part, an embedded font (`p:embeddedFontLst` + fntdata part), and
