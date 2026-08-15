@@ -303,29 +303,21 @@ def _source_package_map(source, prs, label: str) -> dict:
 
 
 def _read_stream_package_bytes(source, label: str) -> bytes:
-    """Read a package stream in bounded chunks with typed I/O failures."""
-    from pptx._zipguard import MAX_COMPRESSED_BYTES
-    from pptx.errors import PackageLimitError, UnsupportedStructureError
+    """Read a package stream in fixed-size chunks, with typed I/O failures."""
+    from pptx.errors import UnsupportedStructureError
 
     chunks = []
-    total = 0
     try:
         while True:
-            chunk = source.read(min(1024 * 1024, MAX_COMPRESSED_BYTES - total + 1))
+            chunk = source.read(1024 * 1024)
             if not isinstance(chunk, bytes):
                 raise UnsupportedStructureError(
                     "diff_decks refused: %s input stream must return bytes" % label
                 )
             if not chunk:
                 return b"".join(chunks)
-            total += len(chunk)
-            if total > MAX_COMPRESSED_BYTES:
-                raise PackageLimitError(
-                    "diff_decks refused: %s input stream exceeds the compressed package limit"
-                    % label
-                )
             chunks.append(chunk)
-    except (PackageLimitError, UnsupportedStructureError):
+    except UnsupportedStructureError:
         raise
     except (OSError, TypeError, ValueError) as exc:
         raise UnsupportedStructureError(

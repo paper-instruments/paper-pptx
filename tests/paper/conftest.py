@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from pptx.opc.package import PartFactory
@@ -12,6 +14,12 @@ from .clock import FrozenClock
 # -- import-time registration state established by pptx/__init__.py.
 _CANONICAL_PART_TYPES = dict(PartFactory.part_type_for)
 
+_BIG_IO_MARK = "big_io"
+_BIG_IO_SKIP_REASON = (
+    "big_io: writes and reads a package larger than 256 MiB; enable with PAPER_BIG_IO=1 or "
+    "`pytest -m big_io`"
+)
+
 
 def pytest_configure(config):
     # -- registered here (not in pyproject.toml) so no upstream config file changes; the
@@ -21,6 +29,21 @@ def pytest_configure(config):
         "lo_smoke: independent-loader smoke via headless LibreOffice; skipped when soffice "
         "is unavailable",
     )
+    config.addinivalue_line(
+        "markers",
+        "big_io: package intake at a size that costs real disk I/O (>256 MiB written and "
+        "read); skipped unless PAPER_BIG_IO=1 or selected with `-m big_io`",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip `big_io` tests unless the caller opted in, by env var or by `-m` selector."""
+    if os.environ.get("PAPER_BIG_IO") or _BIG_IO_MARK in (config.getoption("-m") or ""):
+        return
+    skip = pytest.mark.skip(reason=_BIG_IO_SKIP_REASON)
+    for item in items:
+        if _BIG_IO_MARK in item.keywords:
+            item.add_marker(skip)
 
 
 @pytest.fixture(autouse=True)
