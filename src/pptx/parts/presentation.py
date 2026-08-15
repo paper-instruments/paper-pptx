@@ -120,7 +120,12 @@ class PresentationPart(XmlPart):
 
     @property
     def _next_slide_partname(self):
-        """Return |PackURI| instance containing next available slide partname."""
-        sldIdLst = self._element.get_or_add_sldIdLst()
-        partname_str = "/ppt/slides/slide%d.xml" % (len(sldIdLst) + 1)
-        return PackURI(partname_str)
+        """Return |PackURI| instance containing next available slide partname.
+
+        Delegates to the package allocator, which searches for a partname nothing else
+        holds. Deriving the number from the slide count instead — as upstream does — is
+        only safe while slides can never be removed: `Slides.delete` (a paper-pptx
+        addition) leaves gaps in the sequence, after which the count no longer implies a
+        free name and the next add silently collides with a live slide.
+        """
+        return self.package.next_partname("/ppt/slides/slide%d.xml")

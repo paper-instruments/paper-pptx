@@ -106,11 +106,36 @@ class PackageWriter:
         """Write blob of each part in `parts` to the package.
 
         A rels item for each part is also written when the part has relationships.
+
+        Refuses before the first write when two parts claim one partname. Such a package
+        serializes without complaint into a zip carrying duplicate member names; readers
+        then keep whichever copy they see last, so a part is lost with no error anywhere.
+        Duplicate detection otherwise exists only on the reading side, which is too late —
+        the damaged file is already on disk.
         """
+        self._refuse_duplicate_partnames()
         for part in self._parts:
             phys_writer.write(part.partname, part.blob)
             if part._rels:  # pyright: ignore[reportPrivateUsage]
                 phys_writer.write(part.partname.rels_uri, part.rels.xml)
+
+    def _refuse_duplicate_partnames(self) -> None:
+        """Raise |PackageLimitError| when two parts share a partname."""
+        from pptx.errors import PackageLimitError
+
+        seen: set[str] = set()
+        duplicated: set[str] = set()
+        for part in self._parts:
+            partname = str(part.partname)
+            if partname in seen:
+                duplicated.add(partname)
+            seen.add(partname)
+        if duplicated:
+            raise PackageLimitError(
+                "package has %d part(s) sharing a partname with another part, which "
+                "would write duplicate zip members and silently drop content: %s"
+                % (len(duplicated), ", ".join(sorted(duplicated)))
+            )
 
     def _write_pkg_rels(self, phys_writer: _PhysPkgWriter) -> None:
         """Write the XML rels item for `pkg_rels` ('/_rels/.rels') to the package."""

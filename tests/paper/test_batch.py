@@ -16,7 +16,11 @@ import pytest
 
 from pptx import Presentation
 from pptx._transaction import PackageTransaction
-from pptx.errors import BoundaryViolationError, UnsupportedStructureError
+from pptx.errors import (
+    BoundaryViolationError,
+    PackageLimitError,
+    UnsupportedStructureError,
+)
 from pptx.package import patch_save
 from pptx.util import Inches
 
@@ -94,17 +98,12 @@ def test_batch_yields_the_presentation():
         assert batched is prs
 
 
-@pytest.mark.filterwarnings("ignore:Duplicate name:UserWarning")
 def test_batch_refuses_an_invalid_deck_at_block_exit():
-    """A partname collision is invisible to the individual edit and fatal to the package.
-
-    Staging the candidate writes both parts under one name, so stdlib `zipfile` warns
-    before the guarded reader turns the duplicate member into the typed refusal.
-    """
+    """A partname collision is invisible to the individual edit and fatal to the package."""
     prs = _deck()
     before = _texts(prs)
 
-    with pytest.raises(UnsupportedStructureError):
+    with pytest.raises(PackageLimitError, match="sharing a partname"):
         with prs.batch():
             prs.slides[0].shapes[0].text_frame.text = "GOOD-EDIT"
             slide_parts = [
@@ -147,22 +146,25 @@ def test_caller_exception_inside_batch_rolls_back_and_propagates():
     assert _texts(save_reopen(prs)) == before
 
 
-@pytest.mark.filterwarnings("ignore:Duplicate name:UserWarning")
-def test_batch_catches_corruption_from_operations_that_lack_their_own_transaction():
+def test_block_rolls_back_operations_that_lack_their_own_transaction():
     """`Slides.add_slide` runs no transaction of its own; the block covers it anyway.
 
-    Deleting a slide leaves a gap in the slide partname sequence, and the next
-    `add_slide` reuses a partname that is still in use. Outside a batch nothing refuses
-    and `save()` writes a package that cannot be reopened.
+    The whole mutation surface inherited from python-pptx is unguarded on the default
+    path — a failure part-way through leaves whatever it already did. Inside a block the
+    enclosing transaction owns those changes too, so a refusal takes them back.
     """
-    prs = _deck(slide_count=5)
+    prs = _deck()
     before = _texts(prs)
+    slide_count = len(prs.slides)
 
     with pytest.raises(UnsupportedStructureError):
         with prs.batch():
-            prs.slides.delete(prs.slides[1])
-            prs.slides.add_slide(prs.slide_layouts[6])
+            prs.slides.add_slide(prs.slide_layouts[6])  # no transaction of its own
+            assert len(prs.slides) == slide_count + 1  # visible inside the block
+            duplicated = list(prs.part.rels._rels.values())[-1]
+            prs.part.rels._rels["rId1"] = duplicated  # force a refusal
 
+    assert len(prs.slides) == slide_count
     assert _texts(prs) == before
     assert _texts(save_reopen(prs)) == before
 

@@ -184,11 +184,22 @@ class DescribePresentationPart(object):
 
         assert slide == expected_value
 
-    def it_knows_the_next_slide_partname_to_help(self):
-        prs_elm = element("p:presentation/p:sldIdLst/(p:sldId,p:sldId)")
-        prs_part = PresentationPart(None, None, None, prs_elm)
+    def it_delegates_the_next_slide_partname_to_the_package(self, request):
+        """paper-pptx: the allocator must pick a name nothing else holds.
 
-        assert prs_part._next_slide_partname == PackURI("/ppt/slides/slide3.xml")
+        Upstream derived it from the slide count, which is only free while slides can
+        never be removed. `Slides.delete` breaks that, so allocation now goes through
+        `OpcPackage.next_partname`, which searches for an unused name.
+        """
+        package_ = instance_mock(request, Package)
+        package_.next_partname.return_value = PackURI("/ppt/slides/slide2.xml")
+        prs_elm = element("p:presentation/p:sldIdLst/(p:sldId,p:sldId)")
+        prs_part = PresentationPart(None, None, package_, prs_elm)
+
+        partname = prs_part._next_slide_partname
+
+        package_.next_partname.assert_called_once_with("/ppt/slides/slide%d.xml")
+        assert partname == PackURI("/ppt/slides/slide2.xml")
 
     # fixture components ---------------------------------------------
 
