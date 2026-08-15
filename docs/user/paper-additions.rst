@@ -44,6 +44,19 @@ Normal package intake uses the same refusal boundary. It rejects ambiguous or un
 members before parsing XML. A path-based ``save()`` writes beside the destination and replaces
 it atomically only after serialization succeeds; stream saves retain normal stream semantics.
 
+Validation runs per mutating call by default. :meth:`~pptx.presentation.Presentation.batch`
+trades that granularity for speed: inside the block the whole-deck check runs once, at exit,
+rather than after every call. The check itself is unchanged, and it additionally covers the
+mutation surface inherited from ``python-pptx``, which runs no transaction of its own — so a
+sequence that previously saved an unreadable deck refuses instead. A refusal discards every
+edit in the block, so scope a block to work you would be willing to redo, and save after it
+closes (saving inside an open block raises |BoundaryViolationError|)::
+
+    with prs.batch():
+        for slide in prs.slides:
+            slide.shapes[0].text_frame.text = "..."
+    prs.save("deck.pptx")
+
 
 Perceive a deck
 ---------------
