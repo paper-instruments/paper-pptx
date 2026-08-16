@@ -264,11 +264,6 @@ def effective_font(run: "_Run") -> EffectiveFont:
     return _FontResolver(part).effective_font(r, sp)
 
 
-#: Group nesting beyond this depth refuses: no real deck nests remotely this deep, and an
-#: unbounded recursion on hostile/malformed XML would be a fail-silent hazard.
-MAX_GROUP_DEPTH = 16
-
-
 @dataclass(frozen=True)
 class EffectiveParagraphFormat:
     """Effective alignment and line spacing of one paragraph (paper-pptx addition)."""
@@ -608,12 +603,11 @@ def inspect_text(slide: "Slide") -> TextInspection:
     """Return a |TextInspection| of every text block on `slide`, visibility-complete.
 
     Traversal is depth-first document order over the shape tree: top-level `p:sp` shapes,
-    `p:sp` shapes inside groups (recursively, to `MAX_GROUP_DEPTH`), and table cells
+    `p:sp` shapes inside groups (recursively, to any depth), and table cells
     (row-major within each table graphic-frame). `block_index` numbers blocks consecutively
     in that pinned order. Table-cell blocks report their text but are *blind regions* for
     effective values (see |TextBlock|); chart text lives in the chart part, not the slide
-    part, and is out of scope here. Group nesting deeper than `MAX_GROUP_DEPTH` raises
-    |UnsupportedStructureError|.
+    part, and is out of scope here.
     """
     part = slide.part
     partname = str(part.partname)
@@ -629,7 +623,7 @@ def iter_text_bodies(spTree):
     """Yield `(kind, owner_elm, txBody, group_path, cell_detail)` depth-first, document order.
 
     The single source of traversal truth shared by `inspect_text` and `pptx.edit`
-    (visibility-complete: top-level `p:sp`, grouped `p:sp` recursively to `MAX_GROUP_DEPTH`,
+    (visibility-complete: top-level `p:sp`, grouped `p:sp` recursively to any depth,
     table cells row-major). `kind` is "shape" | "group" | "table-cell"; `owner_elm` is the
     `p:sp` or `p:graphicFrame`; `cell_detail` is `"<frame-name>!r{row}c{col}"` for table
     cells, None otherwise.
@@ -643,11 +637,6 @@ _MC_ALTERNATE_CONTENT = (
 
 
 def _iter_container(container_elm, group_path):
-    if len(group_path) > MAX_GROUP_DEPTH:
-        raise UnsupportedStructureError(
-            "group shapes nested more than %d deep; refusing to traverse what no real deck"
-            " produces" % MAX_GROUP_DEPTH
-        )
     for child in container_elm:
         if child.tag == _MC_ALTERNATE_CONTENT:
             # -- markup-compatibility content renders one of several branches depending on
