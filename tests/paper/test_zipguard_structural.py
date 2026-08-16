@@ -287,14 +287,16 @@ def test_normal_open_refuses_structurally_ambiguous_archive(tmp_path, build, fra
 
 
 def test_zipguard_structural_refusal_population_is_pinned():
-    """`_zipguard.py` has 84 `raise PackageLimitError` sites, every one structural.
+    """`_zipguard.py` has 83 `raise PackageLimitError` sites, every one structural.
 
     The twelve policy sites that enforced the six numeric resource ceilings are gone. Two
     sites were added, each for a shape PowerPoint refuses: a package carrying bytes in
     front of its first member, and a package whose members do not all resolve to a
-    declared content type. Any movement from 84 means a structural or ambiguity refusal
-    was added or dropped, so a mismatch here is a prompt to check which.
+    declared content type. One was removed: the directory-entry refusal, since a ZIP
+    directory record is not an OPC part and PowerPoint opens packages containing them.
+    Any movement from 83 means a structural or ambiguity refusal was added or dropped, so
+    a mismatch here is a prompt to check which.
     """
     source = Path(_zipguard.__file__).read_text(encoding="utf-8")
 
-    assert source.count("raise PackageLimitError") == 84
+    assert source.count("raise PackageLimitError") == 83
