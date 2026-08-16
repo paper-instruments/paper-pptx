@@ -441,6 +441,13 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     nothing changed at all, `out_path` is written as an exact byte copy of `original_path`
     (the no-op round trip is byte-identical).
 
+    Not interchangeable with |Presentation.save|, which is also atomic on a path:
+    atomicity is how the bytes land, narrowness is which bytes get written. `save()`
+    re-serializes every part, so even an unchanged part gets new bytes; `patch_save`
+    restores the original bytes for every part that is semantically identical.
+
+    Symlinked destinations are resolved, so the file a link names is the file replaced.
+
     Raises |UnsupportedStructureError| when `original_path` is not a readable zip package
     (before anything is written) and |ValueError| when `document` cannot save itself.
     """
@@ -452,6 +459,8 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     original_map = _read_zip_map(original_path)
 
     buffer = _io.BytesIO()
+    # -- narrow save runs through the ordinary stream-save path, so `patch_save` has a live
+    # -- dependency on it: a regression there breaks this too
     document.save(buffer)
     candidate_map = _read_zip_map_from_bytes(buffer.getvalue(), "in-memory save output")
 
@@ -500,7 +509,9 @@ def _atomic_write_bytes(data: bytes, out_path: str) -> None:
 
 def _atomic_write(write, out_path: str) -> None:
     """Run `write(file_handle)` against a temp file, then move it into place atomically."""
-    destination = _os.path.abspath(str(out_path))
+    # -- realpath, not abspath: abspath normalizes but does not resolve symlinks, so the
+    # -- replace below would land on the link and leave the file it names untouched
+    destination = _os.path.realpath(str(out_path))
     out_dir = _os.path.dirname(destination)
     existing_mode = (
         _stat.S_IMODE(_os.stat(destination).st_mode) if _os.path.exists(destination) else None
@@ -517,7 +528,7 @@ def _atomic_write(write, out_path: str) -> None:
             active_umask = _os.umask(0)
             _os.umask(active_umask)
             _os.chmod(temp_path, 0o666 & ~active_umask)
-        _os.replace(temp_path, str(out_path))
+        _os.replace(temp_path, destination)
     except BaseException:
         if _os.path.exists(temp_path):
             _os.unlink(temp_path)

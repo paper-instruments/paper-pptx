@@ -210,6 +210,15 @@ class Presentation(PartElementProxy):
 
         `file` can be either a file-path or a file-like object open for writing bytes.
 
+        A file-path destination is written atomically, resolving symlinks, so a failure
+        part-way through leaves any existing file untouched. A file-like destination is
+        written straight through once the whole package has serialized successfully. See
+        :meth:`pptx.opc.package.OpcPackage.save` for what atomic replacement costs.
+
+        :func:`pptx.package.patch_save` is the narrow-save alternative: it is atomic too,
+        and additionally restores the original bytes of every part that did not change, so
+        a no-op round trip is byte-identical.
+
         Refuses with |BoundaryViolationError| while a :meth:`batch` block is open on this
         package: those edits have not been validated yet and may still roll back, so
         writing them out would publish a package the block is not prepared to stand
