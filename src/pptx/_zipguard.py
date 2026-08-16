@@ -6,6 +6,14 @@ end-of-central-directory records, member counts and offsets that disagree, dupli
 case-equivalent member names, local headers that contradict the central directory, and
 data that overlaps or trails a member's declared extent.
 
+The archive must also span its file exactly, beginning at the first byte and ending with
+an end record that accounts for every byte after it. Both halves are PowerPoint's rule,
+established by opening each shape in the application: it refuses a package carrying
+undeclared trailing bytes, one whose end record declares an absent comment, and one with
+bytes in front of its first member. No Python reader reproduces this -- stdlib ``zipfile``,
+upstream python-pptx and LibreOffice accept all three -- so these refusals look like
+over-strictness until measured. Declared trailing data is legitimate and is accepted.
+
 Only the two compression methods permitted by the OPC ZIP mapping (stored and
 deflated) are accepted. Every member is inflated from its raw compressed bytes
 rather than through ``ZipFile.read()``. This allows actual output length, CRC, and
@@ -186,6 +194,21 @@ def _preflight_zip_stream(stream: BinaryIO) -> None:
         if total_entries and central_size < total_entries * _CENTRAL_HEADER.size:
             raise PackageLimitError("ZIP central directory is too small for its member count")
 
+        # -- The archive must also START where the file does. Bytes in front of the first
+        # -- member leave readers disagreeing about where the archive begins: PowerPoint
+        # -- refuses such a package, LibreOffice renders something other than the deck, and
+        # -- a permissive reader edits whichever reading it happened to take. An archive
+        # -- declaring no members has no first member and legitimately begins with its own
+        # -- end record.
+        if total_entries:
+            stream.seek(0, os.SEEK_SET)
+            if stream.read(len(_LOCAL_HEADER_SIGNATURE)) != _LOCAL_HEADER_SIGNATURE:
+                raise PackageLimitError(
+                    "ZIP package does not begin with a member record, so bytes precede the "
+                    "archive and readers disagree about where it starts; remove the leading "
+                    "bytes or re-save the package from PowerPoint"
+                )
+
         _scan_central_directory(
             stream,
             central_offset,
@@ -219,9 +242,18 @@ def _find_end_record(stream: BinaryIO, archive_size: int) -> Tuple[int, Tuple[in
             candidates.append((archive_size - tail_size + index, fields))
 
     if not candidates:
-        raise PackageLimitError("ZIP package has no valid end-of-central-directory record")
+        raise PackageLimitError(
+            "ZIP package has no end-of-central-directory record accounting for the end of "
+            "the file: either bytes were appended after the archive, or the record declares "
+            "an archive comment that is not there; PowerPoint refuses a package in this "
+            "state, so remove the trailing bytes or re-save the package"
+        )
     if len(candidates) != 1:
-        raise PackageLimitError("ZIP package has ambiguous end-of-central-directory records")
+        raise PackageLimitError(
+            "ZIP package has more than one end-of-central-directory record accounting for "
+            "the end of the file, so its member list has no single reading; re-save the "
+            "package from PowerPoint to rewrite one unambiguous record"
+        )
     return candidates[0]
 
 
