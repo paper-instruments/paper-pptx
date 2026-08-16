@@ -499,7 +499,27 @@ class GuardedZipReader:
         return parts
 
     def _validate_content_types(self, content_types: bytes) -> None:
-        _parse_content_types(content_types)
+        defaults, overrides = _parse_content_types(content_types)
+
+        # -- OPC gives every part a content type, by an Override naming the part or a
+        # -- Default matching its extension. A member with neither has no type at all, and
+        # -- PowerPoint refuses such a package whatever the part is for -- a slide, an image
+        # -- it draws, or a thumbnail it never reads. Keys are normalized exactly as
+        # -- `_parse_content_types` stored them.
+        undeclared = sorted(
+            info.filename
+            for info in self._infos
+            if info.filename != _CONTENT_TYPES_NAME
+            and ("/" + info.filename).casefold() not in overrides
+            and _member_extension(info.filename) not in defaults
+        )
+        if undeclared:
+            raise PackageLimitError(
+                "ZIP members have no content type, so their parts cannot be interpreted: "
+                "%s. [Content_Types].xml declares no Default for their extension and no "
+                "Override for their name; add the missing declaration or re-save the "
+                "package from PowerPoint" % ", ".join(repr(name) for name in undeclared)
+            )
 
     def _validate_local_header(self, info: ZipInfo, boundary: int) -> int:
         stream = self._zip_file.fp
@@ -682,6 +702,15 @@ class GuardedZipReader:
         if crc & 0xFFFFFFFF != info.CRC:
             raise PackageLimitError(f"ZIP member {info.filename!r} fails its CRC check")
         return b"".join(chunks)
+
+
+def _member_extension(name: str) -> str:
+    """Return `name`'s extension keyed as ``Default`` declarations are stored.
+
+    Empty when the final segment carries no period, which no ``Default`` can match.
+    """
+    leaf = name.rsplit("/", 1)[-1]
+    return leaf.rsplit(".", 1)[-1].lower() if "." in leaf else ""
 
 
 def _parse_content_types(data: bytes) -> Tuple[Dict[str, str], Dict[str, str]]:
