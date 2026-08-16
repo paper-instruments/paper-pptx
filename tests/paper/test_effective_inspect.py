@@ -401,16 +401,47 @@ def test_inspect_text_block_order_is_depth_first_document_order():
     assert [b.anchor.block_index for b in inspection.blocks] == list(range(len(texts)))
 
 
-def test_pathological_group_nesting_refuses_instead_of_recursing_forever():
+@pytest.mark.parametrize("depth", [17, 64, 248])
+def test_deeply_nested_groups_inspect_without_refusing(depth):
+    """A retired guard used to refuse the whole slide past depth 16, hiding ordinary shapes
+    alongside the nest. Depth 248 is the deepest a deck can be and still parse: libxml2 caps
+    document nesting at 256 elements, so no loadable deck exceeds it."""
     prs = _open("self_generated/minimal_clean.pptx")
-    shapes = prs.slides[0].shapes
-    group = shapes.add_group_shape()
-    for _ in range(17):
+    slide = prs.slides[0]
+    shallow_before = len(inspect_text(slide).blocks)
+
+    group = slide.shapes.add_group_shape()
+    for _ in range(depth - 1):
         group = group.shapes.add_group_shape()
     box = group.shapes.add_textbox(0, 0, 914400, 914400)
-    box.text_frame.paragraphs[0].add_run().text = "too deep"
-    with pytest.raises(UnsupportedStructureError, match="nested"):
-        inspect_text(prs.slides[0])
+    box.text_frame.paragraphs[0].add_run().text = "deep text"
+
+    blocks = inspect_text(slide).blocks
+    texts = [b.text for b in blocks]
+    # -- the deep block is reported, and every pre-existing shallow block survives with it
+    assert "deep text" in texts
+    assert len(blocks) == shallow_before + 1
+    deep = next(b for b in blocks if b.text == "deep text")
+    assert deep.container == "group"
+    assert deep.blind is False
+
+
+def test_deeply_nested_group_deck_round_trips_through_a_file():
+    """The nest must survive save -> load, not just in-memory inspection."""
+    import io
+
+    prs = _open("self_generated/minimal_clean.pptx")
+    group = prs.slides[0].shapes.add_group_shape()
+    for _ in range(247):
+        group = group.shapes.add_group_shape()
+    box = group.shapes.add_textbox(0, 0, 914400, 914400)
+    box.text_frame.paragraphs[0].add_run().text = "deep text"
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    reloaded = Presentation(buf)
+    assert "deep text" in [b.text for b in inspect_text(reloaded.slides[0]).blocks]
 
 
 def test_effective_font_resolves_runs_inside_groups():
