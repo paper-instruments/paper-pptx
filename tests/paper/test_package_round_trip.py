@@ -210,6 +210,79 @@ def test_package_past_the_compressed_and_binary_member_ceilings_opens(tmp_path):
     assert len(_guarded_open(target)) == 1
 
 
+# ------------------------------------------------------------------------ directory entries
+
+
+def _rezip_with_directory_entries(source, destination) -> int:
+    """Rewrite `source` the way an unzip-edit-rezip loop does; return the folder count.
+
+    The folder records are emitted *interleaved* with the members, ahead of the first member
+    in each directory, which is what `zip -r` and `shutil.make_archive` produce. Writing them
+    all at the front instead would leave every member's data region contiguous, and a reader
+    that mishandled them could still pass.
+    """
+    written = 0
+    with zipfile.ZipFile(source) as incoming, zipfile.ZipFile(
+        destination, "w", zipfile.ZIP_DEFLATED
+    ) as outgoing:
+        seen: set[str] = set()
+        for info in incoming.infolist():
+            folder = ""
+            for segment in info.filename.split("/")[:-1]:
+                folder += segment + "/"
+                if folder in seen:
+                    continue
+                seen.add(folder)
+                record = zipfile.ZipInfo(folder)
+                record.external_attr = (0o40755 << 16) | 0x10
+                outgoing.writestr(record, b"")
+                written += 1
+            outgoing.writestr(info.filename, incoming.read(info.filename))
+    return written
+
+
+def test_deck_rezipped_with_directory_entries_opens_and_round_trips(tmp_path):
+    """A ZIP directory record is not an OPC part, so it is ignored rather than refused.
+
+    PowerPoint opens such a package, so refusing it would reject decks the application
+    accepts. Every unzip-edit-rezip pipeline emits these records, which is the common way
+    a `.pptx` gets patched by hand.
+    """
+    original = tmp_path / "original.pptx"
+    _deck(2).save(str(original))
+    rezipped = tmp_path / "rezipped.pptx"
+    folder_count = _rezip_with_directory_entries(original, rezipped)
+    assert folder_count > 0, "fixture built no directory records"
+
+    reopened = Presentation(str(rezipped))
+
+    assert len(reopened.slides) == 2
+    saved = tmp_path / "saved.pptx"
+    reopened.save(str(saved))
+    with zipfile.ZipFile(saved) as archive:
+        names = archive.namelist()
+    # -- dropped on the way out, exactly as upstream and PowerPoint drop them
+    assert [name for name in names if name.endswith("/")] == []
+    assert len(Presentation(str(saved)).slides) == 2
+
+
+def test_directory_entries_do_not_trip_the_content_type_refusal(tmp_path):
+    """A folder record resolves to no content type, and must not be asked to.
+
+    It has no extension for a `Default` to match and no `Override` naming it. Checking
+    physical records rather than part records would refuse the package here instead.
+    """
+    original = tmp_path / "original.pptx"
+    _deck(1).save(str(original))
+    rezipped = tmp_path / "rezipped.pptx"
+    _rezip_with_directory_entries(original, rezipped)
+
+    partnames = _guarded_open(rezipped)
+
+    assert not [name for name in partnames if str(name).endswith("/")]
+    assert len(Presentation(str(rezipped)).slides) == 1
+
+
 # --------------------------------------------------------------------- guard against regrowth
 
 
