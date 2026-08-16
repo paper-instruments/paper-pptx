@@ -102,14 +102,27 @@ def test_normal_open_refuses_a_missing_relationship_target(tmp_path):
         Presentation(target)
 
 
-def test_normal_open_refuses_an_unreachable_part(tmp_path):
+def test_normal_open_accepts_an_unreachable_part_and_drops_it_on_save(tmp_path):
+    """PowerPoint opens this package and drops the orphan on its own next save.
+
+    Refusing to open it would refuse a deck PowerPoint accepts, so `save()` matching that
+    behaviour is the whole of the contract. `.bin` is a declared Default here, so the part
+    has a content type; one without a declared type is refused, in
+    `test_content_type_coverage.py`.
+    """
     target = tmp_path / "unreachable.pptx"
     _rewrite_package(_minimal_path(), target, lambda _name, blob: blob)
     with zipfile.ZipFile(target, "a") as archive:
         archive.writestr("ppt/orphan.bin", b"would be dropped on save")
 
-    with pytest.raises(PackageLimitError, match="unreachable parts"):
-        Presentation(target)
+    presentation = Presentation(target)
+    assert len(presentation.slides) == len(Presentation(_minimal_path()).slides)
+
+    saved = tmp_path / "resaved.pptx"
+    presentation.save(saved)
+    with zipfile.ZipFile(saved) as archive:
+        assert "ppt/orphan.bin" not in archive.namelist()
+    Presentation(saved)
 
 
 def test_normal_open_refuses_duplicate_relationship_ids(tmp_path):
