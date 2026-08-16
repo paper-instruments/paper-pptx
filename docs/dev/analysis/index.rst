@@ -4,6 +4,15 @@ Analysis
 
 Documentation of studies undertaken in support of API and code design.
 
+
+Paper fork correction
+---------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   paper-pptx-correction-spec
+
 Feature Analysis
 ----------------
 
