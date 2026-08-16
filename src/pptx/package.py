@@ -441,7 +441,7 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     nothing changed at all, `out_path` is written as an exact byte copy of `original_path`
     (the no-op round trip is byte-identical).
 
-    Not interchangeable with |Presentation.save|, which is also atomic on a path:
+    Not interchangeable with :meth:`.Presentation.save`, which is also atomic on a path:
     atomicity is how the bytes land, narrowness is which bytes get written. `save()`
     re-serializes every part, so even an unchanged part gets new bytes; `patch_save`
     restores the original bytes for every part that is semantically identical.
