@@ -468,21 +468,10 @@ class _PackageLoader:
                 load_rels(target_partname, self._xml_rels_for(target_partname))
 
         load_rels(PACKAGE_URI, self._xml_rels_for(PACKAGE_URI))
-        physical_names = None if self._pkg_file is None else self._package_reader.partnames
-        if physical_names is not None:
-            physical_parts = {
-                partname
-                for partname in physical_names
-                if partname != CONTENT_TYPES_URI and not partname.membername.endswith(".rels")
-            }
-            unreachable = sorted(physical_parts - (visited_partnames - {PACKAGE_URI}))
-            if unreachable:
-                from pptx.errors import PackageLimitError
-
-                raise PackageLimitError(
-                    "ZIP package contains unreachable parts that ordinary save would drop: %s"
-                    % ", ".join(str(partname) for partname in unreachable)
-                )
+        # -- a part no relationship reaches is not refused: PowerPoint opens such a package
+        # -- and drops the part on its own next save, which is what `save()` does too.
+        # -- `_zipguard` refuses the shape PowerPoint actually rejects, a part with no
+        # -- declared content type, reachable or not.
         return xml_rels
 
     def _xml_rels_for(self, partname: PackURI) -> CT_Relationships:

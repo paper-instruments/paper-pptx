@@ -61,12 +61,25 @@ def _refuses(target, fragment):
 
 
 def test_an_unreferenced_member_with_no_declared_type_refuses(tmp_path):
+    """The composition guard for deleting the unreachable-parts refusal.
+
+    An unreferenced part is no longer refused for being unreferenced. This one is still
+    refused, because it has no content type — the distinction PowerPoint draws, and the
+    reason the two changes had to land together.
+    """
     target = _rebuild(
         tmp_path / "orphan-undeclared.pptx",
         extra=lambda z: z.writestr("ppt/media/orphan.qqq", b"no content type declares this"),
     )
 
     _refuses(target, "orphan.qqq")
+    assert "unreachable" not in _refusal_message(target)
+
+
+def _refusal_message(target) -> str:
+    with pytest.raises(PackageLimitError) as excinfo:
+        Presentation(target)
+    return str(excinfo.value)
 
 
 def test_a_referenced_member_with_no_declared_type_refuses(tmp_path):
