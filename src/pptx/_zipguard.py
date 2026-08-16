@@ -14,6 +14,14 @@ bytes in front of its first member. No Python reader reproduces this -- stdlib `
 upstream python-pptx and LibreOffice accept all three -- so these refusals look like
 over-strictness until measured. Declared trailing data is legitimate and is accepted.
 
+Every member must also resolve to a content type, through an ``Override`` naming the part
+or a ``Default`` matching its extension. A member with neither has no type at all, and
+PowerPoint refuses the package whatever the part is for -- measured on a thumbnail it never
+renders, a slide it must load, an image it draws, and a part nothing references. The rule
+therefore keys on physical membership rather than on what the loader would otherwise read.
+A part nothing references is *not* refused: PowerPoint opens that package and drops the
+part on its next save, which is what ``save()`` does too.
+
 Only the two compression methods permitted by the OPC ZIP mapping (stored and
 deflated) are accepted. Every member is inflated from its raw compressed bytes
 rather than through ``ZipFile.read()``. This allows actual output length, CRC, and
