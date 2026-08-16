@@ -70,6 +70,92 @@ class _RelatableMixin:
         )
 
 
+class _StreamSnapshot:
+    """The bytes of a save destination, when the destination allows taking them.
+
+    Rollback of a partly-written stream is only possible where the destination can be read
+    and rewound. Upstream required nothing but ``write()``, so those capabilities are
+    probed here instead of demanded: a seekable, readable, truncatable destination gets its
+    contents captured and restored on failure, and anything else -- a pipe, a socket, a
+    handle from ``open(path, "wb")`` -- is written straight through, which is what upstream
+    did and all it could do.
+    """
+
+    def __init__(self, stream: IO[bytes], position: int | None, content: bytes | None):
+        self._stream = stream
+        self._position = position
+        self._content = content
+
+    @classmethod
+    def of(cls, stream: IO[bytes]) -> _StreamSnapshot:
+        """Capture `stream`'s contents, or return an inert snapshot if it cannot be read.
+
+        Leaves `stream` at the position it was found at, so the package is written where
+        the caller left the cursor rather than at offset zero.
+        """
+        position = None
+        try:
+            position = stream.tell()
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(0, os.SEEK_SET)
+            content = stream.read(size)
+            if not isinstance(content, bytes) or len(content) != size:
+                raise OSError("destination stream did not yield its full contents")
+            # -- restoring and tail-discarding both need truncate, so a destination that
+            # -- lacks it cannot be rolled back even though it could be read
+            if not callable(getattr(stream, "truncate", None)):
+                raise OSError("destination stream cannot be truncated")
+            stream.seek(position, os.SEEK_SET)
+            if stream.tell() != position:
+                raise OSError("destination stream did not return to its position")
+        except (AttributeError, OSError, TypeError, ValueError):
+            # -- a destination that cannot be snapshotted is still a destination
+            if position is not None:
+                with suppress(AttributeError, OSError, TypeError, ValueError):
+                    stream.seek(position, os.SEEK_SET)
+            return cls(stream, None, None)
+        return cls(stream, position, content)
+
+    @property
+    def can_roll_back(self) -> bool:
+        return self._content is not None
+
+    def discard_tail(self) -> None:
+        """Drop anything of the old contents left beyond what was just written.
+
+        Without this, writing a smaller package over a larger one would leave the tail of
+        the previous document in place, which PowerPoint reads as a package to repair
+        rather than as a failure. Only possible where the destination is truncatable, and
+        only correct when the package started at the beginning of the destination.
+        """
+        if not self.can_roll_back:
+            return
+        # -- only the destination the package starts at owns the bytes past its end. A
+        # -- caller who positioned above zero is embedding the package in a larger stream
+        # -- and owns what follows it; upstream truncated nothing, and discarding a
+        # -- container's own trailing bytes would be silent data loss.
+        if self._position:
+            return
+        with suppress(AttributeError, OSError, TypeError, ValueError):
+            self._stream.truncate()
+
+    def restore(self) -> None:
+        """Put the captured contents and cursor back. A no-op when nothing was captured."""
+        if self._content is None or self._position is None:
+            return
+        try:
+            self._stream.seek(0, os.SEEK_SET)
+            self._stream.write(self._content)
+            self._stream.truncate()
+            self._stream.seek(self._position, os.SEEK_SET)
+        except BaseException as restore_error:
+            raise RuntimeError(
+                "package stream write failed and the original destination could not be "
+                "restored"
+            ) from restore_error
+
+
 class OpcPackage(_RelatableMixin):
     """Main API class for |python-opc|.
 
@@ -156,6 +242,29 @@ class OpcPackage(_RelatableMixin):
         """Save this package to `pkg_file`.
 
         `file` can be either a path to a file (a string) or a file-like object.
+
+        A path destination is written atomically: the package is serialized into a
+        temporary file in the destination's directory and moved into place with
+        `os.replace()`, so a failure part-way through leaves any existing file untouched.
+        Symlinks are resolved, so the file a link names is the file that is written.
+
+        A stream destination is serialized into a private staging buffer and then written
+        straight through, so no bytes reach the stream unless the whole package serialized.
+        A failure *during* that copy leaves a partial package with no rollback; a caller
+        writing to a pipe cannot expect otherwise. Only `write` is required of the stream.
+        The package is written at the stream's current position. A stream positioned at
+        the start is truncated to the package, so no tail of a previous document survives;
+        past that, bytes beyond the package are the caller's and are left alone.
+
+        Atomic path writes are a deliberate departure from the v0 rule that `save()`
+        behavior is unchanged from upstream (`CONVENTIONS.md` "Explicitly NOT changed in
+        v0"; `PLAN-paper-pptx.md` Prohibitions), accepted because upstream serialized
+        directly into the destination, so a mid-write failure on the ordinary
+        `prs.save(same_path)` pattern destroyed the deck being edited, irrecoverably.
+
+        The costs of replacing rather than overwriting: owner, group, ACLs, extended
+        attributes and hard links do not survive (mode bits are carried over), and the
+        destination's *directory* must be writable, not just the file.
         """
         parts = tuple(self.iter_parts())
         if isinstance(pkg_file, (str, os.PathLike)):
@@ -164,43 +273,21 @@ class OpcPackage(_RelatableMixin):
         self._save_stream_atomically(pkg_file, parts)
 
     def _save_stream_atomically(self, stream: IO[bytes], parts: tuple[Part, ...]) -> None:
-        """Stage output and restore a seekable destination if publishing fails."""
-        from pptx.errors import UnsupportedStructureError
+        """Serialize privately, then write the finished package to `stream`.
 
+        Serializing into a staging buffer first is what protects a destination whose bytes
+        cannot be taken back: a serialization failure cannot emit a partial package.
+
+        Rollback beyond that needs to read and rewind the destination, which a write-only
+        or unseekable sink cannot do. Those capabilities are probed rather than required,
+        so a destination that can be rolled back is, and one that cannot is still written.
+        Only `write` is ever required.
+        """
         with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b") as staged:
             PackageWriter.write(staged, self._rels, parts)
             staged.seek(0)
 
-            original_position = None
-            try:
-                original_position = stream.tell()
-                stream.seek(0, os.SEEK_END)
-                original_size = stream.tell()
-                stream.seek(0)
-                original = stream.read(original_size)
-                if not isinstance(original, bytes) or len(original) != original_size:
-                    raise OSError("could not snapshot complete destination stream")
-                truncate = stream.truncate
-                stream.seek(0)
-            except BaseException as setup_error:
-                if original_position is not None:
-                    try:
-                        stream.seek(original_position)
-                        if stream.tell() != original_position:
-                            raise OSError("destination stream did not restore its position")
-                    except BaseException as restore_error:
-                        raise RuntimeError(
-                            "package stream setup failed and the original position could not "
-                            "be restored"
-                        ) from restore_error
-                if isinstance(setup_error, (AttributeError, OSError, TypeError, ValueError)):
-                    raise UnsupportedStructureError(
-                        "saving to a stream requires readable, seekable, truncatable "
-                        "binary I/O (%s)"
-                        % setup_error
-                    ) from setup_error
-                raise
-
+            snapshot = _StreamSnapshot.of(stream)
             try:
                 while True:
                     chunk = staged.read(64 * 1024)
@@ -209,25 +296,18 @@ class OpcPackage(_RelatableMixin):
                     written = stream.write(chunk)
                     if written is not None and written != len(chunk):
                         raise OSError("destination stream performed a short write")
-                truncate()
-            except BaseException as publish_error:
-                try:
-                    stream.seek(0)
-                    written = stream.write(original)
-                    if written is not None and written != len(original):
-                        raise OSError("destination stream performed a short restore write")
-                    truncate()
-                    stream.seek(original_position)
-                except BaseException as restore_error:
-                    raise RuntimeError(
-                        "package stream write failed and the original destination could not "
-                        "be restored"
-                    ) from restore_error
-                raise publish_error
+                snapshot.discard_tail()
+            except BaseException:
+                snapshot.restore()
+                raise
 
     def _save_path_atomically(self, path: str, parts: tuple[Part, ...]) -> None:
         """Serialize beside `path` and replace it only after a complete successful write."""
-        destination = os.path.abspath(path)
+        # -- realpath, not abspath: abspath normalizes but does not resolve symlinks, so
+        # -- os.replace() would land on the link and leave the file it names untouched.
+        # -- Resolving also puts the temp file in the real target's directory, keeping the
+        # -- replace on one filesystem.
+        destination = os.path.realpath(path)
         directory = os.path.dirname(destination)
         existing_mode = (
             stat.S_IMODE(os.stat(destination).st_mode) if os.path.exists(destination) else None

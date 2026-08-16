@@ -187,21 +187,28 @@ def test_huge_non_zip_path_raises_package_not_found(tmp_path, monkeypatch):
         Presentation(target)
 
 
-def test_stream_snapshot_failure_restores_position():
+def test_unsnapshottable_stream_is_written_rather_than_refused():
+    """A destination that cannot be read back still receives the package.
+
+    Rollback needs to read the destination, so it is offered where reading is possible
+    rather than required before saving at all. Requiring it refused `open(path, "wb")`,
+    sockets and pipes, which upstream accepted. Those callers get upstream's guarantee:
+    a fully-serialized package is written, and nothing is taken back if the copy fails.
+    """
+
     class UnreadableDestination(io.BytesIO):
         def read(self, size=-1):
             raise OSError("forced snapshot read failure")
 
     presentation = Presentation(_minimal_path())
-    original = b"ORIGINAL STREAM CONTENT"
-    destination = UnreadableDestination(original)
+    destination = UnreadableDestination(b"ORIGINAL STREAM CONTENT")
     destination.seek(7)
 
-    with pytest.raises(PaperRefusal, match="readable, seekable, truncatable"):
-        presentation.save(destination)
+    presentation.save(destination)
 
-    assert destination.getvalue() == original
-    assert destination.tell() == 7
+    written = destination.getvalue()
+    assert written.startswith(b"ORIGINA"), "the package was not written at the stream position"
+    assert zipfile.ZipFile(io.BytesIO(written[7:])).testzip() is None
 
 
 def test_successful_path_save_preserves_existing_mode(tmp_path):
