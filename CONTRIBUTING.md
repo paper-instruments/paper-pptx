@@ -16,7 +16,7 @@ cd paper-pptx
 uv sync --group dev
 ```
 
-Dev, test, and docs dependencies are declared as PEP 735 dependency groups in
+Dev and test dependencies are declared as PEP 735 dependency groups in
 `pyproject.toml` and pinned by the committed `uv.lock`. If you prefer pip
 (25.1+), `pip install -e . --group dev` works equally well.
 
@@ -29,14 +29,16 @@ locally before opening a PR saves a round trip:
 uv run pytest                          # upstream unit suite + tests/paper contract harness
 uv run behave                          # upstream acceptance features (or: uv run make accept)
 uv run pytest -m lo_smoke tests/paper  # LibreOffice load smoke; needs headless LibreOffice
-uv run make docs                       # Sphinx build; CI builds with warnings as errors
+uv run ruff check                      # lint
 uv run make build                      # sdist/wheel build + twine check
 ```
 
 The pytest matrix in CI covers Python 3.9 through 3.13.
 
-Useful Makefile targets: `accept`, `build`, `clean`, `cleandocs`, `coverage`,
-`docs`, `opendocs`.
+Useful Makefile targets: `accept`, `build`, `clean`, `coverage`.
+
+CI also runs `griffe check` against the pull request's merge base, so a change
+to the public API of `pptx` fails the build unless it is intentional.
 
 ## The rules that get PRs merged
 
@@ -76,4 +78,4 @@ manual verification checklist in `tests/paper/RELEASE-CHECKLIST.md`.
 Open a [GitHub Issue](https://github.com/paper-instruments/paper-pptx/issues)
 first for anything beyond a small fix — especially new API surface, which must
 fit the perceive / edit / compose / verify model and the refusal contract
-described in [`docs/user/paper-additions.rst`](docs/user/paper-additions.rst).
+described in the [README](README.md#what-we-changed-from-python-pptx-and-why).

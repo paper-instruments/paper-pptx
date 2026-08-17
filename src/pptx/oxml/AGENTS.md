@@ -125,7 +125,7 @@ corruption inside the safety tooling itself.
 Those 79 files are python-pptx's own per-feature notes, inherited with the fork and never
 modified. Each pairs prose with a real XML specimen and the matching xsd excerpt. They
 describe the OOXML format and how this layer models it — the layer the fork does not
-change — which is why they outlive the rest of the inherited Sphinx tree. They are not
+change — which is why they survived the removal of the rest of the Sphinx tree. They are not
 published anywhere and are not a documentation target; they are working reference.
 
 `txt-text.rst` is the pattern worth seeing first. Its prose explains that a paragraph is a

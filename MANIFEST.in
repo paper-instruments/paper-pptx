@@ -1,4 +1,4 @@
-include LICENSE README.rst
+include LICENSE
 recursive-include features *
 recursive-include src/pptx/templates *
 recursive-include tests *.py
