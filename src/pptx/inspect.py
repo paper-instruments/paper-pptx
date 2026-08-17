@@ -41,6 +41,7 @@ from pptx.errors import UnsupportedStructureError
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml import parse_xml
 from pptx.oxml.ns import qn
+from pptx.oxml.simpletypes import ST_TextBulletSizePercent
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Centipoints, Length
 
@@ -50,6 +51,12 @@ if TYPE_CHECKING:
 
 SCHEMA_NAME = "paper-text-inspection"
 SCHEMA_VERSION = 2  # -- visibility-complete traversal, container/blind fields
+
+#: Resolved value of a bullet typeface or size that defers to the run's own text, whether an
+#: `a:buFontTx` / `a:buSzTx` said so explicitly or the whole chain went silent. A sentinel
+#: rather than |None|, because "follow the text" is an answer: it renders predictably, and
+#: |None| is reserved for values the resolver could not determine.
+BULLET_FOLLOWS_TEXT = "follow text"
 
 _TITLE_FAMILY = frozenset([PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE])
 _BODY_FAMILY = frozenset(
@@ -293,26 +300,34 @@ class EffectiveParagraphFormat:
     alignment: EffectiveValue  #: ECMA algn token, e.g. "l", "ctr", "r", "just"
     line_spacing: EffectiveValue  #: float lines (1.0 = single) or EMU |Length| for points
     bullet: EffectiveBullet  #: the bullet that renders, resolved through the same chain
+    bullet_font: EffectiveValue  #: bullet typeface, or |BULLET_FOLLOWS_TEXT|
+    bullet_size: EffectiveValue  #: fraction of text size, |Length| for points, or follows text
 
     def to_dict(self) -> dict:
         return {
             "schema": "paper-effective-paragraph-format",
-            "version": 2,  # -- bullet added
+            "version": 3,  # -- was 2: bullet_font/bullet_size added
             "alignment": self.alignment.to_dict(),
             "line_spacing": self.line_spacing.to_dict(),
             "bullet": self.bullet.to_dict(),
+            "bullet_font": self.bullet_font.to_dict(),
+            "bullet_size": self.bullet_size.to_dict(),
         }
 
 
 def effective_paragraph_format(paragraph) -> EffectiveParagraphFormat:
-    """Return effective alignment/line-spacing/bullet for `paragraph`, with provenance.
+    """Return effective alignment, line spacing, and bullet for `paragraph`, with provenance.
 
     Same inheritance walk as `effective_font`, over paragraph-level properties: the
     paragraph's own `a:pPr`, the shape's `lstStyle` level entry, the placeholder chain (or
     the presentation's `defaultTextStyle`). Exhaustion resolves rather than reporting
     unresolved: to the ECMA-376 schema default for alignment (left), and to the rendering
-    conventions for line spacing (single) and bullet (no bullet), which the schema does not
-    define.
+    conventions for line spacing (single), bullet (no bullet), and bullet typeface/size
+    (follow the text), none of which the schema defines.
+
+    The bullet's kind, typeface, and size are three separate XSD choice groups that inherit
+    independently, so each is walked on its own and carries its own provenance. A paragraph
+    can take its `buChar` from the master and its `buSzPct` from the layout.
     """
     p = paragraph._p
     txBody = p.getparent()
@@ -341,6 +356,8 @@ def effective_paragraph_format(paragraph) -> EffectiveParagraphFormat:
         alignment=resolver.resolve_alignment(chain),
         line_spacing=resolver.resolve_line_spacing(chain),
         bullet=resolver.resolve_bullet(chain),
+        bullet_font=resolver.resolve_bullet_font(chain),
+        bullet_size=resolver.resolve_bullet_size(chain),
     )
 
 
@@ -1071,6 +1088,103 @@ class _FontResolver(object):
             ProvenanceStep("rendering default", None, "no bullet renders by default", True)
         )
         return EffectiveBullet("none", None, None, None, True, tuple(steps))
+
+    def resolve_bullet_font(self, chain) -> EffectiveValue:
+        """Resolve the `EG_TextBulletTypeface` choice over a paragraph chain.
+
+        Inherits independently of the bullet kind, so it gets its own walk: one rung can supply
+        the typeface while another supplied the bullet. `a:buFontTx` is a positive answer
+        meaning "draw the bullet in the text's own typeface", not a miss. No ECMA default
+        exists, and with neither member present PowerPoint follows the text, so exhaustion
+        resolves to `BULLET_FOLLOWS_TEXT` rather than reporting unresolved.
+        """
+        steps = []
+        for label, partname, pPr in chain:
+            if pPr is not None and pPr.find(qn("a:buFontTx")) is not None:
+                steps.append(ProvenanceStep(label, partname, "buFontTx", True))
+                return EffectiveValue(BULLET_FOLLOWS_TEXT, None, True, tuple(steps))
+            buFont = pPr.find(qn("a:buFont")) if pPr is not None else None
+            if buFont is None:
+                steps.append(
+                    ProvenanceStep(label, partname, self._absence(pPr, "no bullet font"), False)
+                )
+                continue
+            typeface = buFont.get("typeface")  # -- raw: the descriptor raises when absent
+            if not typeface:
+                steps.append(ProvenanceStep(label, partname, "buFont with no typeface", False))
+                return EffectiveValue(None, None, False, tuple(steps))
+            if typeface.startswith("+"):
+                steps.append(
+                    ProvenanceStep(
+                        label,
+                        partname,
+                        'buFont typeface="%s" (theme reference)' % typeface,
+                        False,
+                    )
+                )
+                return self._resolve_theme_font(typeface, steps)
+            steps.append(
+                ProvenanceStep(label, partname, 'buFont typeface="%s"' % typeface, True)
+            )
+            return EffectiveValue(typeface, None, True, tuple(steps))
+        steps.append(
+            ProvenanceStep("rendering default", None, "bullet follows the text typeface", True)
+        )
+        return EffectiveValue(BULLET_FOLLOWS_TEXT, None, True, tuple(steps))
+
+    def resolve_bullet_size(self, chain) -> EffectiveValue:
+        """Resolve the `EG_TextBulletSize` choice over a paragraph chain.
+
+        Three members, tested in schema order: `a:buSzTx` (follow the text), `a:buSzPct` (a
+        fraction of the text size), `a:buSzPts` (absolute, reported as a |Length| with
+        `value_pt` populated, as `resolve_line_spacing` does for `spcPts`). Inherits
+        independently of the bullet kind and exhausts to `BULLET_FOLLOWS_TEXT`.
+        """
+        steps = []
+        for label, partname, pPr in chain:
+            if pPr is None:
+                steps.append(
+                    ProvenanceStep(label, partname, self._absence(pPr, "no bullet size"), False)
+                )
+                continue
+            if pPr.find(qn("a:buSzTx")) is not None:
+                steps.append(ProvenanceStep(label, partname, "buSzTx", True))
+                return EffectiveValue(BULLET_FOLLOWS_TEXT, None, True, tuple(steps))
+            buSzPct = pPr.find(qn("a:buSzPct"))
+            if buSzPct is not None:
+                raw = buSzPct.get("val")
+                try:
+                    fraction = ST_TextBulletSizePercent.convert_from_xml(raw)
+                except (TypeError, ValueError):
+                    steps.append(
+                        ProvenanceStep(
+                            label, partname, 'buSzPct with unreadable val="%s"' % raw, False
+                        )
+                    )
+                    return EffectiveValue(None, None, False, tuple(steps))
+                steps.append(ProvenanceStep(label, partname, 'buSzPct val="%s"' % raw, True))
+                return EffectiveValue(fraction, None, True, tuple(steps))
+            buSzPts = pPr.find(qn("a:buSzPts"))
+            if buSzPts is not None:
+                raw = buSzPts.get("val")
+                try:
+                    length = Length(Centipoints(int(raw)))
+                except (TypeError, ValueError):
+                    steps.append(
+                        ProvenanceStep(
+                            label, partname, 'buSzPts with unreadable val="%s"' % raw, False
+                        )
+                    )
+                    return EffectiveValue(None, None, False, tuple(steps))
+                steps.append(ProvenanceStep(label, partname, 'buSzPts val="%s"' % raw, True))
+                return EffectiveValue(length, length.pt, True, tuple(steps))
+            steps.append(
+                ProvenanceStep(label, partname, self._absence(pPr, "no bullet size"), False)
+            )
+        steps.append(
+            ProvenanceStep("rendering default", None, "bullet follows the text size", True)
+        )
+        return EffectiveValue(BULLET_FOLLOWS_TEXT, None, True, tuple(steps))
 
     def resolve_container_fill(
         self, container, label, partname, style_ref, ref_label

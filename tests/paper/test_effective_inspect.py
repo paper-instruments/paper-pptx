@@ -17,11 +17,17 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.errors import UnsupportedStructureError
-from pptx.inspect import content_hash, effective_font, effective_paragraph_format, inspect_text
+from pptx.inspect import (
+    BULLET_FOLLOWS_TEXT,
+    content_hash,
+    effective_font,
+    effective_paragraph_format,
+    inspect_text,
+)
 from pptx.util import Emu
 
 from . import corpus
-from .contract import snapshot_parts
+from .contract import save_reopen, snapshot_parts
 
 BRANDED = "self_generated/branded_template.pptx"
 CLRMAP = "self_generated/clrmap_remap.pptx"
@@ -554,7 +560,7 @@ def test_effective_paragraph_format_resolves_alignment_and_spacing():
 
     payload = fmt.to_dict()
     assert payload["schema"] == "paper-effective-paragraph-format"
-    assert payload["version"] == 2  # -- v2 added the `bullet` field
+    assert payload["version"] == 3  # -- v3 added bullet_font/bullet_size
 
 
 # ----------------------------------------------------------- inherited bullet resolution
@@ -780,7 +786,7 @@ def test_bullet_payload_serializes_in_the_documented_shape():
 
     payload = effective_paragraph_format(body.text_frame.paragraphs[0]).to_dict()
     assert payload["schema"] == "paper-effective-paragraph-format"
-    assert payload["version"] == 2
+    assert payload["version"] == 3
     bullet = payload["bullet"]
     assert sorted(bullet) == ["char", "number_scheme", "provenance", "resolved", "start_at", "type"]
     assert bullet["type"] == "character"
@@ -810,6 +816,171 @@ def test_bullet_payload_serializes_in_the_documented_shape():
         None,
         None,
     )
+
+
+# ------------------------------------------------- bullet typeface and size resolution
+
+WINGDING = ""  # -- private use: a filled square in Wingdings, undrawable elsewhere
+
+
+def test_bullet_font_and_size_round_trip_through_the_write_api():
+    """The defect this feature exists for.
+
+    A private-use glyph is meaningless without its typeface, so a caller re-applying
+    everything the payload reports must land on the same `buFont` it started from. Before
+    `bullet_font` existed there was nothing to pass and the copy rendered as a blank box.
+    """
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    source = body.text_frame.paragraphs[0]
+    source.bullet.set_character(WINGDING, font_name="Wingdings", size_percent=0.75)
+
+    fmt = effective_paragraph_format(source)
+    assert fmt.bullet.char == WINGDING
+    assert fmt.bullet_font.value == "Wingdings"
+    assert fmt.bullet_size.value == 0.75
+
+    target = body.text_frame.add_paragraph()
+    target.text = "re-applied from the payload alone"
+    target.bullet.set_character(
+        fmt.bullet.char, font_name=fmt.bullet_font.value, size_percent=fmt.bullet_size.value
+    )
+
+    reopened = save_reopen(prs)
+    shape = next(s for s in reopened.slides[0].shapes if s.shape_id == body.shape_id)
+    copied = effective_paragraph_format(shape.text_frame.paragraphs[-1])
+    assert copied.bullet.char == WINGDING
+    assert copied.bullet_font.value == "Wingdings"  # -- the typeface survived the round trip
+    assert copied.bullet_size.value == 0.75
+
+
+def test_bullet_font_resolves_independently_of_the_bullet_kind():
+    """Three separate choice groups, three separate walks, three provenance chains."""
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", "buFont", typeface="Wingdings")
+
+    fmt = effective_paragraph_format(body.text_frame.paragraphs[0])
+    # -- the kind still comes from the master, the typeface from the shape's own lstStyle
+    assert fmt.bullet_font.value == "Wingdings"
+    assert _supplied_levels(fmt.bullet_font) == ["shape lstStyle lvl1"]
+    assert _supplied_levels(fmt.bullet) == ["master txStyles bodyStyle lvl1"]
+
+
+def test_bullet_font_follows_text_explicitly_and_on_exhaustion():
+    """`buFontTx` is an answer attributed to its rung; exhaustion reaches it as a default."""
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", "buFontTx")
+    explicit = effective_paragraph_format(body.text_frame.paragraphs[0]).bullet_font
+    assert explicit.value == BULLET_FOLLOWS_TEXT
+    assert explicit.resolved is True
+    assert _supplied_levels(explicit) == ["shape lstStyle lvl1"]
+
+    textbox = _plain_textbox(_open(BRANDED))
+    exhausted = effective_paragraph_format(textbox.text_frame.paragraphs[0]).bullet_font
+    assert exhausted.value == BULLET_FOLLOWS_TEXT
+    assert exhausted.resolved is True
+    assert _supplied_levels(exhausted) == ["rendering default"]
+
+
+def test_bullet_size_discriminates_its_three_members():
+    """`buSzPct` is a fraction, `buSzPts` an absolute length, `buSzTx` defers to the text."""
+    pct = _open(BRANDED)
+    _graft_lst_style_bullet(pct.slides[0].placeholders[1], "lvl1pPr", "buSzPct", val="45%")
+    resolved = effective_paragraph_format(
+        pct.slides[0].placeholders[1].text_frame.paragraphs[0]
+    ).bullet_size
+    assert resolved.value == 0.45
+    assert resolved.value_pt is None
+
+    pts = _open(BRANDED)
+    _graft_lst_style_bullet(pts.slides[0].placeholders[1], "lvl1pPr", "buSzPts", val="1400")
+    resolved = effective_paragraph_format(
+        pts.slides[0].placeholders[1].text_frame.paragraphs[0]
+    ).bullet_size
+    assert resolved.value_pt == 14.0  # -- centipoints, as spcPts is reported
+
+    tx = _open(BRANDED)
+    _graft_lst_style_bullet(tx.slides[0].placeholders[1], "lvl1pPr", "buSzTx")
+    resolved = effective_paragraph_format(
+        tx.slides[0].placeholders[1].text_frame.paragraphs[0]
+    ).bullet_size
+    assert resolved.value == BULLET_FOLLOWS_TEXT
+
+
+def test_bullet_font_resolves_a_theme_token_through_the_font_scheme():
+    """A `buFont` may name `+mj-lt`; report the typeface it lands on, not the token."""
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", "buFont", typeface="+mj-lt")
+
+    resolved = effective_paragraph_format(body.text_frame.paragraphs[0]).bullet_font
+    assert resolved.resolved is True
+    assert resolved.value == _ground_truth(BRANDED)["theme_major_latin"]
+    assert any("theme reference" in step.detail for step in resolved.provenance)
+    assert _supplied_levels(resolved) == ["theme fontScheme majorFont"]
+
+
+@pytest.mark.parametrize(
+    ("tag", "attrs", "detail"),
+    [
+        ("buFont", {}, "buFont with no typeface"),
+        ("buSzPct", {"val": "not-a-number"}, "buSzPct with unreadable"),
+        ("buSzPts", {"val": "oops"}, "buSzPts with unreadable"),
+    ],
+)
+def test_bullet_modifier_missing_its_required_attribute_reports_unresolved(tag, attrs, detail):
+    """Honest over plausible: report, do not guess, and do not raise |InvalidXmlError|."""
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", tag, **attrs)
+
+    fmt = effective_paragraph_format(body.text_frame.paragraphs[0])
+    facet = fmt.bullet_font if tag == "buFont" else fmt.bullet_size
+    assert facet.resolved is False
+    assert facet.value is None
+    assert _supplied_levels(facet) == []
+    assert detail in facet.provenance[-1].detail
+    assert facet.provenance[-1].level == "shape lstStyle lvl1"
+
+
+def test_bullet_modifier_resolution_never_mutates_the_package():
+    prs = _open(BRANDED)
+    paragraphs = [
+        paragraph
+        for shape in prs.slides[0].shapes
+        if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs
+    ]
+    before = snapshot_parts(prs)
+
+    resolved = [effective_paragraph_format(paragraph) for paragraph in paragraphs]
+
+    # -- the title's chain runs through titleStyle, which carries buNone and no buFont
+    assert [f.bullet_font.value for f in resolved] == [BULLET_FOLLOWS_TEXT, "Arial", "Arial"]
+    assert snapshot_parts(prs) == before
+
+
+def test_bullet_modifier_payload_serializes_beside_the_bullet():
+    prs = _open(BRANDED)
+    payload = effective_paragraph_format(
+        prs.slides[0].placeholders[1].text_frame.paragraphs[0]
+    ).to_dict()
+    assert payload["version"] == 3
+    assert sorted(payload) == [
+        "alignment",
+        "bullet",
+        "bullet_font",
+        "bullet_size",
+        "line_spacing",
+        "schema",
+        "version",
+    ]
+    for key in ("bullet_font", "bullet_size"):
+        assert sorted(payload[key]) == ["provenance", "resolved", "value", "value_pt"]
+    assert payload["bullet_font"]["value"] == "Arial"  # -- master bodyStyle supplies buFont
+    assert payload["bullet_font"]["provenance"][-1]["detail"] == 'buFont typeface="Arial"'
 
 
 # ------------------------------------------------------------------ shape-format resolution
