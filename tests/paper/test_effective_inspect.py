@@ -820,7 +820,7 @@ def test_bullet_payload_serializes_in_the_documented_shape():
 
 # ------------------------------------------------- bullet typeface and size resolution
 
-WINGDING = ""  # -- private use: a filled square in Wingdings, undrawable elsewhere
+WINGDING = "\uf0a7"  # -- private use: a filled square in Wingdings, undrawable elsewhere
 
 
 def test_bullet_font_and_size_round_trip_through_the_write_api():
