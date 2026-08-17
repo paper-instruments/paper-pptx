@@ -26,9 +26,50 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 SCHEMA_NAME = "paper-deck-diff"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3  # -- was 2: bullet_shifts added
 
 _DETAIL_LEVELS = ("structure", "text", "full")
+
+
+@dataclass(frozen=True)
+class BulletShift:
+    """One paragraph whose resolved bullet changed between the two decks.
+
+    Bullets live only in formatting, so a list losing its bullets changes no text and no
+    field marker: `text_changes` stays empty while the slide visibly loses every glyph.
+    This is the facet that reports it.
+
+    Paragraphs are identified by (shape_id, paragraph text) rather than by index, matching
+    `pptx.rebind._resolution_state(align_by_content=True)`: inserting a paragraph shifts
+    every later index and would otherwise pair unrelated paragraphs. Paragraphs whose text
+    repeats within their shape are skipped rather than guessed at.
+
+    Fields:
+
+    * ``part`` -- partname of the slide the paragraph lives on.
+    * ``shape_id`` -- id of the shape containing the paragraph.
+    * ``paragraph_index`` -- 0-based paragraph index within that shape, for legibility.
+    * ``text`` -- the paragraph's text, which is also half its identity.
+    * ``before`` / ``after`` -- the resolved ``bullet``, ``bullet_font`` and ``bullet_size``
+      payloads from :func:`pptx.inspect.effective_paragraph_format` on each side.
+    """
+
+    part: str
+    shape_id: int
+    paragraph_index: int
+    text: str
+    before: dict
+    after: dict
+
+    def to_dict(self) -> dict:
+        return {
+            "part": self.part,
+            "shape_id": self.shape_id,
+            "paragraph_index": self.paragraph_index,
+            "text": self.text,
+            "before": self.before,
+            "after": self.after,
+        }
 
 
 @dataclass(frozen=True)
@@ -69,6 +110,7 @@ class SlideChange:
     text_changes: Tuple[dict, ...] = ()
     notes_change: Optional[dict] = None
     effective_shifts: tuple = ()
+    bullet_shifts: tuple = ()
 
     @property
     def is_empty(self) -> bool:
@@ -81,6 +123,7 @@ class SlideChange:
             or self.text_changes
             or self.notes_change
             or self.effective_shifts
+            or self.bullet_shifts
         )
 
     def to_dict(self) -> dict:
@@ -101,6 +144,8 @@ class SlideChange:
             payload["notes_change"] = self.notes_change
         if self.effective_shifts:
             payload["effective_shifts"] = [s.to_dict() for s in self.effective_shifts]
+        if self.bullet_shifts:
+            payload["bullet_shifts"] = [s.to_dict() for s in self.bullet_shifts]
         return payload
 
 
@@ -447,12 +492,16 @@ def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
             notes_change = {"before": notes_a, "after": notes_b}
 
     effective_shifts: tuple = ()
+    bullet_shifts: tuple = ()
     if detail == "full":
         from pptx.rebind import _resolution_state, _shifts_between
 
         effective_shifts = _shifts_between(
             _resolution_state(slide_a, align_by_content=True),
             _resolution_state(slide_b, align_by_content=True),
+        )
+        bullet_shifts = _bullet_shifts_between(
+            _bullet_state(slide_a), _bullet_state(slide_b)
         )
 
     return SlideChange(
@@ -465,6 +514,7 @@ def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
         text_changes=tuple(text_changes),
         notes_change=notes_change,
         effective_shifts=effective_shifts,
+        bullet_shifts=bullet_shifts,
     )
 
 
@@ -625,6 +675,80 @@ def _field_markers(block) -> tuple:
         else:
             offset += len(run.text)
     return tuple(markers)
+
+
+def _iter_text_shapes(shapes):
+    """Yield every shape carrying a text frame, descending into groups."""
+    for shape in shapes:
+        if getattr(shape, "has_text_frame", False):
+            yield shape
+        nested = getattr(shape, "shapes", None)
+        if nested is not None:
+            for inner in _iter_text_shapes(nested):
+                yield inner
+
+
+def _bullet_state(slide) -> dict:
+    """(comparable bullet values, payload) per paragraph, keyed (shape_id, paragraph text).
+
+    Content-keyed for the same reason `pptx.rebind._resolution_state(align_by_content=True)`
+    is: a paragraph inserted above shifts every later index, and index keys would then pair
+    unrelated paragraphs and report bullet changes that never happened. Paragraphs whose text
+    repeats within their shape carry no unique identity and are skipped rather than guessed at.
+
+    Paragraphs the resolver refuses -- table cells, which are not `p:sp` -- are skipped too. A
+    refusal here is a scope boundary, not a diff failure.
+    """
+    from pptx.errors import UnsupportedStructureError
+    from pptx.inspect import effective_paragraph_format
+
+    state: dict = {}
+    partname = str(slide.part.partname)
+    for shape in _iter_text_shapes(slide.shapes):
+        paragraphs = list(shape.text_frame.paragraphs)
+        texts = [paragraph.text for paragraph in paragraphs]
+        for index, paragraph in enumerate(paragraphs):
+            text = texts[index]
+            if not text or texts.count(text) != 1:
+                continue
+            try:
+                fmt = effective_paragraph_format(paragraph)
+            except UnsupportedStructureError:
+                continue
+            values = (
+                fmt.bullet.type,
+                fmt.bullet.char,
+                fmt.bullet.number_scheme,
+                fmt.bullet.start_at,
+                fmt.bullet_font.value,
+                fmt.bullet_size.value,
+            )
+            payload = {
+                "bullet": fmt.bullet.to_dict(),
+                "bullet_font": fmt.bullet_font.to_dict(),
+                "bullet_size": fmt.bullet_size.to_dict(),
+            }
+            state[(shape.shape_id, text)] = (values, text, partname, payload, index)
+    return state
+
+
+def _bullet_shifts_between(before_state, after_state) -> "Tuple[BulletShift, ...]":
+    shifts = []
+    for key in sorted(set(before_state) & set(after_state), key=lambda k: (k[0], k[1])):
+        before_values, text, partname, before_payload, index = before_state[key]
+        after_values, _, _, after_payload, _ = after_state[key]
+        if before_values != after_values:
+            shifts.append(
+                BulletShift(
+                    part=partname,
+                    shape_id=key[0],
+                    paragraph_index=index,
+                    text=text,
+                    before=before_payload,
+                    after=after_payload,
+                )
+            )
+    return tuple(shifts)
 
 
 def _notes_text(slide) -> "Optional[str]":

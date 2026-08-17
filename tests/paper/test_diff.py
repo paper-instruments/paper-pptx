@@ -104,6 +104,118 @@ def test_diff_matches_frozen_golden():
     assert actual == golden_path.read_bytes()
 
 
+# ------------------------------------------------------------------------ bullet shifts
+
+BULLETED = "self_generated/branded_template.pptx"
+
+
+def _saved(prs, tmp_path, name):
+    path = tmp_path / name
+    prs.save(str(path))
+    return str(path)
+
+
+def _bullet_shifts(before_path, after_path):
+    report = diff_decks(before_path, after_path, detail="full")
+    return [
+        shift
+        for change in report.slide_changes
+        for shift in change.bullet_shifts
+    ]
+
+
+def test_suppressing_inherited_bullets_reports_a_bullet_shift(tmp_path):
+    """The gap this facet closes.
+
+    `set_none()` changes no text and no field marker, so `text_changes` stays empty while
+    every visible bullet on the slide disappears. Before `bullet_shifts` the whole
+    within-slide report was empty and only `package_changes` noticed the part had moved.
+    """
+    before = _saved(Presentation(_path(BULLETED)), tmp_path, "before.pptx")
+    prs = Presentation(_path(BULLETED))
+    for paragraph in prs.slides[0].placeholders[1].text_frame.paragraphs:
+        paragraph.bullet.set_none()
+    after = _saved(prs, tmp_path, "after.pptx")
+
+    report = diff_decks(before, after, detail="full")
+    change = report.slide_changes[0]
+    assert change.text_changes == ()  # -- the text is untouched
+    assert [(s.text, s.before["bullet"]["type"], s.after["bullet"]["type"]) for s in
+            change.bullet_shifts] == [
+        ("Body level one", "character", "none"),
+        ("Body level two", "character", "none"),
+    ]
+
+
+def test_bullet_typeface_change_alone_reports_a_shift(tmp_path):
+    """A symbol bullet losing its typeface keeps the same glyph and stops rendering as one.
+
+    This is why the typeface had to join the resolver before this facet existed: comparing
+    the kind and char alone would call these two decks identical.
+    """
+    wingding = "\uf0a7"  # -- private use: a filled square in Wingdings, else a box
+    paths = []
+    for name, font in (("wing.pptx", "Wingdings"), ("plain.pptx", None)):
+        prs = Presentation(_path(BULLETED))
+        for paragraph in prs.slides[0].placeholders[1].text_frame.paragraphs:
+            paragraph.bullet.set_character(wingding, font_name=font)
+        paths.append(_saved(prs, tmp_path, name))
+
+    shifts = _bullet_shifts(*paths)
+    assert shifts
+    for shift in shifts:
+        assert shift.before["bullet"]["char"] == shift.after["bullet"]["char"]  # -- same glyph
+        assert shift.before["bullet_font"]["value"] == "Wingdings"
+        assert shift.after["bullet_font"]["value"] != "Wingdings"
+
+
+def test_bullet_shifts_are_absent_when_bullets_are_unchanged(tmp_path):
+    """An omitted facet keeps every existing payload byte-identical."""
+    before = _saved(Presentation(_path(BULLETED)), tmp_path, "a.pptx")
+    prs = Presentation(_path(BULLETED))
+    prs.slides[0].shapes.title.text_frame.paragraphs[0].runs[0].text = "Retitled"
+    after = _saved(prs, tmp_path, "b.pptx")
+
+    report = diff_decks(before, after, detail="full")
+    assert report.slide_changes[0].text_changes  # -- the text change is reported
+    assert report.slide_changes[0].bullet_shifts == ()
+    assert "bullet_shifts" not in report.slide_changes[0].to_dict()
+
+
+def test_bullet_shifts_only_populate_at_full_detail(tmp_path):
+    before = _saved(Presentation(_path(BULLETED)), tmp_path, "c.pptx")
+    prs = Presentation(_path(BULLETED))
+    for paragraph in prs.slides[0].placeholders[1].text_frame.paragraphs:
+        paragraph.bullet.set_none()
+    after = _saved(prs, tmp_path, "d.pptx")
+
+    assert _bullet_shifts(before, after)  # -- detail="full"
+    for detail in ("structure", "text"):
+        report = diff_decks(before, after, detail=detail)
+        assert all(change.bullet_shifts == () for change in report.slide_changes)
+
+
+def test_bullet_shift_payload_carries_provenance_for_both_sides(tmp_path):
+    before = _saved(Presentation(_path(BULLETED)), tmp_path, "e.pptx")
+    prs = Presentation(_path(BULLETED))
+    for paragraph in prs.slides[0].placeholders[1].text_frame.paragraphs:
+        paragraph.bullet.set_none()
+    after = _saved(prs, tmp_path, "f.pptx")
+
+    shift = _bullet_shifts(before, after)[0]
+    payload = shift.to_dict()
+    assert sorted(payload) == [
+        "after", "before", "paragraph_index", "part", "shape_id", "text",
+    ]
+    assert payload["part"] == "/ppt/slides/slide1.xml"
+    for side in ("before", "after"):
+        assert sorted(payload[side]) == ["bullet", "bullet_font", "bullet_size"]
+        assert payload[side]["bullet"]["provenance"]
+    # -- the inherited side names the master; the suppressed side names the paragraph
+    assert payload["before"]["bullet"]["provenance"][-1]["level"].startswith("master txStyles")
+    assert payload["after"]["bullet"]["provenance"][0]["level"] == "paragraph pPr"
+
+
 def test_diff_is_deterministic_across_runs():
     first = diff_decks(_path(V1), _path(V2), detail="full").to_dict()
     second = diff_decks(_path(V1), _path(V2), detail="full").to_dict()
