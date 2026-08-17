@@ -363,9 +363,12 @@ until you diff it yourself.
 **A semantic deck diff.** `pptx.diff.diff_decks()` matches slides by permanent
 slide ID, so a reorder reports as a *move* rather than a delete-plus-add, and
 reports shape, text, chart-data, image, and notes changes within matched
-slides. `detail="full"` adds per-run effective-value shifts, which lets a
-pipeline compare an operation's report against what actually changed in the
-saved file.
+slides. `detail="full"` adds per-run effective-value shifts and per-paragraph
+bullet shifts, which lets a pipeline compare an operation's report against what
+actually changed in the saved file. Bullets need their own facet because they
+live only in formatting: a list losing its bullets changes no text and no field
+marker, so without it the within-slide report comes back empty while the slide
+visibly loses every glyph.
 
 **Byte-minimal saves and a package-level oracle.** A stock save rewrites every
 ZIP member, so even a no-op looks like total churn. `pptx.package.patch_save()`
@@ -523,11 +526,11 @@ path of this package. Known gaps, honestly:
   bullet's kind, typeface, and size, but not its color. `a:buClr` needs the
   theme-color walk, and `BulletFormat` can neither read nor write a bullet
   color, so resolving it would add capability rather than close a gap.
-- **The deck diff does not report bullets.** `diff_decks` compares text and
-  field markers, not paragraph formatting, so a list changing from bulleted to
-  numbered — or a template losing its bullets across a rebind or compose —
-  produces no diff entry. That would be a new diff dimension rather than a new
-  field on an existing one.
+- **Bullet diffing needs `detail="full"`, and skips table cells.** `bullet_shifts`
+  is resolver-backed, so it only populates at full detail and only covers the
+  paragraphs `effective_paragraph_format` supports — table-cell paragraphs are
+  skipped rather than guessed at. Paragraphs whose text repeats within one shape
+  are skipped too, since content is half their identity across two decks.
 
 Deliberate non-goals: no rendering or layout-geometry computation (appearance
 verification belongs to a harness, not this library), no SmartArt authoring
