@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 def Presentation(pptx: str | IO[bytes] | None = None) -> presentation.Presentation:
     """
-    Return a |Presentation| object loaded from *pptx*, where *pptx* can be
+    Return a `Presentation` object loaded from *pptx*, where *pptx* can be
     either a path to a ``.pptx`` file (a string) or a file-like object. If
     *pptx* is missing or ``None``, the built-in default presentation
     "template" is loaded.
@@ -44,6 +44,6 @@ def _default_pptx_path() -> str:
 
 
 def _is_pptx_package(prs_part: PresentationPart):
-    """Return |True| if *prs_part* is a valid main document part, |False| otherwise."""
+    """Return `True` if *prs_part* is a valid main document part, `False` otherwise."""
     valid_content_types = (CT.PML_PRESENTATION_MAIN, CT.PML_PRES_MACRO_MAIN)
     return prs_part.content_type in valid_content_types

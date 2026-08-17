@@ -48,8 +48,8 @@ class ColorFormat(object):
     @property
     def rgb(self):
         """
-        |RGBColor| value of this color, or None if no RGB color is explicitly
-        defined for this font. Setting this value to an |RGBColor| instance
+        `RGBColor` value of this color, or None if no RGB color is explicitly
+        defined for this font. Setting this value to an `RGBColor` instance
         causes its type to change to MSO_COLOR_TYPE.RGB. If the color was a
         theme color with a brightness adjustment, the brightness adjustment
         is removed when changing it to an RGB color.
@@ -71,10 +71,10 @@ class ColorFormat(object):
     def theme_color(self):
         """Theme color value of this color.
 
-        Value is a member of :ref:`MsoThemeColorIndex`, e.g.
+        Value is a member of `MsoThemeColorIndex`, e.g.
         ``MSO_THEME_COLOR.ACCENT_1``. Raises AttributeError on access if the
         color is not type ``MSO_COLOR_TYPE.SCHEME``. Assigning a member of
-        :ref:`MsoThemeColorIndex` causes the color's type to change to
+        `MsoThemeColorIndex` causes the color's type to change to
         ``MSO_COLOR_TYPE.SCHEME``.
         """
         return self._color.theme_color
@@ -90,7 +90,7 @@ class ColorFormat(object):
     @property
     def type(self):
         """
-        Read-only. A value from :ref:`MsoColorType`, either RGB or SCHEME,
+        Read-only. A value from `MsoColorType`, either RGB or SCHEME,
         corresponding to the way this color is defined, or None if no color
         is defined at the level of this font.
         """
@@ -256,7 +256,7 @@ class _SRgbColor(_Color):
     @property
     def rgb(self):
         """
-        |RGBColor| value of this color, corresponding to the value in the
+        `RGBColor` value of this color, corresponding to the value in the
         required ``val`` attribute of the ``<a:srgbColr>`` element.
         """
         return RGBColor.from_string(self._srgbClr.val)

@@ -28,7 +28,7 @@ class Adjustment:
     shapes and allow the outline of the shape to be adjusted. For example, a rounded rectangle has
     an adjustment handle that allows the radius of its corner rounding to be adjusted.
 
-    Values are |float| and generally range from 0.0 to 1.0, although the value can be negative or
+    Values are `float` and generally range from 0.0 to 1.0, although the value can be negative or
     greater than 1.0 in certain circumstances.
     """
 
@@ -40,7 +40,7 @@ class Adjustment:
 
     @property
     def effective_value(self) -> float:
-        """Read/write |float| representing normalized adjustment value for this adjustment.
+        """Read/write `float` representing normalized adjustment value for this adjustment.
 
         Actual values are a large-ish integer expressed in shape coordinates, nominally between 0
         and 100,000. The effective value is normalized to a corresponding value nominally between
@@ -71,7 +71,7 @@ class Adjustment:
     def _normalize(raw_value: int) -> float:
         """Return normalized value for `raw_value`.
 
-        A normalized value is a |float| between 0.0 and 1.0 for nominal raw values between 0 and
+        A normalized value is a `float` between 0.0 and 1.0 for nominal raw values between 0 and
         100,000. Raw values less than 0 and greater than 100,000 are valid and return values
         calculated on the same unit basis of 100,000.
         """
@@ -87,7 +87,7 @@ class Adjustment:
 
 
 class AdjustmentCollection:
-    """Sequence of |Adjustment| instances for an auto shape.
+    """Sequence of `Adjustment` instances for an auto shape.
 
     Each represents an available adjustment for a shape of its type. Supports `len()` and indexed
     access, e.g. `shape.adjustments[1] = 0.15`.
@@ -131,7 +131,7 @@ class AdjustmentCollection:
     def _update_adjustments_with_actuals(
         adjustments: Iterable[Adjustment], guides: Iterable[CT_GeomGuide]
     ):
-        """Update |Adjustment| instances in `adjustments` with actual values held in `guides`.
+        """Update `Adjustment` instances in `adjustments` with actual values held in `guides`.
 
         `guides` is a list of `a:gd` elements. Guides with a name that does not match an adjustment
         object are skipped.
@@ -149,7 +149,7 @@ class AdjustmentCollection:
 
     @property
     def _adjustments(self) -> tuple[Adjustment, ...]:
-        """Sequence of |Adjustment| objects contained in collection."""
+        """Sequence of `Adjustment` objects contained in collection."""
         return tuple(self._adjustments_)
 
     def __len__(self):
@@ -265,14 +265,14 @@ class Shape(BaseShape):
 
     @lazyproperty
     def adjustments(self) -> AdjustmentCollection:
-        """Read-only reference to |AdjustmentCollection| instance for this shape."""
+        """Read-only reference to `AdjustmentCollection` instance for this shape."""
         return AdjustmentCollection(self._sp.prstGeom)
 
     @property
     def auto_shape_type(self):
         """Enumeration value identifying the type of this auto shape.
 
-        Like `MSO_SHAPE.ROUNDED_RECTANGLE`. Raises |ValueError| if this shape is not an auto shape.
+        Like `MSO_SHAPE.ROUNDED_RECTANGLE`. Raises `ValueError` if this shape is not an auto shape.
         """
         if not self._sp.is_autoshape:
             raise ValueError("shape is not an auto shape")
@@ -280,7 +280,7 @@ class Shape(BaseShape):
 
     @lazyproperty
     def fill(self):
-        """|FillFormat| instance for this shape.
+        """`FillFormat` instance for this shape.
 
         Provides access to fill properties such as fill color.
         """
@@ -292,12 +292,12 @@ class Shape(BaseShape):
 
     @property
     def has_text_frame(self) -> bool:
-        """|True| if this shape can contain text. Always |True| for an AutoShape."""
+        """`True` if this shape can contain text. Always `True` for an AutoShape."""
         return True
 
     @lazyproperty
     def line(self):
-        """|LineFormat| instance for this shape.
+        """`LineFormat` instance for this shape.
 
         Provides access to line properties such as line color.
         """
@@ -307,7 +307,7 @@ class Shape(BaseShape):
     def ln(self):
         """The `a:ln` element containing the line format properties such as line color and width.
 
-        |None| if no `a:ln` element is present.
+        `None` if no `a:ln` element is present.
         """
         return self._sp.ln
 
@@ -347,7 +347,7 @@ class Shape(BaseShape):
 
     @property
     def text_frame(self):
-        """|TextFrame| instance for this shape.
+        """`TextFrame` instance for this shape.
 
         Contains the text of the shape and provides access to text formatting properties.
         """

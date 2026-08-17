@@ -38,7 +38,7 @@ class FillFormat(object):
     @classmethod
     def from_fill_parent(cls, eg_fillProperties_parent: BaseOxmlElement) -> FillFormat:
         """
-        Return a |FillFormat| instance initialized to the settings contained
+        Return a `FillFormat` instance initialized to the settings contained
         in *eg_fillProperties_parent*, which must be an element having
         EG_FillProperties in its child element sequence in the XML schema.
         """
@@ -49,7 +49,7 @@ class FillFormat(object):
 
     @property
     def back_color(self):
-        """Return a |ColorFormat| object representing background color.
+        """Return a `ColorFormat` object representing background color.
 
         This property is only applicable to pattern fills and lines.
         """
@@ -65,7 +65,7 @@ class FillFormat(object):
     @property
     def fore_color(self):
         """
-        Return a |ColorFormat| instance representing the foreground color of
+        Return a `ColorFormat` instance representing the foreground color of
         this fill.
         """
         return self._fill.fore_color
@@ -87,12 +87,12 @@ class FillFormat(object):
     def gradient_angle(self):
         """Angle in float degrees of line of a linear gradient.
 
-        Read/Write. May be |None|, indicating the angle should be inherited
+        Read/Write. May be `None`, indicating the angle should be inherited
         from the style hierarchy. An angle of 0.0 corresponds to
         a left-to-right gradient. Increasing angles represent
         counter-clockwise rotation of the line, for example 90.0 represents
-        a bottom-to-top gradient. Raises |TypeError| when the fill type is
-        not MSO_FILL_TYPE.GRADIENT. Raises |ValueError| for a non-linear
+        a bottom-to-top gradient. Raises `TypeError` when the fill type is
+        not MSO_FILL_TYPE.GRADIENT. Raises `ValueError` for a non-linear
         gradient (e.g. a radial gradient).
         """
         if self.type != MSO_FILL.GRADIENT:
@@ -107,9 +107,9 @@ class FillFormat(object):
 
     @property
     def gradient_stops(self):
-        """|GradientStops| object providing access to stops of this gradient.
+        """`GradientStops` object providing access to stops of this gradient.
 
-        Raises |TypeError| when fill is not gradient (call `fill.gradient()`
+        Raises `TypeError` when fill is not gradient (call `fill.gradient()`
         first). Each stop represents a color between which the gradient
         smoothly transitions.
         """
@@ -119,12 +119,12 @@ class FillFormat(object):
 
     @property
     def pattern(self):
-        """Return member of :ref:`MsoPatternType` indicating fill pattern.
+        """Return member of `MsoPatternType` indicating fill pattern.
 
-        Raises |TypeError| when fill is not patterned (call
-        `fill.patterned()` first). Returns |None| if no pattern has been set;
+        Raises `TypeError` when fill is not patterned (call
+        `fill.patterned()` first). Returns `None` if no pattern has been set;
         PowerPoint may display the default `PERCENT_5` pattern in this case.
-        Assigning |None| will remove any explicit pattern setting, although
+        Assigning `None` will remove any explicit pattern setting, although
         relying on the default behavior is discouraged and may produce
         rendering differences across client applications.
         """
@@ -228,12 +228,12 @@ class _GradFill(_Fill):
     def gradient_angle(self):
         """Angle in float degrees of line of a linear gradient.
 
-        Read/Write. May be |None|, indicating the angle is inherited from the
+        Read/Write. May be `None`, indicating the angle is inherited from the
         style hierarchy. An angle of 0.0 corresponds to a left-to-right
         gradient. Increasing angles represent clockwise rotation of the line,
         for example 90.0 represents a top-to-bottom gradient. Raises
-        |TypeError| when the fill type is not MSO_FILL_TYPE.GRADIENT. Raises
-        |ValueError| for a non-linear gradient (e.g. a radial gradient).
+        `TypeError` when the fill type is not MSO_FILL_TYPE.GRADIENT. Raises
+        `ValueError` for a non-linear gradient (e.g. a radial gradient).
         """
         # ---case 1: gradient path is explicit, but not linear---
         path = self._gradFill.path
@@ -263,7 +263,7 @@ class _GradFill(_Fill):
 
     @lazyproperty
     def gradient_stops(self):
-        """|_GradientStops| object providing access to gradient colors.
+        """`_GradientStops` object providing access to gradient colors.
 
         Each stop represents a color between which the gradient smoothly
         transitions.
@@ -302,22 +302,22 @@ class _PattFill(_Fill):
 
     @lazyproperty
     def back_color(self):
-        """Return |ColorFormat| object that controls background color."""
+        """Return `ColorFormat` object that controls background color."""
         bgClr = self._pattFill.get_or_add_bgClr()
         return ColorFormat.from_colorchoice_parent(bgClr)
 
     @lazyproperty
     def fore_color(self):
-        """Return |ColorFormat| object that controls foreground color."""
+        """Return `ColorFormat` object that controls foreground color."""
         fgClr = self._pattFill.get_or_add_fgClr()
         return ColorFormat.from_colorchoice_parent(fgClr)
 
     @property
     def pattern(self):
-        """Return member of :ref:`MsoPatternType` indicating fill pattern.
+        """Return member of `MsoPatternType` indicating fill pattern.
 
-        Returns |None| if no pattern has been set; PowerPoint may display the
-        default `PERCENT_5` pattern in this case. Assigning |None| will
+        Returns `None` if no pattern has been set; PowerPoint may display the
+        default `PERCENT_5` pattern in this case. Assigning `None` will
         remove any explicit pattern setting.
         """
         return self._pattFill.prst
@@ -340,7 +340,7 @@ class _SolidFill(_Fill):
 
     @lazyproperty
     def fore_color(self):
-        """Return |ColorFormat| object controlling fill color."""
+        """Return `ColorFormat` object controlling fill color."""
         return ColorFormat.from_colorchoice_parent(self._solidFill)
 
     @property
@@ -349,7 +349,7 @@ class _SolidFill(_Fill):
 
 
 class _GradientStops(Sequence):
-    """Collection of |GradientStop| objects defining gradient colors.
+    """Collection of `GradientStop` objects defining gradient colors.
 
     A gradient must have a minimum of two stops, but can have as many more
     than that as required to achieve the desired effect (three is perhaps
@@ -379,7 +379,7 @@ class _GradientStop(ElementProxy):
 
     @lazyproperty
     def color(self):
-        """Return |ColorFormat| object controlling stop color."""
+        """Return `ColorFormat` object controlling stop color."""
         return ColorFormat.from_colorchoice_parent(self._gs)
 
     @property

@@ -91,7 +91,7 @@ class BaseXmlEnum(int, enum.Enum):
 
     @classmethod
     def validate(cls: Type[_T], value: _T):
-        """Raise |ValueError| if `value` is not an assignable value."""
+        """Raise `ValueError` if `value` is not an assignable value."""
         if value not in cls:
             raise ValueError(f"{value} not a member of {cls.__name__} enumeration")
 

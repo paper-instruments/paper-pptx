@@ -261,7 +261,7 @@ class ST_AxisUnit(XsdDouble):
 
 class ST_BarDir(XsdStringEnumeration):
     """
-    Valid values for <c:barDir val="?"> attribute
+    Valid values for `<c:barDir val="?">` attribute
     """
 
     BAR = "bar"
@@ -387,7 +387,7 @@ class ST_GapAmount(BaseIntType):
 
 class ST_Grouping(XsdStringEnumeration):
     """
-    Valid values for <c:grouping val=""> attribute. Overloaded for use as
+    Valid values for `<c:grouping val="">` attribute. Overloaded for use as
     ST_BarGrouping using same tag name.
     """
 
@@ -528,7 +528,7 @@ class ST_Percentage(BaseIntType):
 
 class ST_PlaceholderSize(XsdTokenEnumeration):
     """
-    Valid values for <p:ph> sz (size) attribute
+    Valid values for `<p:ph>` sz (size) attribute
     """
 
     FULL = "full"
@@ -770,7 +770,7 @@ class ST_TextLineSpaceReductionPercentOrPercentString(BaseFloatType):
 
 
 class ST_TextIndent(ST_Coordinate32Unqualified):
-    """Valid values for `a:pPr/@indent`, an EMU |Length| (negative = hanging indent)."""
+    """Valid values for `a:pPr/@indent`, an EMU `Length` (negative = hanging indent)."""
 
     @classmethod
     def validate(cls, value):
@@ -784,7 +784,7 @@ class ST_TextIndentLevelType(BaseIntType):
 
 
 class ST_TextMargin(ST_Coordinate32Unqualified):
-    """Valid values for `a:pPr/@marL` and `@marR`, an EMU |Length|."""
+    """Valid values for `a:pPr/@marL` and `@marR`, an EMU `Length`."""
 
     @classmethod
     def validate(cls, value):
@@ -822,7 +822,7 @@ class ST_TextSpacingPoint(BaseIntType):
     @classmethod
     def convert_from_xml(cls, str_value):
         """
-        Reads string integer centipoints, returns |Length| value.
+        Reads string integer centipoints, returns `Length` value.
         """
         return Centipoints(int(str_value))
 
@@ -842,7 +842,7 @@ class ST_TextTypeface(XsdString):
 
 class ST_TextWrappingType(XsdTokenEnumeration):
     """
-    Valid values for <a:bodyPr wrap=""> attribute
+    Valid values for `<a:bodyPr wrap="">` attribute
     """
 
     NONE = "none"

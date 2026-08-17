@@ -211,7 +211,7 @@ class CT_CoreProperties(BaseOxmlElement):
 
     @classmethod
     def _offset_dt(cls, datetime: dt.datetime, offset_str: str):
-        """Return |datetime| instance offset from `datetime` by offset specified in `offset_str`.
+        """Return `datetime` instance offset from `datetime` by offset specified in `offset_str`.
 
         `offset_str` is a string like `'-07:00'`.
         """

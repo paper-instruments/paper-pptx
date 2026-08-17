@@ -11,7 +11,7 @@ class LineFormat(object):
     """Provides access to line properties such as color, style, and width.
 
     A LineFormat object is typically accessed via the ``.line`` property of
-    a shape such as |Shape| or |Picture|.
+    a shape such as `Shape` or `Picture`.
     """
 
     def __init__(self, parent):
@@ -21,7 +21,7 @@ class LineFormat(object):
     @lazyproperty
     def color(self):
         """
-        The |ColorFormat| instance that provides access to the color settings
+        The `ColorFormat` instance that provides access to the color settings
         for this line. Essentially a shortcut for ``line.fill.fore_color``.
         As a side-effect, accessing this property causes the line fill type
         to be set to ``MSO_FILL.SOLID``. If this sounds risky for your use
@@ -36,11 +36,11 @@ class LineFormat(object):
     def dash_style(self):
         """Return value indicating line style.
 
-        Returns a member of :ref:`MsoLineDashStyle` indicating line style, or
-        |None| if no explicit value has been set. When no explicit value has
+        Returns a member of `MsoLineDashStyle` indicating line style, or
+        `None` if no explicit value has been set. When no explicit value has
         been set, the line dash style is inherited from the style hierarchy.
 
-        Assigning |None| removes any existing explicitly-defined dash style.
+        Assigning `None` removes any existing explicitly-defined dash style.
         """
         ln = self._ln
         if ln is None:
@@ -62,7 +62,7 @@ class LineFormat(object):
     @lazyproperty
     def fill(self):
         """
-        |FillFormat| instance for this line, providing access to fill
+        `FillFormat` instance for this line, providing access to fill
         properties such as foreground color.
         """
         ln = self._get_or_add_ln()
@@ -71,8 +71,8 @@ class LineFormat(object):
     @property
     def width(self):
         """
-        The width of the line expressed as an integer number of :ref:`English
-        Metric Units <EMU>`. The returned value is an instance of |Length|,
+        The width of the line expressed as an integer number of `English
+        Metric Units <EMU>`. The returned value is an instance of `Length`,
         a value class having properties such as `.inches`, `.cm`, and `.pt`
         for converting the value into convenient units.
         """

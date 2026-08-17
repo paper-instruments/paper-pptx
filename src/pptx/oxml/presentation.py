@@ -64,7 +64,7 @@ class CT_SlideId(BaseOxmlElement):
 class CT_SlideIdList(BaseOxmlElement):
     """`p:sldIdLst` element.
 
-    Direct child of <p:presentation> that contains a list of the slide parts in the presentation.
+    Direct child of `<p:presentation>` that contains a list of the slide parts in the presentation.
     """
 
     sldId_lst: list[CT_SlideId]
@@ -156,7 +156,7 @@ class CT_NotesMasterIdListEntry(BaseOxmlElement):
 class CT_SlideSize(BaseOxmlElement):
     """`p:sldSz` element.
 
-    Direct child of <p:presentation> that contains the width and height of slides in the
+    Direct child of `<p:presentation>` that contains the width and height of slides in the
     presentation.
     """
 

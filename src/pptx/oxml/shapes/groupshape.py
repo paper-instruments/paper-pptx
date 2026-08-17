@@ -207,7 +207,7 @@ class CT_GroupShape(BaseShapeElement):
 
     @property
     def xfrm(self) -> CT_Transform2D | None:
-        """The `a:xfrm` grandchild element or |None| if not found."""
+        """The `a:xfrm` grandchild element or `None` if not found."""
         return self.grpSpPr.xfrm
 
     @property

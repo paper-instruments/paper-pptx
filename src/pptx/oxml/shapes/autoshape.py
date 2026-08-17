@@ -235,14 +235,14 @@ class CT_Shape(BaseShapeElement):
     def is_textbox(self):
         """True if this shape is a text box.
 
-        A shape is a text box if it has a `txBox` attribute on cNvSpPr that resolves to |True|.
-        The default when the txBox attribute is missing is |False|.
+        A shape is a text box if it has a `txBox` attribute on cNvSpPr that resolves to `True`.
+        The default when the txBox attribute is missing is `False`.
         """
         return self.nvSpPr.cNvSpPr.txBox is True
 
     @property
     def ln(self):
-        """`a:ln` grand-child element or |None| if not present."""
+        """`a:ln` grand-child element or `None` if not present."""
         return self.spPr.ln
 
     @staticmethod
@@ -394,7 +394,7 @@ class CT_Shape(BaseShapeElement):
 
     @property
     def prst(self):
-        """Value of `prst` attribute of `a:prstGeom` element or |None| if not present."""
+        """Value of `prst` attribute of `a:prstGeom` element or `None` if not present."""
         prstGeom = self.prstGeom
         if prstGeom is None:
             return None
@@ -404,7 +404,7 @@ class CT_Shape(BaseShapeElement):
     def prstGeom(self) -> CT_PresetGeometry2D:
         """Reference to `a:prstGeom` child element.
 
-        |None| if this shape doesn't have one, for example, if it's a placeholder shape.
+        `None` if this shape doesn't have one, for example, if it's a placeholder shape.
         """
         return self.spPr.prstGeom
 

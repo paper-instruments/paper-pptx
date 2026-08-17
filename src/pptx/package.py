@@ -18,7 +18,7 @@ class Package(OpcPackage):
 
     @lazyproperty
     def core_properties(self) -> CorePropertiesPart:
-        """Instance of |CoreProperties| holding read/write Dublin Core doc properties.
+        """Instance of `CoreProperties` holding read/write Dublin Core doc properties.
 
         Creates a default core properties part if one is not present (not common).
         """
@@ -31,14 +31,14 @@ class Package(OpcPackage):
 
     def get_or_add_image_part(self, image_file: str | IO[bytes]):
         """
-        Return an |ImagePart| object containing the image in *image_file*. If
+        Return an `ImagePart` object containing the image in *image_file*. If
         the image part already exists in this package, it is reused,
         otherwise a new one is created.
         """
         return self._image_parts.get_or_add_image_part(image_file)
 
     def get_or_add_media_part(self, media):
-        """Return a |MediaPart| object containing the media in *media*.
+        """Return a `MediaPart` object containing the media in *media*.
 
         If a media part for this media bytestream ("file") is already present
         in this package, it is reused, otherwise a new one is created.
@@ -46,7 +46,7 @@ class Package(OpcPackage):
         return self._media_parts.get_or_add_media_part(media)
 
     def next_image_partname(self, ext: str) -> PackURI:
-        """Return a |PackURI| instance representing the next available image partname.
+        """Return a `PackURI` instance representing the next available image partname.
 
         Partname uses the next available sequence number. *ext* is used as the extention on the
         returned partname.
@@ -73,7 +73,7 @@ class Package(OpcPackage):
         return PackURI("/ppt/media/image%d.%s" % (idx, ext))
 
     def next_media_partname(self, ext):
-        """Return |PackURI| instance for next available media partname.
+        """Return `PackURI` instance for next available media partname.
 
         Partname is first available, starting at sequence number 1. Empty
         sequence numbers are reused. *ext* is used as the extension on the
@@ -100,21 +100,21 @@ class Package(OpcPackage):
     @property
     def presentation_part(self):
         """
-        Reference to the |Presentation| instance contained in this package.
+        Reference to the `Presentation` instance contained in this package.
         """
         return self.main_document_part
 
     @lazyproperty
     def _image_parts(self):
         """
-        |_ImageParts| object providing access to the image parts in this
+        `_ImageParts` object providing access to the image parts in this
         package.
         """
         return _ImageParts(self)
 
     @lazyproperty
     def _media_parts(self):
-        """Return |_MediaParts| object for this package.
+        """Return `_MediaParts` object for this package.
 
         The media parts object provides access to all the media parts in this
         package.
@@ -130,7 +130,7 @@ class _ImageParts(object):
         self._package = package
 
     def __iter__(self) -> Iterator[ImagePart]:
-        """Generate a reference to each |ImagePart| object in the package."""
+        """Generate a reference to each `ImagePart` object in the package."""
         image_parts = []
         for rel in self._package.iter_rels():
             if rel.is_external:
@@ -144,7 +144,7 @@ class _ImageParts(object):
             yield image_part
 
     def get_or_add_image_part(self, image_file: str | IO[bytes]) -> ImagePart:
-        """Return |ImagePart| object containing the image in `image_file`.
+        """Return `ImagePart` object containing the image in `image_file`.
 
         `image_file` can be either a path to an image file or a file-like object
         containing an image. If an image part containing this same image already exists,
@@ -156,7 +156,7 @@ class _ImageParts(object):
 
     def _find_by_sha1(self, sha1: str) -> ImagePart | None:
         """
-        Return an |ImagePart| object belonging to this package or |None| if
+        Return an `ImagePart` object belonging to this package or `None` if
         no matching image part is found. The image part is identified by the
         SHA1 hash digest of the image binary it contains.
         """
@@ -172,7 +172,7 @@ class _ImageParts(object):
 class _MediaParts(object):
     """Provides access to the media parts in a package.
 
-    Supports iteration and :meth:`get()` using the media object SHA1 hash as
+    Supports iteration and `get()` using the media object SHA1 hash as
     its key.
     """
 
@@ -181,7 +181,7 @@ class _MediaParts(object):
         self._package = package
 
     def __iter__(self):
-        """Generate a reference to each |MediaPart| object in the package."""
+        """Generate a reference to each `MediaPart` object in the package."""
         # A media part can appear in more than one relationship (and commonly
         # does in the case of video). Use media_parts to keep track of those
         # that have been "yielded"; they can be skipped if they occur again.
@@ -198,7 +198,7 @@ class _MediaParts(object):
             yield media_part
 
     def get_or_add_media_part(self, media):
-        """Return a |MediaPart| object containing the media in *media*.
+        """Return a `MediaPart` object containing the media in *media*.
 
         If this package already contains a media part for the same
         bytestream, that instance is returned, otherwise a new media part is
@@ -210,7 +210,7 @@ class _MediaParts(object):
         return media_part
 
     def _find_by_sha1(self, sha1):
-        """Return |MediaPart| object having *sha1* hash or None if not found.
+        """Return `MediaPart` object having *sha1* hash or None if not found.
 
         All media parts belonging to this package are considered. A media
         part is identified by the SHA1 hash digest of its bytestream
@@ -259,7 +259,7 @@ def xml_equivalent(a: Union[bytes, str], b: Union[bytes, str]) -> bool:
     of element-childless elements — `a:t` and friends — is never normalized in any way: two
     documents differing only by a trailing space inside a text node are NOT equivalent.
 
-    Raises |ValueError| when either argument is not well-formed XML.
+    Raises `ValueError` when either argument is not well-formed XML.
     """
     return _c14n_bytes(a) == _c14n_bytes(b)
 
@@ -288,7 +288,7 @@ def _drop_structural_whitespace(data: Union[bytes, str]) -> str:
     element children — this element). The text of element-childless elements is untouchable
     here by construction, so preserved-space content like `a:t` can never be altered.
 
-    Raises |ValueError| on malformed XML.
+    Raises `ValueError` on malformed XML.
     """
     from lxml import etree as _etree
 
@@ -366,7 +366,7 @@ class PartDelta:
 class PackageDiff:
     """Part-by-part semantic diff between two packages. Schema "paper-package-diff" v1.
 
-    ``deltas`` holds one :class:`PartDelta` per package member that was added, removed,
+    ``deltas`` holds one `PartDelta` per package member that was added, removed,
     or semantically changed; it is empty when the two packages are equivalent.
     """
 
@@ -388,7 +388,7 @@ class PackageDiff:
 
 
 def diff_package(path_a: str, path_b: str) -> PackageDiff:
-    """Return the |PackageDiff| between the packages at `path_a` and `path_b`.
+    """Return the `PackageDiff` between the packages at `path_a` and `path_b`.
 
     XML members are compared semantically (`xml_equivalent`; `[Content_Types].xml`
     order-insensitively), binary members by bytes. Members appearing in only one package
@@ -399,7 +399,7 @@ def diff_package(path_a: str, path_b: str) -> PackageDiff:
 
 
 def _diff_maps(map_a: dict, map_b: dict, label_a: str, label_b: str) -> PackageDiff:
-    """Return the |PackageDiff| between two in-memory member maps."""
+    """Return the `PackageDiff` between two in-memory member maps."""
     deltas = []
     for name in sorted(set(map_a) | set(map_b)):
         partname = "/" + name
@@ -446,10 +446,10 @@ def _save_cannot_emit(name: str) -> bool:
 def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     """Save `document` to `out_path`, restoring original bytes for unchanged XML parts.
 
-    Compare-based narrow save: `document` (a |Presentation|) is serialized
+    Compare-based narrow save: `document` (a `Presentation`) is serialized
     normally, then every XML member that is semantically identical to its counterpart in
     `original_path` is written with the ORIGINAL bytes, so unrelated parts never churn.
-    Returns the residual |PackageDiff| between `original_path` and `out_path`.
+    Returns the residual `PackageDiff` between `original_path` and `out_path`.
 
     Writes are deterministic — entry order is `[Content_Types].xml`, `_rels/.rels`, then all
     remaining members sorted; every entry timestamp is fixed to 1980-01-01 — and atomic: the
@@ -465,15 +465,15 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     round trip — the byte copy reproduces it — and is dropped by an actual edit, which
     rebuilds the package from the members `save()` emitted.
 
-    Not interchangeable with :meth:`.Presentation.save`, which is also atomic on a path:
+    Not interchangeable with `Presentation.save`, which is also atomic on a path:
     atomicity is how the bytes land, narrowness is which bytes get written. `save()`
     re-serializes every part, so even an unchanged part gets new bytes; `patch_save`
     restores the original bytes for every part that is semantically identical.
 
     Symlinked destinations are resolved, so the file a link names is the file replaced.
 
-    Raises |UnsupportedStructureError| when `original_path` is not a readable zip package
-    (before anything is written) and |ValueError| when `document` cannot save itself.
+    Raises `UnsupportedStructureError` when `original_path` is not a readable zip package
+    (before anything is written) and `ValueError` when `document` cannot save itself.
     """
     if not hasattr(document, "save"):
         raise ValueError(

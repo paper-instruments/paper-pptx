@@ -122,12 +122,12 @@ class _BaseSlide(PartElementProxy):
 
     @lazyproperty
     def background(self) -> _Background:
-        """|_Background| object providing slide background properties.
+        """`_Background` object providing slide background properties.
 
-        This property returns a |_Background| object whether or not the
+        This property returns a `_Background` object whether or not the
         slide, master, or layout has an explicitly defined background.
 
-        The same |_Background| object is returned on every call for the same
+        The same `_Background` object is returned on every call for the same
         slide object.
         """
         return _Background(self._element.cSld)
@@ -136,7 +136,7 @@ class _BaseSlide(PartElementProxy):
     def name(self) -> str:
         """String representing the internal name of this slide.
 
-        Returns an empty string (`''`) if no name is assigned. Assigning an empty string or |None|
+        Returns an empty string (`''`) if no name is assigned. Assigning an empty string or `None`
         to this property causes any name to be removed.
         """
         return self._element.cSld.name
@@ -148,14 +148,14 @@ class _BaseSlide(PartElementProxy):
 
 
 class _BaseMaster(_BaseSlide):
-    """Base class for master objects such as |SlideMaster| and |NotesMaster|.
+    """Base class for master objects such as `SlideMaster` and `NotesMaster`.
 
     Provides access to placeholders and regular shapes.
     """
 
     @lazyproperty
     def placeholders(self) -> MasterPlaceholders:
-        """|MasterPlaceholders| collection of placeholder shapes in this master.
+        """`MasterPlaceholders` collection of placeholder shapes in this master.
 
         Sequence sorted in `idx` order.
         """
@@ -164,7 +164,7 @@ class _BaseMaster(_BaseSlide):
     @lazyproperty
     def shapes(self):
         """
-        Instance of |MasterShapes| containing sequence of shape objects
+        Instance of `MasterShapes` containing sequence of shape objects
         appearing on this slide.
         """
         return MasterShapes(self._element.spTree, self)
@@ -217,7 +217,7 @@ class NotesSlide(_BaseSlide):
     def notes_placeholder(self) -> NotesSlidePlaceholder | None:
         """the notes placeholder on this notes slide, the shape that contains the actual notes text.
 
-        Return |None| if no notes placeholder is present; while this is probably uncommon, it can
+        Return `None` if no notes placeholder is present; while this is probably uncommon, it can
         happen if the notes master does not have a body placeholder, or if the notes placeholder
         has been deleted from the notes slide.
         """
@@ -230,7 +230,7 @@ class NotesSlide(_BaseSlide):
     def notes_text_frame(self) -> TextFrame | None:
         """The text frame of the notes placeholder on this notes slide.
 
-        |None| if there is no notes placeholder. This is a shortcut to accommodate the common case
+        `None` if there is no notes placeholder. This is a shortcut to accommodate the common case
         of simply adding "notes" text to the notes "page".
         """
         notes_placeholder = self.notes_placeholder
@@ -240,7 +240,7 @@ class NotesSlide(_BaseSlide):
 
     @lazyproperty
     def placeholders(self) -> NotesSlidePlaceholders:
-        """Instance of |NotesSlidePlaceholders| for this notes-slide.
+        """Instance of `NotesSlidePlaceholders` for this notes-slide.
 
         Contains the sequence of placeholder shapes in this notes slide.
         """
@@ -269,7 +269,7 @@ class Slide(_BaseSlide):
         """Apply the complete footer state to this slide only (the dialog's "Apply").
 
         paper-pptx addition. Same parameters, mechanism, and refusals as
-        :meth:`.Presentation.apply_footers`, restricted to this slide — the per-slide
+        `Presentation.apply_footers`, restricted to this slide — the per-slide
         override path (e.g. removing just this slide's footer while the rest of the deck
         keeps it). Each call sets this slide's full three-element state.
         """
@@ -291,7 +291,7 @@ class Slide(_BaseSlide):
         placeholder_map="auto",
         orphan_policy: str = "refuse",
     ) -> "RebindReport":
-        """Move this slide to `target_layout`; return the required |RebindReport|.
+        """Move this slide to `target_layout`; return the required `RebindReport`.
 
         paper-pptx addition — the template-migration *primitive* (bulk-migration
         workflows are left to the caller). Placeholders reconcile against the
@@ -320,14 +320,14 @@ class Slide(_BaseSlide):
 
     @property
     def follow_master_background(self):
-        """|True| if this slide inherits the slide master background.
+        """`True` if this slide inherits the slide master background.
 
-        Assigning |False| causes background inheritance from the master to be
+        Assigning `False` causes background inheritance from the master to be
         interrupted; if there is no custom background for this slide,
         a default background is added. If a custom background already exists
-        for this slide, assigning |False| has no effect.
+        for this slide, assigning `False` has no effect.
 
-        Assigning |True| causes any custom background for this slide to be
+        Assigning `True` causes any custom background for this slide to be
         deleted and inheritance from the master restored.
         """
         return self._element.bg is None
@@ -336,14 +336,14 @@ class Slide(_BaseSlide):
     def has_notes_slide(self) -> bool:
         """`True` if this slide has a notes slide, `False` otherwise.
 
-        A notes slide is created by :attr:`.notes_slide` when one doesn't exist; use this property
+        A notes slide is created by `notes_slide` when one doesn't exist; use this property
         to test for a notes slide without the possible side effect of creating one.
         """
         return self.part.has_notes_slide
 
     @property
     def notes_slide(self) -> NotesSlide:
-        """The |NotesSlide| instance for this slide.
+        """The `NotesSlide` instance for this slide.
 
         If the slide does not have a notes slide, one is created. The same single instance is
         returned on each call.
@@ -358,8 +358,8 @@ class Slide(_BaseSlide):
     def read_notes_text(self) -> str:
         """Return the text of this slide's existing speaker notes.
 
-        paper-pptx addition. Unlike :attr:`notes_slide`, this NEVER creates a notes slide:
-        a slide with no notes part raises |UnsupportedStructureError| (as does a notes slide
+        paper-pptx addition. Unlike `notes_slide`, this NEVER creates a notes slide:
+        a slide with no notes part raises `UnsupportedStructureError` (as does a notes slide
         with no body placeholder). Returns "" for an empty existing notes body.
         """
         return self._existing_notes_text_frame().text
@@ -371,7 +371,7 @@ class Slide(_BaseSlide):
         other notes placeholders are preserved untouched. The first paragraph's properties
         and its first run's character formatting are kept and applied to the replacement
         text; `"\\n"` in `text` starts a new paragraph. Never creates a notes slide: a slide
-        with no notes part raises |UnsupportedStructureError| before anything changes
+        with no notes part raises `UnsupportedStructureError` before anything changes
         (creating the notes part graph is intentionally not supported).
         """
         if not isinstance(text, str):
@@ -417,7 +417,7 @@ class Slide(_BaseSlide):
     def _existing_notes_text_frame(self) -> TextFrame:
         """Return the body-placeholder text frame of this slide's EXISTING notes slide.
 
-        Raises |UnsupportedStructureError| (never creates anything) when the slide has no
+        Raises `UnsupportedStructureError` (never creates anything) when the slide has no
         notes part or its notes slide has no body placeholder.
         """
         if not self.has_notes_slide:
@@ -449,7 +449,7 @@ class Slide(_BaseSlide):
 
     @property
     def slide_layout(self) -> SlideLayout:
-        """|SlideLayout| object this slide inherits appearance from."""
+        """`SlideLayout` object this slide inherits appearance from."""
         return self.part.slide_layout
 
 
@@ -473,7 +473,7 @@ class SlideClonePolicy:
 
 
 class Slides(ParentedElementProxy):
-    """Sequence of slides belonging to an instance of |Presentation|.
+    """Sequence of slides belonging to an instance of `Presentation`.
 
     Has list semantics for access to individual slides. Supports indexed access, len(), and
     iteration.
@@ -519,15 +519,15 @@ class Slides(ParentedElementProxy):
         """Return a new slide that is a policy-governed deep copy of `source`.
 
         paper-pptx addition. The clone's relationship graph follows `policy` (default
-        |SlideClonePolicy|): layout shared; charts deep-copied WITH their embedded workbooks
+        `SlideClonePolicy`): layout shared; charts deep-copied WITH their embedded workbooks
         and style parts; notes deep-copied and re-linked to the clone; image/media shared;
         external (hyperlink) relationships copied. A slide bearing any other relationship
         type (OLE objects, controls, SmartArt, comments, …) refuses with
-        |RelationshipPolicyError| before anything changes.
+        `RelationshipPolicyError` before anything changes.
 
         The clone is inserted directly after `source`, or after the slide given by `after`.
-        `source`/`after` accept a |Slide| or a 0-based index; a |Slide| from another
-        presentation raises |TargetNotFoundError|.
+        `source`/`after` accept a `Slide` or a 0-based index; a `Slide` from another
+        presentation raises `TargetNotFoundError`.
         """
         from pptx._transaction import PackageTransaction
         from pptx.slideops import clone_slide_part, enroll_clone_in_section
@@ -614,7 +614,7 @@ class Slides(ParentedElementProxy):
     def move(self, slide: Slide | int, to_index: int) -> None:
         """Move `slide` so it sits at 0-based `to_index` in the slide sequence.
 
-        paper-pptx addition. `to_index` outside `range(len(slides))` raises |ValueError|.
+        paper-pptx addition. `to_index` outside `range(len(slides))` raises `ValueError`.
         """
         target = self._resolve_slide(slide)
         if (
@@ -637,7 +637,7 @@ class Slides(ParentedElementProxy):
         """Permute the slide sequence: new position i shows the slide now at `new_order[i]`.
 
         paper-pptx addition. `new_order` must be an exact permutation of
-        `range(len(slides))`; anything else raises |ValueError| before any change.
+        `range(len(slides))`; anything else raises `ValueError` before any change.
         """
         if sorted(new_order) != list(range(len(self))):
             raise ValueError(
@@ -652,10 +652,10 @@ class Slides(ParentedElementProxy):
                 self._sldIdLst.append(current[index])  # -- re-appending moves the element
 
     def _resolve_slide(self, value: Slide | int) -> Slide:
-        """Return the |Slide| in this collection for `value` (a Slide or 0-based index).
+        """Return the `Slide` in this collection for `value` (a Slide or 0-based index).
 
-        An int resolves with normal indexed-access semantics (|IndexError| when out of
-        range); a |Slide| not belonging to this presentation raises |TargetNotFoundError|.
+        An int resolves with normal indexed-access semantics (`IndexError` when out of
+        range); a `Slide` not belonging to this presentation raises `TargetNotFoundError`.
         """
         if isinstance(value, int) and not isinstance(value, bool):
             slide = self[value]
@@ -684,7 +684,7 @@ class Slides(ParentedElementProxy):
     def index(self, slide: Slide) -> int:
         """Map `slide` to its zero-based position in this slide sequence.
 
-        Raises |ValueError| on *slide* not present.
+        Raises `ValueError` on *slide* not present.
         """
         for idx, this_slide in enumerate(self):
             if this_slide == slide:
@@ -695,9 +695,9 @@ class Slides(ParentedElementProxy):
 class HeaderFooters(object):
     """Header/footer placeholder visibility flags of a layout or master (paper-pptx addition).
 
-    Wraps the `p:hf` element. Each property is tri-state: |True|/|False| when the attribute
-    is explicit, |None| when it is absent — meaning "inherit" (a layout inherits from its
-    master; the schema default is visible). Assigning |None| removes the attribute.
+    Wraps the `p:hf` element. Each property is tri-state: `True`/`False` when the attribute
+    is explicit, `None` when it is absent — meaning "inherit" (a layout inherits from its
+    master; the schema default is visible). Assigning `None` removes the attribute.
     """
 
     def __init__(self, owner):
@@ -763,7 +763,7 @@ class SlideLayout(_BaseSlide):
 
     @property
     def header_footers(self) -> HeaderFooters:
-        """|HeaderFooters| flags for this layout (paper-pptx addition)."""
+        """`HeaderFooters` flags for this layout (paper-pptx addition)."""
         return HeaderFooters(self)
 
     def iter_cloneable_placeholders(self) -> Iterator[LayoutPlaceholder]:
@@ -827,7 +827,7 @@ class SlideLayouts(ParentedElementProxy):
         return self.part.related_slide_layout(sldLayoutId.rId)
 
     def __iter__(self) -> Iterator[SlideLayout]:
-        """Generate each |SlideLayout| in the collection, in sequence."""
+        """Generate each `SlideLayout` in the collection, in sequence."""
         for sldLayoutId in self._sldLayoutIdLst.sldLayoutId_lst:
             yield self.part.related_slide_layout(sldLayoutId.rId)
 
@@ -912,24 +912,24 @@ class SlideMaster(_BaseMaster):
     """Slide master object.
 
     Provides access to slide layouts. Access to placeholders, regular shapes, and slide master-level
-    properties is inherited from |_BaseMaster|.
+    properties is inherited from `_BaseMaster`.
     """
 
     _element: CT_SlideMaster  # pyright: ignore[reportIncompatibleVariableOverride]
 
     @property
     def header_footers(self) -> HeaderFooters:
-        """|HeaderFooters| flags for this master (paper-pptx addition)."""
+        """`HeaderFooters` flags for this master (paper-pptx addition)."""
         return HeaderFooters(self)
 
     @lazyproperty
     def slide_layouts(self) -> SlideLayouts:
-        """|SlideLayouts| object providing access to this slide-master's layouts."""
+        """`SlideLayouts` object providing access to this slide-master's layouts."""
         return SlideLayouts(self._element.get_or_add_sldLayoutIdLst(), self)
 
 
 class SlideMasters(ParentedElementProxy):
-    """Sequence of |SlideMaster| objects belonging to a presentation.
+    """Sequence of `SlideMaster` objects belonging to a presentation.
 
     Has list access semantics, supporting indexed access, len(), and iteration.
     """
@@ -949,7 +949,7 @@ class SlideMasters(ParentedElementProxy):
         return self.part.related_slide_master(sldMasterId.rId)
 
     def __iter__(self):
-        """Generate each |SlideMaster| instance in the collection, in sequence."""
+        """Generate each `SlideMaster` instance in the collection, in sequence."""
         for smi in self._sldMasterIdLst.sldMasterId_lst:
             yield self.part.related_slide_master(smi.rId)
 
@@ -963,7 +963,7 @@ class _Background(ElementProxy):
 
     Note that the presence of this object does not by itself imply an
     explicitly-defined background; a slide with an inherited background still
-    has a |_Background| object.
+    has a `_Background` object.
     """
 
     def __init__(self, cSld: CT_CommonSlideData):
@@ -972,9 +972,9 @@ class _Background(ElementProxy):
 
     @lazyproperty
     def fill(self):
-        """|FillFormat| instance for this background.
+        """`FillFormat` instance for this background.
 
-        This |FillFormat| object is used to interrogate or specify the fill
+        This `FillFormat` object is used to interrogate or specify the fill
         of the slide background.
 
         Note that accessing this property is potentially destructive. A slide

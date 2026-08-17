@@ -31,7 +31,7 @@ DEFAULT_BULLET_HANGING_INDENT = Emu(171450)
 
 
 def _require_xml_encodable(value: str, name: str) -> None:
-    """Raise |ValueError| when `value` cannot be represented in XML 1.0.
+    """Raise `ValueError` when `value` cannot be represented in XML 1.0.
 
     Part of validate-fully-then-mutate: a string that passes isinstance checks but explodes
     at serialization time would otherwise leave a half-mutated tree behind.
@@ -55,7 +55,7 @@ def _require_xml_encodable(value: str, name: str) -> None:
 class BulletFormat(object):
     """Bullet and numbering state of a single paragraph.
 
-    Read properties report this paragraph's **local** `a:pPr` state only: |None| means "nothing
+    Read properties report this paragraph's **local** `a:pPr` state only: `None` means "nothing
     set here", in which case rendering inherits from the placeholder/list-style chain (use the
     effective-style inspection API to see what actually renders).
     """
@@ -67,7 +67,7 @@ class BulletFormat(object):
 
     @property
     def type(self) -> PP_BULLET_TYPE | None:
-        """Kind of bullet explicitly set on this paragraph, |None| when nothing local is set."""
+        """Kind of bullet explicitly set on this paragraph, `None` when nothing local is set."""
         pPr = self._p.pPr
         if pPr is None:
             return None
@@ -83,35 +83,35 @@ class BulletFormat(object):
 
     @property
     def char(self) -> str | None:
-        """The bullet character (`a:buChar/@char`), |None| unless a character bullet is set."""
+        """The bullet character (`a:buChar/@char`), `None` unless a character bullet is set."""
         pPr = self._p.pPr
         buChar = pPr.buChar if pPr is not None else None
         return buChar.char if buChar is not None else None
 
     @property
     def number_scheme(self) -> str | None:
-        """Numbering scheme token (`a:buAutoNum/@type`), e.g. "arabicPeriod", or |None|."""
+        """Numbering scheme token (`a:buAutoNum/@type`), e.g. "arabicPeriod", or `None`."""
         pPr = self._p.pPr
         buAutoNum = pPr.buAutoNum if pPr is not None else None
         return buAutoNum.type if buAutoNum is not None else None
 
     @property
     def start_at(self) -> int | None:
-        """First number of an auto-numbered sequence, |None| unless numbering is set."""
+        """First number of an auto-numbered sequence, `None` unless numbering is set."""
         pPr = self._p.pPr
         buAutoNum = pPr.buAutoNum if pPr is not None else None
         return buAutoNum.startAt if buAutoNum is not None else None
 
     @property
     def font_name(self) -> str | None:
-        """Bullet-specific typeface (`a:buFont/@typeface`), or |None| when not set locally."""
+        """Bullet-specific typeface (`a:buFont/@typeface`), or `None` when not set locally."""
         pPr = self._p.pPr
         buFont = pPr.buFont if pPr is not None else None
         return buFont.typeface if buFont is not None else None
 
     @property
     def size_percent(self) -> float | None:
-        """Bullet size as a fraction of the text size (`a:buSzPct`), e.g. 0.75, or |None|."""
+        """Bullet size as a fraction of the text size (`a:buSzPct`), e.g. 0.75, or `None`."""
         pPr = self._p.pPr
         buSzPct = pPr.buSzPct if pPr is not None else None
         return buSzPct.val if buSzPct is not None else None
@@ -128,7 +128,7 @@ class BulletFormat(object):
         """Give this paragraph a real character bullet (`a:buChar`).
 
         `left_margin`/`hanging_indent` write `marL`/`indent` so the bullet hangs correctly;
-        pass |None| for either to leave the existing paragraph attribute untouched.
+        pass `None` for either to leave the existing paragraph attribute untouched.
         `font_name` sets a bullet-specific typeface (`a:buFont`); `size_percent` scales the
         bullet relative to the text size (fraction, 0.25–4.0).
         """
@@ -156,7 +156,7 @@ class BulletFormat(object):
         """Give this paragraph PowerPoint automatic numbering (`a:buAutoNum`).
 
         `scheme` is an ECMA-376 auto-number token like "arabicPeriod" or "romanUcParenR";
-        an unknown token raises |ValueError|. Numbering restarts at `start_at`.
+        an unknown token raises `ValueError`. Numbering restarts at `start_at`.
         """
         self._require_attached()
         if isinstance(start_at, bool):

@@ -31,10 +31,10 @@ class CT_Boolean_Explicit(BaseOxmlElement):
     """Always spells out the `val` attribute, e.g. `val=1`.
 
     At least one boolean element is improperly interpreted by one or more
-    versions of PowerPoint. The `c:overlay` element is interpreted as |False|
+    versions of PowerPoint. The `c:overlay` element is interpreted as `False`
     when no `val` attribute is present, contrary to the behavior described in
     the schema. A remedy for this is to interpret a missing `val` attribute
-    as |True| (consistent with the spec), but always write the attribute
+    as `True` (consistent with the spec), but always write the attribute
     whenever there is occasion for changing the element.
     """
 
@@ -174,7 +174,7 @@ class CT_Title(BaseOxmlElement):
 
     @property
     def tx_rich(self):
-        """Return `c:tx/c:rich` or |None| if not present."""
+        """Return `c:tx/c:rich` or `None` if not present."""
         richs = self.xpath("c:tx/c:rich")
         if not richs:
             return None

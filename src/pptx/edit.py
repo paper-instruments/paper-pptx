@@ -8,7 +8,7 @@ anchors; this module consumes them. The run-preservation semantics:
 - runs are split at match boundaries; boundary fragments keep their source run's `rPr`
   verbatim; replacement text inherits the `rPr` of the run where the match STARTS;
 - runs the match does not touch stay byte-identical; runs consumed whole are removed;
-- staleness refuses (|StaleAnchorError|) — recovery is the explicit `refind()`, never a
+- staleness refuses (`StaleAnchorError`) — recovery is the explicit `refind()`, never a
   silent re-find.
 
 Traversal is visibility-complete via the same walker `inspect_text` uses (grouped shapes,
@@ -32,6 +32,15 @@ from pptx.oxml.ns import qn
 if TYPE_CHECKING:
     from pptx.presentation import Presentation
 
+__all__ = [
+    "RESULT_SCHEMA_NAME",
+    "RESULT_SCHEMA_VERSION",
+    "ReplaceResult",
+    "refind",
+    "replace_text",
+    "replace_text_at",
+]
+
 RESULT_SCHEMA_NAME = "paper-replace-result"
 RESULT_SCHEMA_VERSION = 1
 
@@ -43,7 +52,7 @@ class ReplaceResult:
     Fields:
 
     * ``replacements`` -- total number of occurrences replaced across the deck.
-    * ``blocks`` -- POST-edit :class:`pptx.inspect.BlockAnchor` for each block that was
+    * ``blocks`` -- POST-edit `pptx.inspect.BlockAnchor` for each block that was
       touched (their content hashes reflect the new text).
     """
 
@@ -94,9 +103,9 @@ def replace_text_at(
     """Replace `find` with `replace` inside the single block addressed by `anchor`.
 
     The block's current text must hash to `anchor.content_hash` — a mismatch means the
-    document changed since the anchor was produced and raises |StaleAnchorError| (recover
-    explicitly with :func:`refind`). `find` absent from the block raises
-    |TargetNotFoundError|. Formatting-preservation semantics as :func:`replace_text`.
+    document changed since the anchor was produced and raises `StaleAnchorError` (recover
+    explicitly with `refind`). `find` absent from the block raises
+    `TargetNotFoundError`. Formatting-preservation semantics as `replace_text`.
     """
     _validate_find_replace(find, replace)
     if not isinstance(anchor, BlockAnchor):
@@ -136,8 +145,8 @@ def refind(prs: "Presentation", anchor: BlockAnchor) -> BlockAnchor:
     """Return a fresh anchor for the unique block still matching `anchor.content_hash`.
 
     The explicit recovery path for a stale anchor: searches every block of the anchor's
-    part by content hash. No match → |TargetNotFoundError|; more than one →
-    |AmbiguousTargetError| (the hash alone cannot say which block was meant).
+    part by content hash. No match → `TargetNotFoundError`; more than one →
+    `AmbiguousTargetError` (the hash alone cannot say which block was meant).
     """
     if not isinstance(anchor, BlockAnchor):
         raise ValueError("anchor must be a BlockAnchor, got %r" % (anchor,))

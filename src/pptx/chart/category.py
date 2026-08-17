@@ -1,7 +1,7 @@
 """Category-related objects.
 
-The |category.Categories| object is returned by ``Plot.categories`` and contains zero or
-more |category.Category| objects, each representing one of the category labels
+The `category.Categories` object is returned by ``Plot.categories`` and contains zero or
+more `category.Category` objects, each representing one of the category labels
 associated with the plot. Categories can be hierarchical, so there are members allowing
 discovery of the depth of that hierarchy and providing means to navigate it.
 """
@@ -13,7 +13,7 @@ from collections.abc import Sequence
 
 class Categories(Sequence):
     """
-    A sequence of |category.Category| objects, each representing a category
+    A sequence of `category.Category` objects, each representing a category
     label on the chart. Provides properties for dealing with hierarchical
     categories.
     """
@@ -81,7 +81,7 @@ class Categories(Sequence):
     @property
     def levels(self):
         """
-        Return a sequence of |CategoryLevel| objects representing the
+        Return a sequence of `CategoryLevel` objects representing the
         hierarchy of this category collection. The sequence is empty when the
         category collection is not hierarchical, that is, contains only
         leaf-level categories. The levels are ordered from the leaf level to
@@ -184,7 +184,7 @@ class Category(str):
 
 class CategoryLevel(Sequence):
     """
-    A sequence of |category.Category| objects representing a single level in
+    A sequence of `category.Category` objects representing a single level in
     a hierarchical category collection. This object is only used when the
     categories are hierarchical, meaning they have more than one level and
     higher level categories group those at lower levels.

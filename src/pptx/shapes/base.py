@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class BaseShape(object):
     """Base class for shape objects.
 
-    Subclasses include |Shape|, |Picture|, and |GraphicFrame|.
+    Subclasses include `Shape`, `Picture`, and `GraphicFrame`.
     """
 
     def __init__(self, shape_elm: ShapeElement, parent: ProvidesPart):
@@ -30,7 +30,7 @@ class BaseShape(object):
         self._parent = parent
 
     def __eq__(self, other: object) -> bool:
-        """|True| if this shape object proxies the same element as *other*.
+        """`True` if this shape object proxies the same element as *other*.
 
         Equality for proxy objects is defined as referring to the same XML element, whether or not
         they are the same proxy object instance.
@@ -46,11 +46,11 @@ class BaseShape(object):
 
     @lazyproperty
     def click_action(self) -> ActionSetting:
-        """|ActionSetting| instance providing access to click behaviors.
+        """`ActionSetting` instance providing access to click behaviors.
 
         Click behaviors are hyperlink-like behaviors including jumping to a hyperlink (web page)
         or to another slide in the presentation. The click action is that defined on the overall
-        shape, not a run of text within the shape. An |ActionSetting| object is always returned,
+        shape, not a run of text within the shape. An `ActionSetting` object is always returned,
         even when no click behavior is defined on the shape.
         """
         cNvPr = self._element._nvXxPr.cNvPr  # pyright: ignore[reportPrivateUsage]
@@ -67,9 +67,9 @@ class BaseShape(object):
 
     @property
     def has_chart(self) -> bool:
-        """|True| if this shape is a graphic frame containing a chart object.
+        """`True` if this shape is a graphic frame containing a chart object.
 
-        |False| otherwise. When |True|, the chart object can be accessed using the ``.chart``
+        `False` otherwise. When `True`, the chart object can be accessed using the ``.chart``
         property.
         """
         # This implementation is unconditionally False, the True version is
@@ -78,9 +78,9 @@ class BaseShape(object):
 
     @property
     def has_table(self) -> bool:
-        """|True| if this shape is a graphic frame containing a table object.
+        """`True` if this shape is a graphic frame containing a table object.
 
-        |False| otherwise. When |True|, the table object can be accessed using the ``.table``
+        `False` otherwise. When `True`, the table object can be accessed using the ``.table``
         property.
         """
         # This implementation is unconditionally False, the True version is
@@ -89,7 +89,7 @@ class BaseShape(object):
 
     @property
     def has_text_frame(self) -> bool:
-        """|True| if this shape can contain text."""
+        """`True` if this shape can contain text."""
         # overridden on Shape to return True. Only <p:sp> has text frame
         return False
 
@@ -106,7 +106,7 @@ class BaseShape(object):
     def is_placeholder(self) -> bool:
         """True if this shape is a placeholder.
 
-        A shape is a placeholder if it has a <p:ph> element.
+        A shape is a placeholder if it has a `<p:ph>` element.
         """
         return self._element.has_ph_elm
 
@@ -135,8 +135,8 @@ class BaseShape(object):
     def part(self) -> BaseSlidePart:
         """The package part containing this shape.
 
-        A |BaseSlidePart| subclass in this case. Access to a slide part should only be required if
-        you are extending the behavior of |pp| API objects.
+        A `BaseSlidePart` subclass in this case. Access to a slide part should only be required if
+        you are extending the behavior of `pp` API objects.
         """
         return cast("BaseSlidePart", self._parent.part)
 
@@ -144,7 +144,7 @@ class BaseShape(object):
     def placeholder_format(self) -> _PlaceholderFormat:
         """Provides access to placeholder-specific properties such as placeholder type.
 
-        Raises |ValueError| on access if the shape is not a placeholder.
+        Raises `ValueError` on access if the shape is not a placeholder.
         """
         ph = self._element.ph
         if ph is None:
@@ -166,9 +166,9 @@ class BaseShape(object):
 
     @lazyproperty
     def shadow(self) -> ShadowFormat:
-        """|ShadowFormat| object providing access to shadow for this shape.
+        """`ShadowFormat` object providing access to shadow for this shape.
 
-        A |ShadowFormat| object is always returned, even when no shadow is
+        A `ShadowFormat` object is always returned, even when no shadow is
         explicitly defined on this shape (i.e. it inherits its shadow
         behavior).
         """
@@ -218,7 +218,7 @@ class BaseShape(object):
 class _PlaceholderFormat(ElementProxy):
     """Provides properties specific to placeholders, such as the placeholder type.
 
-    Accessed via the :attr:`~.BaseShape.placeholder_format` property of a placeholder shape,
+    Accessed via the `BaseShape.placeholder_format` property of a placeholder shape,
     """
 
     def __init__(self, element: CT_Placeholder):
@@ -239,6 +239,6 @@ class _PlaceholderFormat(ElementProxy):
     def type(self) -> PP_PLACEHOLDER:
         """Placeholder type.
 
-        A member of the :ref:`PpPlaceholderType` enumeration, e.g. PP_PLACEHOLDER.CHART
+        A member of the `PpPlaceholderType` enumeration, e.g. PP_PLACEHOLDER.CHART
         """
         return self._ph.type

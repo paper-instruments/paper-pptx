@@ -24,7 +24,7 @@ class CorePropertiesPart(XmlPart):
 
     @classmethod
     def default(cls, package: Package):
-        """Return default new |CorePropertiesPart| instance suitable as starting point.
+        """Return default new `CorePropertiesPart` instance suitable as starting point.
 
         This provides a base for adding core-properties to a package that doesn't yet
         have any.
@@ -158,7 +158,7 @@ class CorePropertiesPart(XmlPart):
 
     @classmethod
     def _new(cls, package: Package) -> CorePropertiesPart:
-        """Return new empty |CorePropertiesPart| instance."""
+        """Return new empty `CorePropertiesPart` instance."""
         return CorePropertiesPart(
             PackURI("/docProps/core.xml"),
             CT.OPC_CORE_PROPERTIES,

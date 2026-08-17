@@ -24,7 +24,7 @@ from pptx.oxml.xmlchemy import (
 
 class CT_Blip(BaseOxmlElement):
     """
-    <a:blip> element
+    `<a:blip>` element
     """
 
     rEmbed = OptionalAttribute("r:embed", ST_RelationshipId)
@@ -32,7 +32,7 @@ class CT_Blip(BaseOxmlElement):
 
 class CT_BlipFillProperties(BaseOxmlElement):
     """
-    Custom element class for <a:blipFill> element.
+    Custom element class for `<a:blipFill>` element.
     """
 
     _tag_seq = ("a:blip", "a:srcRect", "a:tile", "a:stretch")

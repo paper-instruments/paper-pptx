@@ -18,7 +18,7 @@ class MSO_AUTO_SIZE(BaseEnum):
     The word-wrap setting of the text frame interacts with the auto-size setting to determine the
     specific auto-sizing behavior.
 
-    Note that `TextFrame.auto_size` can also be set to |None|, which removes the auto size setting
+    Note that `TextFrame.auto_size` can also be set to `None`, which removes the auto size setting
     altogether. This causes the setting to be inherited, either from the layout placeholder, in the
     case of a placeholder shape, or from the theme.
 
@@ -64,7 +64,7 @@ class MSO_AUTO_SIZE(BaseEnum):
 class MSO_TEXT_UNDERLINE_TYPE(BaseXmlEnum):
     """
     Indicates the type of underline for text. Used with
-    :attr:`.Font.underline` to specify the style of text underlining.
+    `Font.underline` to specify the style of text underlining.
 
     Alias: ``MSO_UNDERLINE``
 
@@ -147,10 +147,10 @@ MSO_UNDERLINE = MSO_TEXT_UNDERLINE_TYPE
 class MSO_VERTICAL_ANCHOR(BaseXmlEnum):
     """Specifies the vertical alignment of text in a text frame.
 
-    Used with the `.vertical_anchor` property of the |TextFrame| object. Note that the
+    Used with the `.vertical_anchor` property of the `TextFrame` object. Note that the
     `vertical_anchor` property can also have the value None, indicating there is no directly
     specified vertical anchor setting and its effective value is inherited from its placeholder if
-    it has one or from the theme. |None| may also be assigned to remove an explicitly specified
+    it has one or from the theme. `None` may also be assigned to remove an explicitly specified
     vertical anchor setting.
 
     MS API Name: `MsoVerticalAnchor`
@@ -178,7 +178,7 @@ class PP_BULLET_TYPE(BaseEnum):
     """Kind of bullet explicitly set on a paragraph's own properties (paper-pptx addition).
 
     Reported by `paragraph.bullet.type`. Reflects local `a:pPr` state only: a paragraph whose
-    bullet rendering is inherited from the placeholder/list-style chain reports |None|, not a
+    bullet rendering is inherited from the placeholder/list-style chain reports `None`, not a
     member of this enumeration.
 
     Example::

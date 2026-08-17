@@ -38,7 +38,7 @@ class ActionSetting(Subshape):
 
     @property
     def action(self):
-        """Member of :ref:`PpActionType` enumeration, such as `PP_ACTION.HYPERLINK`.
+        """Member of `PpActionType` enumeration, such as `PP_ACTION.HYPERLINK`.
 
         The returned member indicates the type of action that will result when the
         specified shape or text is clicked or the mouse pointer is positioned over the
@@ -79,8 +79,8 @@ class ActionSetting(Subshape):
     @lazyproperty
     def hyperlink(self) -> Hyperlink:
         """
-        A |Hyperlink| object representing the hyperlink action defined on
-        this click or hover mouse event. A |Hyperlink| object is always
+        A `Hyperlink` object representing the hyperlink action defined on
+        this click or hover mouse event. A `Hyperlink` object is always
         returned, even if no hyperlink or other click action is defined.
         """
         return Hyperlink(self._element, self._parent, self._hover)
@@ -91,7 +91,7 @@ class ActionSetting(Subshape):
         A reference to the slide in this presentation that is the target of
         the slide jump action in this shape. Slide jump actions include
         `PP_ACTION.FIRST_SLIDE`, `LAST_SLIDE`, `NEXT_SLIDE`,
-        `PREVIOUS_SLIDE`, and `NAMED_SLIDE`. Returns |None| for all other
+        `PREVIOUS_SLIDE`, and `NAMED_SLIDE`. Returns `None` for all other
         actions. In particular, the `LAST_SLIDE_VIEWED` action and the `PLAY`
         (start other presentation) actions are not supported.
 
@@ -102,7 +102,7 @@ class ActionSetting(Subshape):
             shape = slide.shapes[0]
             shape.target_slide = target_slide
 
-        Assigning |None| removes any slide jump action. Note that this is
+        Assigning `None` removes any slide jump action. Note that this is
         accomplished by removing any action present (such as a hyperlink),
         without first checking that it is a slide jump action.
         """
@@ -160,7 +160,7 @@ class ActionSetting(Subshape):
     def _hlink(self) -> CT_Hyperlink | None:
         """
         Reference to the `a:hlinkClick` or `a:hlinkHover` element for this
-        click action. Returns |None| if the element is not present.
+        click action. Returns `None` if the element is not present.
         """
         if self._hover:
             assert isinstance(self._element, CT_NonVisualDrawingProps)
@@ -209,9 +209,9 @@ class Hyperlink(Subshape):
     def address(self) -> str | None:
         """Read/write. The URL of the hyperlink.
 
-        URL can be on http, https, mailto, or file scheme; others may work. Returns |None| if no
+        URL can be on http, https, mailto, or file scheme; others may work. Returns `None` if no
         hyperlink is defined, including when another action such as `RUN_MACRO` is defined on the
-        object. Assigning |None| removes any action defined on the object, whether it is a hyperlink
+        object. Assigning `None` removes any action defined on the object, whether it is a hyperlink
         action or not.
         """
         hlink = self._hlink
@@ -250,7 +250,7 @@ class Hyperlink(Subshape):
     def _hlink(self) -> CT_Hyperlink | None:
         """Reference to the `a:hlinkClick` or `h:hlinkHover` element for this click action.
 
-        Returns |None| if the element is not present.
+        Returns `None` if the element is not present.
         """
         if self._hover:
             return cast("CT_NonVisualDrawingProps", self._element).hlinkHover

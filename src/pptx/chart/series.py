@@ -14,7 +14,7 @@ from pptx.util import lazyproperty
 
 class _BaseSeries(object):
     """
-    Base class for |BarSeries| and other series classes.
+    Base class for `BarSeries` and other series classes.
     """
 
     def __init__(self, ser):
@@ -25,7 +25,7 @@ class _BaseSeries(object):
     @lazyproperty
     def format(self):
         """
-        The |ChartFormat| instance for this series, providing access to shape
+        The `ChartFormat` instance for this series, providing access to shape
         properties such as fill and line.
         """
         return ChartFormat(self._ser)
@@ -51,17 +51,17 @@ class _BaseSeries(object):
 
 
 class _BaseCategorySeries(_BaseSeries):
-    """Base class for |BarSeries| and other category chart series classes."""
+    """Base class for `BarSeries` and other category chart series classes."""
 
     @lazyproperty
     def data_labels(self):
-        """|DataLabels| object controlling data labels for this series."""
+        """`DataLabels` object controlling data labels for this series."""
         return DataLabels(self._ser.get_or_add_dLbls())
 
     @lazyproperty
     def points(self):
         """
-        The |CategoryPoints| object providing access to individual data
+        The `CategoryPoints` object providing access to individual data
         points in this series.
         """
         return CategoryPoints(self._ser)
@@ -92,7 +92,7 @@ class _MarkerMixin(object):
     @lazyproperty
     def marker(self):
         """
-        The |Marker| instance for this series, providing access to data point
+        The `Marker` instance for this series, providing access to data point
         marker properties such as fill and line. Setting these properties
         determines the appearance of markers for all points in this series
         that are not overridden by settings at the point level.
@@ -112,9 +112,9 @@ class BarSeries(_BaseCategorySeries):
     @property
     def invert_if_negative(self):
         """
-        |True| if a point having a value less than zero should appear with a
-        fill different than those with a positive value. |False| if the fill
-        should be the same regardless of the bar's value. When |True|, a bar
+        `True` if a point having a value less than zero should appear with a
+        fill different than those with a positive value. `False` if the fill
+        should be the same regardless of the bar's value. When `True`, a bar
         with a solid fill appears with white fill; in a bar with gradient
         fill, the direction of the gradient is reversed, e.g. dark -> light
         instead of light -> dark. The term "invert" here should be understood
@@ -141,7 +141,7 @@ class LineSeries(_BaseCategorySeries, _MarkerMixin):
         """
         Read/write boolean specifying whether to use curve smoothing to
         form the line connecting the data points in this series into
-        a continuous curve. If |False|, a series of straight line segments
+        a continuous curve. If `False`, a series of straight line segments
         are used to connect the points.
         """
         smooth = self._element.smooth
@@ -187,7 +187,7 @@ class XySeries(_BaseSeries, _MarkerMixin):
     @lazyproperty
     def points(self):
         """
-        The |XyPoints| object providing access to individual data points in
+        The `XyPoints` object providing access to individual data points in
         this series.
         """
         return XyPoints(self._ser)
@@ -209,7 +209,7 @@ class BubbleSeries(XySeries):
     @lazyproperty
     def points(self):
         """
-        The |BubblePoints| object providing access to individual data point
+        The `BubblePoints` object providing access to individual data point
         objects used to discover and adjust the formatting and data labels of
         a data point.
         """
@@ -218,7 +218,7 @@ class BubbleSeries(XySeries):
 
 class SeriesCollection(Sequence):
     """
-    A sequence of |Series| objects.
+    A sequence of `Series` objects.
     """
 
     def __init__(self, parent_elm):

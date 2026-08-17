@@ -40,9 +40,9 @@ class GraphicFrame(BaseShape):
 
     @property
     def chart(self) -> Chart:
-        """The |Chart| object containing the chart in this graphic frame.
+        """The `Chart` object containing the chart in this graphic frame.
 
-        Raises |ValueError| if this graphic frame does not contain a chart.
+        Raises `ValueError` if this graphic frame does not contain a chart.
         """
         if not self.has_chart:
             raise ValueError("shape does not contain a chart")
@@ -50,7 +50,7 @@ class GraphicFrame(BaseShape):
 
     @property
     def chart_part(self) -> ChartPart:
-        """The |ChartPart| object containing the chart in this graphic frame."""
+        """The `ChartPart` object containing the chart in this graphic frame."""
         chart_rId = self._graphicFrame.chart_rId
         if chart_rId is None:
             raise ValueError("this graphic frame does not contain a chart")
@@ -58,17 +58,17 @@ class GraphicFrame(BaseShape):
 
     @property
     def has_chart(self) -> bool:
-        """|True| if this graphic frame contains a chart object. |False| otherwise.
+        """`True` if this graphic frame contains a chart object. `False` otherwise.
 
-        When |True|, the chart object can be accessed using the `.chart` property.
+        When `True`, the chart object can be accessed using the `.chart` property.
         """
         return self._graphicFrame.graphicData_uri == GRAPHIC_DATA_URI_CHART
 
     @property
     def has_table(self) -> bool:
-        """|True| if this graphic frame contains a table object, |False| otherwise.
+        """`True` if this graphic frame contains a table object, `False` otherwise.
 
-        When |True|, the table object can be accessed using the `.table` property.
+        When `True`, the table object can be accessed using the `.table` property.
         """
         return self._graphicFrame.graphicData_uri == GRAPHIC_DATA_URI_TABLE
 
@@ -87,7 +87,7 @@ class GraphicFrame(BaseShape):
 
     @lazyproperty
     def shadow(self) -> ShadowFormat:
-        """Unconditionally raises |NotImplementedError|.
+        """Unconditionally raises `NotImplementedError`.
 
         Access to the shadow effect for graphic-frame objects is content-specific (i.e. different
         for charts, tables, etc.) and has not yet been implemented.
@@ -120,9 +120,9 @@ class GraphicFrame(BaseShape):
 
     @property
     def table(self) -> Table:
-        """The |Table| object contained in this graphic frame.
+        """The `Table` object contained in this graphic frame.
 
-        Raises |ValueError| if this graphic frame does not contain a table.
+        Raises `ValueError` if this graphic frame does not contain a table.
         """
         if not self.has_table:
             raise ValueError("shape does not contain a table")

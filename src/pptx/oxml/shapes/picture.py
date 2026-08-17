@@ -29,7 +29,7 @@ class CT_Picture(BaseShapeElement):
     def blip_rId(self) -> str | None:
         """Value of `p:blipFill/a:blip/@r:embed`.
 
-        Returns |None| if not present.
+        Returns `None` if not present.
         """
         blip = self.blipFill.blip
         if blip is not None and blip.rEmbed is not None:
@@ -46,14 +46,14 @@ class CT_Picture(BaseShapeElement):
 
     def get_or_add_ln(self):
         """
-        Return the <a:ln> grandchild element, newly added if not present.
+        Return the `<a:ln>` grandchild element, newly added if not present.
         """
         return self.spPr.get_or_add_ln()
 
     @property
     def ln(self):
         """
-        ``<a:ln>`` grand-child element or |None| if not present
+        ``<a:ln>`` grand-child element or `None` if not present
         """
         return self.spPr.ln
 

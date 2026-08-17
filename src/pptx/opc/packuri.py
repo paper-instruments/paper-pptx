@@ -9,7 +9,7 @@ import re
 class PackURI(str):
     """Proxy for a pack URI (partname).
 
-    Provides utility properties the baseURI and the filename slice. Behaves as |str| otherwise.
+    Provides utility properties the baseURI and the filename slice. Behaves as `str` otherwise.
     """
 
     _filename_re = re.compile("([a-zA-Z]+)([0-9][0-9]*)?")
@@ -61,7 +61,7 @@ class PackURI(str):
         """Optional int partname index.
 
         Value is an integer for an "array" partname or None for singleton partname, e.g. `21` for
-        `"/ppt/slides/slide21.xml"` and |None| for `"/ppt/presentation.xml"`.
+        `"/ppt/slides/slide21.xml"` and `None` for `"/ppt/presentation.xml"`.
         """
         filename = self.filename
         if not filename:

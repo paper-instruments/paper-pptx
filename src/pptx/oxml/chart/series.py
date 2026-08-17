@@ -176,7 +176,7 @@ class CT_SeriesComposite(BaseOxmlElement):
     def get_dLbl(self, idx):
         """
         Return the `c:dLbl` element representing the label for the data point
-        at offset *idx* in this series, or |None| if not present.
+        at offset *idx* in this series, or `None` if not present.
         """
         dLbls = self.dLbls
         if dLbls is None:

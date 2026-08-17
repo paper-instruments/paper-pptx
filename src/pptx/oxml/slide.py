@@ -346,17 +346,17 @@ class CT_SlideMasterTextStyles(BaseOxmlElement):
 
     @property
     def titleStyle(self):
-        """`p:titleStyle` child (a `CT_TextListStyle`), or |None| if not present."""
+        """`p:titleStyle` child (a `CT_TextListStyle`), or `None` if not present."""
         return self.find(qn("p:titleStyle"))
 
     @property
     def bodyStyle(self):
-        """`p:bodyStyle` child (a `CT_TextListStyle`), or |None| if not present."""
+        """`p:bodyStyle` child (a `CT_TextListStyle`), or `None` if not present."""
         return self.find(qn("p:bodyStyle"))
 
     @property
     def otherStyle(self):
-        """`p:otherStyle` child (a `CT_TextListStyle`), or |None| if not present."""
+        """`p:otherStyle` child (a `CT_TextListStyle`), or `None` if not present."""
         return self.find(qn("p:otherStyle"))
 
 
