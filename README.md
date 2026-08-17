@@ -173,6 +173,20 @@ hacks** below — that API writes genuine bullet markup onto a paragraph, this
 one reports the bullet the deck renders whether or not the paragraph sets
 one.
 
+It reports the bullet's typeface and size too, each resolved on its own chain
+because the schema inherits them separately from the glyph. That matters more
+than it sounds: branded templates routinely use a symbol font, where the glyph
+is a private-use codepoint that draws as a filled square in Wingdings and as
+an empty box in anything else. Reporting the typeface is what lets a caller
+reproduce a bullet from the resolver's answer alone.
+
+```python
+fmt = effective_paragraph_format(paragraph)
+fmt.bullet.char           # e.g. ''  — meaningless on its own
+fmt.bullet_font.value     # 'Wingdings'    — what makes it a filled square
+fmt.bullet_size.value     # 0.75           — or BULLET_FOLLOWS_TEXT
+```
+
 **Visibility-complete text inspection.** Iterating top-level shapes misses text
 inside nested groups and table cells, and `shape.text` flattens slide-number
 fields and line breaks into plain characters. `pptx.inspect.inspect_text()`
@@ -505,11 +519,10 @@ path of this package. Known gaps, honestly:
 - **Deck diff assumes lineage.** `diff_decks` matches slides by permanent ID,
   which serves decks derived from a common ancestor (v4 saved from v3);
   matching independently-authored decks is out of scope today.
-- **Bullet typeface and size are not resolved.**
-  `effective_paragraph_format()` reports which bullet renders, but not the
-  typeface it renders in or the size it renders at: `a:buFont` and `a:buSzPct`
-  sit outside the bullet choice group and inherit on their own chains, so each
-  needs its own walk. Strictly additive when it lands.
+- **Bullet color is not resolved.** `effective_paragraph_format()` reports a
+  bullet's kind, typeface, and size, but not its color. `a:buClr` needs the
+  theme-color walk, and `BulletFormat` can neither read nor write a bullet
+  color, so resolving it would add capability rather than close a gap.
 - **The deck diff does not report bullets.** `diff_decks` compares text and
   field markers, not paragraph formatting, so a list changing from bulleted to
   numbered — or a template losing its bullets across a rebind or compose —

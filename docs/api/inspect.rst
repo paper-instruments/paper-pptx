@@ -29,6 +29,8 @@ Functions
 Resolved values and provenance
 -------------------------------
 
+.. autodata:: BULLET_FOLLOWS_TEXT
+
 .. autoclass:: EffectiveValue()
    :members:
    :undoc-members:

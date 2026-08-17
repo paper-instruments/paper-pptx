@@ -97,8 +97,18 @@ character bullet, or the numbering scheme and starting number for a numbered one
 that read like absences are in fact resolved: a template that explicitly sets *no bullet* resolves
 to ``"none"``, attributed to the rung that set it, and a chain with no bullet anywhere also resolves
 to ``"none"``, through a closing ``rendering default`` provenance step. A paragraph inheriting the
-master's ``•`` is therefore distinguishable from one that renders nothing. The enclosing
-``.to_dict()`` payload is version 2 of ``paper-effective-paragraph-format``. ``"picture"`` is
+master's ``•`` is therefore distinguishable from one that renders nothing.
+
+The bullet's **typeface** and **size** arrive as two further values, ``bullet_font`` and
+``bullet_size``. They are separate XSD choice groups that inherit on their own chains, so each
+carries its own provenance: a paragraph can take its glyph from the master and its size from the
+layout. The typeface matters more than it sounds — branded templates routinely use a symbol font,
+where the glyph is a private-use codepoint that renders as a filled square in Wingdings and as an
+empty box in anything else. Reporting both means a caller can reproduce a bullet from the payload
+alone. Where the schema says to defer to the run's own text (``a:buFontTx``, ``a:buSzTx``), or where
+no rung specifies anything, the value is |BULLET_FOLLOWS_TEXT| and ``resolved`` is still true. A
+typeface naming a theme token such as ``+mj-lt`` resolves through the master's font scheme. The
+enclosing ``.to_dict()`` payload is version 3 of ``paper-effective-paragraph-format``. ``"picture"`` is
 reported on read only; there is no picture-bullet writer. Writing bullets is a separate job, done
 with the |BulletFormat| authoring API described under **Edit one deck** below, which reads and
 writes the paragraph's own markup.
