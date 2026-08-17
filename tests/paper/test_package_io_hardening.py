@@ -12,7 +12,7 @@ import pytest
 from lxml import etree
 
 from pptx import Presentation
-from pptx.errors import PackageLimitError, PaperRefusal
+from pptx.errors import PackageLimitError, PaperRefusal, UnsupportedStructureError
 from pptx.exc import PackageNotFoundError
 from pptx.opc import serialized
 
@@ -98,7 +98,7 @@ def test_normal_open_refuses_a_missing_relationship_target(tmp_path):
 
     _rewrite_package(_minimal_path(), target, transform)
 
-    with pytest.raises(PackageLimitError, match="targets missing part"):
+    with pytest.raises(UnsupportedStructureError, match="targets missing part"):
         Presentation(target)
 
 
@@ -137,8 +137,65 @@ def test_normal_open_refuses_duplicate_relationship_ids(tmp_path):
 
     _rewrite_package(_minimal_path(), target, transform)
 
-    with pytest.raises(PackageLimitError, match="duplicate ids"):
+    with pytest.raises(UnsupportedStructureError, match="duplicate ids"):
         Presentation(target)
+
+
+def _duplicate_first_rel(retarget: bool):
+    """Return a transform duplicating the first relationship, optionally to a new target."""
+
+    def transform(name, blob):
+        if name != "_rels/.rels":
+            return blob
+        root = etree.fromstring(blob)
+        clone = etree.fromstring(etree.tostring(root[0]))
+        if retarget:
+            clone.set("Target", "docProps/core.xml")
+        root.append(clone)
+        return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+    return transform
+
+
+def test_duplicate_relationship_id_message_distinguishes_redundant_from_conflicting(tmp_path):
+    """Both are refused -- PowerPoint refuses either -- but the repair differs.
+
+    Two declarations naming the same target are redundant: delete one and the meaning is
+    unchanged. Two naming different targets leave the id with no single meaning, so the
+    caller has to decide which was intended. The message says which it found.
+    """
+    redundant = tmp_path / "redundant.pptx"
+    _rewrite_package(_minimal_path(), redundant, _duplicate_first_rel(retarget=False))
+    with pytest.raises(UnsupportedStructureError, match="one declaration is redundant"):
+        Presentation(redundant)
+
+    conflicting = tmp_path / "conflicting.pptx"
+    _rewrite_package(_minimal_path(), conflicting, _duplicate_first_rel(retarget=True))
+    with pytest.raises(UnsupportedStructureError, match="no single meaning"):
+        Presentation(conflicting)
+
+
+def test_relationship_refusals_name_a_remedy(tmp_path):
+    """A refusal exists so a caller can repair the package without reading library code.
+
+    Both refuse input PowerPoint also refuses, so the caller's next step is the whole
+    value of the message.
+    """
+    duplicate = tmp_path / "dup.pptx"
+    _rewrite_package(_minimal_path(), duplicate, _duplicate_first_rel(retarget=False))
+    with pytest.raises(UnsupportedStructureError, match="Remove the extra declaration"):
+        Presentation(duplicate)
+
+    missing = tmp_path / "missing.pptx"
+
+    def drop_target(name, blob):
+        if name == "_rels/.rels":
+            return blob.replace(b"ppt/presentation.xml", b"ppt/missing-part.xml")
+        return blob
+
+    _rewrite_package(_minimal_path(), missing, drop_target)
+    with pytest.raises(UnsupportedStructureError, match="Recover the missing part"):
+        Presentation(missing)
 
 
 def test_path_save_failure_preserves_existing_file_and_mode(tmp_path, monkeypatch):

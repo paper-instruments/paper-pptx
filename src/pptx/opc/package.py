@@ -439,7 +439,7 @@ class _PackageLoader:
 
         def load_rels(source_partname: PackURI, rels: CT_Relationships):
             """Populate `xml_rels` dict by traversing relationships depth-first."""
-            from pptx.errors import PackageLimitError
+            from pptx.errors import UnsupportedStructureError
 
             xml_rels[source_partname] = rels
             visited_partnames.add(source_partname)
@@ -448,9 +448,23 @@ class _PackageLoader:
             rIds = [rel.rId for rel in rels.relationship_lst]
             duplicate_rIds = sorted({rId for rId in rIds if rIds.count(rId) > 1})
             if duplicate_rIds:
-                raise PackageLimitError(
-                    "relationship part for %s contains duplicate ids: %s"
-                    % (source_partname, ", ".join(duplicate_rIds))
+                # -- PowerPoint refuses a repeated relationship id whether or not the two
+                # -- declarations agree, so both cases are refused. Which one it is decides
+                # -- what the caller does about it, so the message says which.
+                targets = {
+                    rId: {rel.target_ref for rel in rels.relationship_lst if rel.rId == rId}
+                    for rId in duplicate_rIds
+                }
+                detail = (
+                    "they name different targets, so the id has no single meaning"
+                    if any(len(refs) > 1 for refs in targets.values())
+                    else "they name the same target, so one declaration is redundant"
+                )
+                raise UnsupportedStructureError(
+                    "relationship part for %s contains duplicate ids: %s; %s. Remove the"
+                    " extra declaration from that .rels part, or re-save the deck from"
+                    " PowerPoint"
+                    % (source_partname, ", ".join(duplicate_rIds), detail)
                 )
 
             # --- recursion stops when there are no unvisited partnames in rels ---
@@ -459,8 +473,10 @@ class _PackageLoader:
                     continue
                 target_partname = PackURI.from_rel_ref(base_uri, rel.target_ref)
                 if self._pkg_file is not None and target_partname not in self._package_reader:
-                    raise PackageLimitError(
-                        "relationship %s from %s targets missing part %s"
+                    raise UnsupportedStructureError(
+                        "relationship %s from %s targets missing part %s; the package is"
+                        " incomplete. Recover the missing part, or re-save the deck from"
+                        " PowerPoint"
                         % (rel.rId, source_partname, target_partname)
                     )
                 if target_partname in visited_partnames:
