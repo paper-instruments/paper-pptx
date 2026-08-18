@@ -49,6 +49,34 @@ if TYPE_CHECKING:
     from pptx.slide import Slide
     from pptx.text.text import _Run
 
+__all__ = [
+    "BULLET_FOLLOWS_TEXT",
+    "BlockAnchor",
+    "DECK_MANIFEST_SCHEMA",
+    "DECK_MANIFEST_VERSION",
+    "DeckManifest",
+    "EffectiveBullet",
+    "EffectiveFont",
+    "EffectiveParagraphFormat",
+    "EffectiveShapeFormat",
+    "EffectiveValue",
+    "InspectedRun",
+    "ProvenanceStep",
+    "SCHEMA_NAME",
+    "SCHEMA_VERSION",
+    "ShapeManifest",
+    "SlideManifest",
+    "TextBlock",
+    "TextInspection",
+    "content_hash",
+    "effective_font",
+    "effective_paragraph_format",
+    "effective_shape_format",
+    "inspect_deck",
+    "inspect_text",
+    "iter_text_bodies",
+]
+
 SCHEMA_NAME = "paper-text-inspection"
 SCHEMA_VERSION = 2  # -- visibility-complete traversal, container/blind fields
 
@@ -272,9 +300,9 @@ class TextInspection:
 
 
 def effective_font(run: "_Run") -> EffectiveFont:
-    """Return the |EffectiveFont| for `run`, a `_Run` on a slide shape.
+    """Return the `EffectiveFont` for `run`, a `_Run` on a slide shape.
 
-    Raises |UnsupportedStructureError| for runs outside a `p:sp` shape on a slide part
+    Raises `UnsupportedStructureError` for runs outside a `p:sp` shape on a slide part
     (table-cell and chart text are not resolved).
     """
     r = run._r
@@ -455,7 +483,7 @@ class DeckManifest:
 
 
 def inspect_deck(prs) -> DeckManifest:
-    """Return a structural |DeckManifest| of `prs` (paper-pptx addition).
+    """Return a structural `DeckManifest` of `prs` (paper-pptx addition).
 
     The survey every brownfield edit starts with, as one deterministic typed payload:
     per-slide shape inventory (identity, kind, z-order, geometry where explicit, placeholder
@@ -643,13 +671,13 @@ def effective_shape_format(shape) -> EffectiveShapeFormat:
 
 
 def inspect_text(slide: "Slide") -> TextInspection:
-    """Return a |TextInspection| of every text block on `slide`, visibility-complete.
+    """Return a `TextInspection` of every text block on `slide`, visibility-complete.
 
     Traversal is depth-first document order over the shape tree: top-level `p:sp` shapes,
     `p:sp` shapes inside groups (recursively, to any depth), and table cells
     (row-major within each table graphic-frame). `block_index` numbers blocks consecutively
     in that pinned order. Table-cell blocks report their text but are *blind regions* for
-    effective values (see |TextBlock|); chart text lives in the chart part, not the slide
+    effective values (see `TextBlock`); chart text lives in the chart part, not the slide
     part, and is out of scope here.
     """
     part = slide.part
@@ -995,7 +1023,7 @@ class _FontResolver(object):
         return EffectiveValue("l", None, True, tuple(steps))
 
     def resolve_line_spacing(self, chain) -> EffectiveValue:
-        """Resolve `a:lnSpc` over a paragraph chain: float lines, or |Length| for points.
+        """Resolve `a:lnSpc` over a paragraph chain: float lines, or `Length` for points.
 
         The rendering default is single spacing (100%), so exhaustion resolves to 1.0.
         """
@@ -1136,7 +1164,7 @@ class _FontResolver(object):
         """Resolve the `EG_TextBulletSize` choice over a paragraph chain.
 
         Three members, tested in schema order: `a:buSzTx` (follow the text), `a:buSzPct` (a
-        fraction of the text size), `a:buSzPts` (absolute, reported as a |Length| with
+        fraction of the text size), `a:buSzPts` (absolute, reported as a `Length` with
         `value_pt` populated, as `resolve_line_spacing` does for `spcPts`). Inherits
         independently of the bullet kind and exhausts to `BULLET_FOLLOWS_TEXT`.
         """

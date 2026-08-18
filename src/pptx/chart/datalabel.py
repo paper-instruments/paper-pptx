@@ -10,7 +10,7 @@ class DataLabels(object):
     """Provides access to properties of data labels for a plot or a series.
 
     This is not a collection and does not provide access to individual data
-    labels. Access to individual labels is via the |Point| object. The
+    labels. Access to individual labels is via the `Point` object. The
     properties this object provides control formatting of *all* the data
     labels in its scope.
     """
@@ -22,7 +22,7 @@ class DataLabels(object):
     @lazyproperty
     def font(self):
         """
-        The |Font| object that provides access to the text properties for
+        The `Font` object that provides access to the text properties for
         these data labels, such as bold, italic, etc.
         """
         defRPr = self._element.defRPr
@@ -35,9 +35,9 @@ class DataLabels(object):
         Read/write string specifying the format for the numbers on this set
         of data labels. Returns 'General' if no number format has been set.
         Note that this format string has no effect on rendered data labels
-        when :meth:`number_format_is_linked` is |True|. Assigning a format
+        when `number_format_is_linked` is `True`. Assigning a format
         string to this property automatically sets
-        :meth:`number_format_is_linked` to |False|.
+        `number_format_is_linked` to `False`.
         """
         numFmt = self._element.numFmt
         if numFmt is None:
@@ -54,7 +54,7 @@ class DataLabels(object):
         """
         Read/write boolean specifying whether number formatting should be
         taken from the source spreadsheet rather than the value of
-        :meth:`number_format`.
+        `number_format`.
         """
         numFmt = self._element.numFmt
         if numFmt is None:
@@ -72,9 +72,9 @@ class DataLabels(object):
     @property
     def position(self):
         """
-        Read/write :ref:`XlDataLabelPosition` enumeration value specifying
+        Read/write `XlDataLabelPosition` enumeration value specifying
         the position of the data labels with respect to their data point, or
-        |None| if no position is specified. Assigning |None| causes
+        `None` if no position is specified. Assigning `None` causes
         PowerPoint to choose the default position, which varies by chart
         type.
         """
@@ -152,7 +152,7 @@ class DataLabel(object):
 
     @lazyproperty
     def font(self):
-        """The |Font| object providing text formatting for this data label.
+        """The `Font` object providing text formatting for this data label.
 
         This font object is used to customize the appearance of automatically
         inserted text, such as the data point value. The font applies to the
@@ -168,10 +168,10 @@ class DataLabel(object):
     @property
     def has_text_frame(self):
         """
-        Return |True| if this data label has a text frame (implying it has
-        custom data label text), and |False| otherwise. Assigning |True|
+        Return `True` if this data label has a text frame (implying it has
+        custom data label text), and `False` otherwise. Assigning `True`
         causes a text frame to be added if not already present. Assigning
-        |False| causes any existing text frame to be removed along with any
+        `False` causes any existing text frame to be removed along with any
         text contained in the text frame.
         """
         dLbl = self._dLbl
@@ -191,9 +191,9 @@ class DataLabel(object):
     @property
     def position(self):
         """
-        Read/write :ref:`XlDataLabelPosition` member specifying the position
-        of this data label with respect to its data point, or |None| if no
-        position is specified. Assigning |None| causes PowerPoint to choose
+        Read/write `XlDataLabelPosition` member specifying the position
+        of this data label with respect to its data point, or `None` if no
+        position is specified. Assigning `None` causes PowerPoint to choose
         the default position, which varies by chart type.
         """
         dLbl = self._dLbl
@@ -218,7 +218,7 @@ class DataLabel(object):
     @property
     def text_frame(self):
         """
-        |TextFrame| instance for this data label, containing the text of the
+        `TextFrame` instance for this data label, containing the text of the
         data label and providing access to its text formatting properties.
         """
         rich = self._get_or_add_rich()
@@ -227,8 +227,8 @@ class DataLabel(object):
     @property
     def _dLbl(self):
         """
-        Return the |CT_DLbl| instance referring specifically to this
-        individual data label (having the same index value), or |None| if not
+        Return the `CT_DLbl` instance referring specifically to this
+        individual data label (having the same index value), or `None` if not
         present.
         """
         return self._ser.get_dLbl(self._idx)

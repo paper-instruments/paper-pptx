@@ -15,15 +15,15 @@ class ShadowFormat(object):
         """True if shape inherits shadow settings.
 
         Read/write. An explicitly-defined shadow setting on a shape causes
-        this property to return |False|. A shape with no explicitly-defined
+        this property to return `False`. A shape with no explicitly-defined
         shadow setting inherits its shadow settings from the style hierarchy
-        (and so returns |True|).
+        (and so returns `True`).
 
-        Assigning |True| causes any explicitly-defined shadow setting to be
+        Assigning `True` causes any explicitly-defined shadow setting to be
         removed and inheritance is restored. Note this has the side-effect of
         removing **all** explicitly-defined effects, such as glow and
         reflection, and restoring inheritance for all effects on the shape.
-        Assigning |False| causes the inheritance link to be broken and **no**
+        Assigning `False` causes the inheritance link to be broken and **no**
         effects to appear on the shape.
         """
         if self._element.effectLst is None:

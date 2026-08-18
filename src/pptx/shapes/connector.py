@@ -46,7 +46,7 @@ class Connector(BaseShape):
     def begin_x(self):
         """
         Return the X-position of the begin point of this connector, in
-        English Metric Units (as a |Length| object).
+        English Metric Units (as a `Length` object).
         """
         cxnSp = self._element
         x, cx, flipH = cxnSp.x, cxnSp.cx, cxnSp.flipH
@@ -86,7 +86,7 @@ class Connector(BaseShape):
     def begin_y(self):
         """
         Return the Y-position of the begin point of this connector, in
-        English Metric Units (as a |Length| object).
+        English Metric Units (as a `Length` object).
         """
         cxnSp = self._element
         y, cy, flipV = cxnSp.y, cxnSp.cy, cxnSp.flipV
@@ -142,7 +142,7 @@ class Connector(BaseShape):
     def end_x(self):
         """
         Return the X-position of the end point of this connector, in English
-        Metric Units (as a |Length| object).
+        Metric Units (as a `Length` object).
         """
         cxnSp = self._element
         x, cx, flipH = cxnSp.x, cxnSp.cx, cxnSp.flipH
@@ -182,7 +182,7 @@ class Connector(BaseShape):
     def end_y(self):
         """
         Return the Y-position of the end point of this connector, in English
-        Metric Units (as a |Length| object).
+        Metric Units (as a `Length` object).
         """
         cxnSp = self._element
         y, cy, flipV = cxnSp.y, cxnSp.cy, cxnSp.flipV
@@ -219,12 +219,12 @@ class Connector(BaseShape):
                 cxnSp.cy = dy - cy
 
     def get_or_add_ln(self):
-        """Helper method required by |LineFormat|."""
+        """Helper method required by `LineFormat`."""
         return self._element.spPr.get_or_add_ln()
 
     @lazyproperty
     def line(self):
-        """|LineFormat| instance for this connector.
+        """`LineFormat` instance for this connector.
 
         Provides access to line properties such as line color, width, and
         line style.
@@ -233,10 +233,10 @@ class Connector(BaseShape):
 
     @property
     def ln(self):
-        """Helper method required by |LineFormat|.
+        """Helper method required by `LineFormat`.
 
         The ``<a:ln>`` element containing the line format properties such as
-        line color and width. |None| if no `<a:ln>` element is present.
+        line color and width. `None` if no `<a:ln>` element is present.
         """
         return self._element.spPr.ln
 

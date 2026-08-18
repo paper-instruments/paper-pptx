@@ -5,7 +5,7 @@ package-level piece of template migration; deciding what maps where is the calle
 (the workflow stays in the harness). `slide.rebind_layout(...)` reconciles the slide's
 placeholders against the target layout (auto-matching by type then type-family, explicit
 map overrides), retargets the slide->layout relationship, and returns the REQUIRED
-|RebindReport|: the effective-value resolver runs before and after, and every text run
+`RebindReport`: the effective-value resolver runs before and after, and every text run
 whose *resolved values* changed appears in the report - appearance shifts are reported,
 never silent.
 
@@ -31,6 +31,14 @@ from pptx.util import Emu
 
 if TYPE_CHECKING:
     from pptx.slide import Slide, SlideLayout
+
+__all__ = [
+    "RebindReport",
+    "RunShift",
+    "SCHEMA_NAME",
+    "SCHEMA_VERSION",
+    "rebind_layout",
+]
 
 SCHEMA_NAME = "paper-rebind-report"
 SCHEMA_VERSION = 1
@@ -101,7 +109,7 @@ class RebindReport:
       ``target_idx`` of ``None`` marks a source placeholder that was orphaned.
     * ``baked_orphans`` -- names of orphan placeholders converted to free shapes (only
       populated under ``orphan_policy="bake"``).
-    * ``run_shifts`` -- one :class:`RunShift` for every run whose resolved effective
+    * ``run_shifts`` -- one `RunShift` for every run whose resolved effective
       values changed; empty when the rebind preserved appearance exactly.
     """
 
@@ -289,7 +297,7 @@ def _layout_placeholder_slots(target_layout) -> "List[Tuple[PP_PLACEHOLDER, int]
 
 
 def _compute_mapping(slide_phs, target_layout, placeholder_map):
-    """Return {source_idx: (target_type, target_idx) | None} for every slide placeholder."""
+    """Return `{source_idx: (target_type, target_idx) | None}` for every slide placeholder."""
     source_idxs = [shape.element.ph_idx for shape in slide_phs]
     if len(set(source_idxs)) != len(source_idxs):
         raise UnsupportedStructureError(

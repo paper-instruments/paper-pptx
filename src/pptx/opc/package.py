@@ -1,6 +1,6 @@
 """Fundamental Open Packaging Convention (OPC) objects.
 
-The :mod:`pptx.packaging` module coheres around the concerns of reading and writing
+The `pptx.packaging` module coheres around the concerns of reading and writing
 presentations to and from a .pptx file.
 """
 
@@ -37,7 +37,7 @@ class _RelatableMixin:
     def part_related_by(self, reltype: str) -> Part:
         """Return (single) part having relationship to this package of `reltype`.
 
-        Raises |KeyError| if no such relationship is found and |ValueError| if more than one such
+        Raises `KeyError` if no such relationship is found and `ValueError` if more than one such
         relationship is found.
         """
         return self._rels.part_with_reltype(reltype)
@@ -55,7 +55,7 @@ class _RelatableMixin:
         return self._rels.get_or_add(reltype, target)
 
     def related_part(self, rId: str) -> Part:
-        """Return related |Part| subtype identified by `rId`."""
+        """Return related `Part` subtype identified by `rId`."""
         return self._rels[rId].target_part
 
     def target_ref(self, rId: str) -> str:
@@ -64,7 +64,7 @@ class _RelatableMixin:
 
     @lazyproperty
     def _rels(self) -> _Relationships:
-        """|_Relationships| object containing relationships from this part to others."""
+        """`_Relationships` object containing relationships from this part to others."""
         raise NotImplementedError(  # pragma: no cover
             "`%s` must implement `.rels`" % type(self).__name__
         )
@@ -157,9 +157,9 @@ class _StreamSnapshot:
 
 
 class OpcPackage(_RelatableMixin):
-    """Main API class for |python-opc|.
+    """Main API class for `python-opc`.
 
-    A new instance is constructed by calling the :meth:`open` classmethod with a path to a package
+    A new instance is constructed by calling the `open` classmethod with a path to a package
     file or file-like object containing a package (.pptx file).
     """
 
@@ -168,7 +168,7 @@ class OpcPackage(_RelatableMixin):
 
     @classmethod
     def open(cls, pkg_file: str | IO[bytes]) -> Self:
-        """Return an |OpcPackage| instance loaded with the contents of `pkg_file`."""
+        """Return an `OpcPackage` instance loaded with the contents of `pkg_file`."""
         return cls(pkg_file)._load()
 
     def drop_rel(self, rId: str) -> None:
@@ -214,14 +214,14 @@ class OpcPackage(_RelatableMixin):
 
     @property
     def main_document_part(self) -> PresentationPart:
-        """Return |Part| subtype serving as the main document part for this package.
+        """Return `Part` subtype serving as the main document part for this package.
 
-        In this case it will be a |Presentation| part.
+        In this case it will be a `Presentation` part.
         """
         return cast("PresentationPart", self.part_related_by(RT.OFFICE_DOCUMENT))
 
     def next_partname(self, tmpl: str) -> PackURI:
-        """Return |PackURI| next available partname matching `tmpl`.
+        """Return `PackURI` next available partname matching `tmpl`.
 
         `tmpl` is a printf (%)-style template string containing a single replacement item, a '%d'
         to be used to insert the integer portion of the partname. Example:
@@ -342,7 +342,7 @@ class OpcPackage(_RelatableMixin):
 
     @lazyproperty
     def _rels(self) -> _Relationships:
-        """|Relationships| object containing relationships of this package."""
+        """`Relationships` object containing relationships of this package."""
         return _Relationships(PACKAGE_URI.baseURI)
 
 
@@ -359,12 +359,12 @@ class _PackageLoader:
     ) -> tuple[CT_Relationships, dict[PackURI, Part]]:
         """Return (pkg_xml_rels, parts) pair resulting from loading `pkg_file`.
 
-        The returned `parts` value is a {partname: part} mapping with each part in the package
+        The returned `parts` value is a `{partname: part}` mapping with each part in the package
         included and constructed complete with its relationships to other parts in the package.
 
         The returned `pkg_xml_rels` value is a `CT_Relationships` object containing the parsed
         package relationships. It is the caller's responsibility (the package object) to load
-        those relationships into its |_Relationships| object.
+        those relationships into its `_Relationships` object.
         """
         return cls(pkg_file, package)._load()
 
@@ -379,7 +379,7 @@ class _PackageLoader:
 
     @lazyproperty
     def _content_types(self) -> _ContentTypeMap:
-        """|_ContentTypeMap| object providing content-types for items of this package.
+        """`_ContentTypeMap` object providing content-types for items of this package.
 
         Provides a content-type (MIME-type) for any given partname.
         """
@@ -387,12 +387,12 @@ class _PackageLoader:
 
     @lazyproperty
     def _package_reader(self) -> PackageReader:
-        """|PackageReader| object providing access to package-items in pkg_file."""
+        """`PackageReader` object providing access to package-items in pkg_file."""
         return PackageReader(self._pkg_file)
 
     @lazyproperty
     def _parts(self) -> dict[PackURI, Part]:
-        """dict {partname: Part} populated with parts loading from package.
+        """dict `{partname: Part}` populated with parts loading from package.
 
         Among other duties, this collection is passed to each relationships collection so each
         relationship can resolve a reference to its target part when required. This reference can
@@ -417,7 +417,7 @@ class _PackageLoader:
 
     @lazyproperty
     def _xml_rels(self) -> dict[PackURI, CT_Relationships]:
-        """dict {partname: xml_rels} for package and all package parts.
+        """dict `{partname: xml_rels}` for package and all package parts.
 
         This is used as the basis for other loading operations such as loading parts and
         populating their relationships.
@@ -531,7 +531,7 @@ class Part(_RelatableMixin):
     def blob(self, blob: bytes):
         """Note that not all subclasses use the part blob as their blob source.
 
-        In particular, the |XmlPart| subclass uses its `self._element` to serialize a blob on
+        In particular, the `XmlPart` subclass uses its `self._element` to serialize a blob on
         demand. This works fine for binary parts though.
         """
         self._blob = blob
@@ -557,7 +557,7 @@ class Part(_RelatableMixin):
 
     @property
     def partname(self) -> PackURI:
-        """|PackURI| partname for this part, e.g. "/ppt/slides/slide1.xml"."""
+        """`PackURI` partname for this part, e.g. "/ppt/slides/slide1.xml"."""
         return self._partname
 
     @partname.setter
@@ -596,7 +596,7 @@ class Part(_RelatableMixin):
 class XmlPart(Part):
     """Base class for package parts containing an XML payload, which is most of them.
 
-    Provides additional methods to the |Part| base class that take care of parsing and
+    Provides additional methods to the `Part` base class that take care of parsing and
     reserializing the XML payload and managing relationships to other parts.
     """
 
@@ -645,9 +645,9 @@ class XmlPart(Part):
 
 
 class PartFactory:
-    """Constructs a registered subtype of |Part|.
+    """Constructs a registered subtype of `Part`.
 
-    Client code can register a subclass of |Part| to be used for a package blob based on its
+    Client code can register a subclass of `Part` to be used for a package blob based on its
     content type.
     """
 
@@ -661,7 +661,7 @@ class PartFactory:
     def _part_cls_for(cls, content_type: str) -> type[Part]:
         """Return the custom part class registered for `content_type`.
 
-        Returns |Part| if no custom class is registered for `content_type`.
+        Returns `Part` if no custom class is registered for `content_type`.
         """
         if content_type in cls.part_type_for:
             return cls.part_type_for[content_type]
@@ -692,7 +692,7 @@ class _ContentTypeMap:
 
     @classmethod
     def from_xml(cls, content_types_xml: bytes) -> _ContentTypeMap:
-        """Return |_ContentTypeMap| instance populated from `content_types_xml`."""
+        """Return `_ContentTypeMap` instance populated from `content_types_xml`."""
         types_elm = cast("CT_Types", parse_xml(content_types_xml))
         # -- note all partnames in [Content_Types].xml are absolute --
         overrides = CaseInsensitiveDict(
@@ -705,10 +705,10 @@ class _ContentTypeMap:
 
 
 class _Relationships(Mapping[str, "_Relationship"]):
-    """Collection of |_Relationship| instances having `dict` semantics.
+    """Collection of `_Relationship` instances having `dict` semantics.
 
     Relationships are keyed by their rId, but may also be found in other ways, such as by their
-    relationship type. |Relationship| objects are keyed by their rId.
+    relationship type. `Relationship` objects are keyed by their rId.
 
     Iterating this collection has normal mapping semantics, generating the keys (rIds) of the
     mapping. `rels.keys()`, `rels.values()`, and `rels.items() can be used as they would be for a
@@ -785,7 +785,7 @@ class _Relationships(Mapping[str, "_Relationship"]):
     def part_with_reltype(self, reltype: str) -> Part:
         """Return target part of relationship with matching `reltype`.
 
-        Raises |KeyError| if not found and |ValueError| if more than one matching relationship is
+        Raises `KeyError` if not found and `ValueError` if more than one matching relationship is
         found.
         """
         rels_of_reltype = self._rels_by_reltype[reltype]
@@ -799,7 +799,7 @@ class _Relationships(Mapping[str, "_Relationship"]):
         return rels_of_reltype[0].target_part
 
     def pop(self, rId: str) -> _Relationship:
-        """Return |_Relationship| identified by `rId` after removing it from collection.
+        """Return `_Relationship` identified by `rId` after removing it from collection.
 
         The caller is responsible for ensuring it is no longer required.
         """
@@ -832,7 +832,7 @@ class _Relationships(Mapping[str, "_Relationship"]):
         return rels_elm.xml_file_bytes
 
     def _add_relationship(self, reltype: str, target: Part | str, is_external: bool = False) -> str:
-        """Return str rId of |_Relationship| newly added to spec."""
+        """Return str rId of `_Relationship` newly added to spec."""
         rId = self._next_rId
         self._rels[rId] = _Relationship(
             self._base_uri,
@@ -879,12 +879,12 @@ class _Relationships(Mapping[str, "_Relationship"]):
 
     @lazyproperty
     def _rels(self) -> dict[str, _Relationship]:
-        """dict {rId: _Relationship} containing relationships of this collection."""
+        """dict `{rId: _Relationship}` containing relationships of this collection."""
         return {}
 
     @property
     def _rels_by_reltype(self) -> dict[str, list[_Relationship]]:
-        """defaultdict {reltype: [rels]} for all relationships in collection."""
+        """defaultdict `{reltype: [rels]}` for all relationships in collection."""
         D: DefaultDict[str, list[_Relationship]] = collections.defaultdict(list)
         for rel in self.values():
             D[rel.reltype].append(rel)
@@ -905,7 +905,7 @@ class _Relationship:
     def from_xml(
         cls, base_uri: str, rel: CT_Relationship, parts: dict[PackURI, Part]
     ) -> _Relationship:
-        """Return |_Relationship| object based on CT_Relationship element `rel`."""
+        """Return `_Relationship` object based on CT_Relationship element `rel`."""
         target = (
             rel.target_ref
             if rel.targetMode == RTM.EXTERNAL
@@ -938,7 +938,7 @@ class _Relationship:
 
     @lazyproperty
     def target_part(self) -> Part:
-        """|Part| or subtype referred to by this relationship."""
+        """`Part` or subtype referred to by this relationship."""
         if self.is_external:
             raise ValueError(
                 "`.target_part` property on _Relationship is undefined when "
@@ -949,9 +949,9 @@ class _Relationship:
 
     @lazyproperty
     def target_partname(self) -> PackURI:
-        """|PackURI| instance containing partname targeted by this relationship.
+        """`PackURI` instance containing partname targeted by this relationship.
 
-        Raises `ValueError` on reference if target_mode is external. Use :attr:`target_mode` to
+        Raises `ValueError` on reference if target_mode is external. Use `target_mode` to
         check before referencing.
         """
         if self.is_external:

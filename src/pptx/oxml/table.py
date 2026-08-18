@@ -277,7 +277,7 @@ class CT_TableCell(BaseOxmlElement):
 
         Read/write. If the attribute is not present, the default value `45720` (0.05 inches) is
         returned for top and bottom; `91440` (0.10 inches) is the default for left and right.
-        Assigning |None| to any `marX` property clears that attribute from the element,
+        Assigning `None` to any `marX` property clears that attribute from the element,
         effectively setting it to the default value.
         """
         return self._get_marX("marT", Emu(45720))
@@ -361,7 +361,7 @@ class CT_TableCell(BaseOxmlElement):
     def _set_marX(self, marX: str, value: Length | None) -> None:
         """Set value of marX attribute on `a:tcPr` child element.
 
-        If `marX` is |None|, the marX attribute is removed. `marX` is a string, one of `('marL',
+        If `marX` is `None`, the marX attribute is removed. `marX` is a string, one of `('marL',
         'marR', 'marT', 'marB')`.
         """
         if value is None and self.tcPr is None:

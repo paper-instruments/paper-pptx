@@ -25,6 +25,17 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+__all__ = [
+    "BulletShift",
+    "DeckDiff",
+    "MovedSlide",
+    "SCHEMA_NAME",
+    "SCHEMA_VERSION",
+    "SlideChange",
+    "SlideRef",
+    "diff_decks",
+]
+
 SCHEMA_NAME = "paper-deck-diff"
 SCHEMA_VERSION = 3  # -- was 2: bullet_shifts added
 
@@ -51,7 +62,7 @@ class BulletShift:
     * ``paragraph_index`` -- 0-based paragraph index within that shape, for legibility.
     * ``text`` -- the paragraph's text, which is also half its identity.
     * ``before`` / ``after`` -- the resolved ``bullet``, ``bullet_font`` and ``bullet_size``
-      payloads from :func:`pptx.inspect.effective_paragraph_format` on each side.
+      payloads from `pptx.inspect.effective_paragraph_format` on each side.
     """
 
     part: str
@@ -184,15 +195,15 @@ class DeckDiff:
 
 
 def diff_decks(path_a, path_b, *, detail: str = "structure") -> DeckDiff:
-    """Compare two decks; return the typed |DeckDiff|.
+    """Compare two decks; return the typed `DeckDiff`.
 
     `path_a`/`path_b` accept a file path, a file-like object, or an already-open
-    |Presentation|. `detail`: "structure" (slide add/remove/move, shape add/remove,
+    `Presentation`. `detail`: "structure" (slide add/remove/move, shape add/remove,
     geometry, image replacement), "text" (+ text-block deltas, chart data per
     series/category, notes), "full" (+ per-run effective-value shifts via the resolver
     - expensive on large decks, deliberately opt-in).
 
-    When either side is an open |Presentation|, both sides are normalized by serializing
+    When either side is an open `Presentation`, both sides are normalized by serializing
     before the package-level comparison, because a live presentation has no on-disk package
     to read; when both sides are a path or a file-like object, the packages are compared
     exactly.
@@ -382,7 +393,7 @@ def _read_stream_package_bytes(source, label: str) -> bytes:
 
 
 def _open_deck(source):
-    """Return a |Presentation| for a path, stream, or Presentation, refusing typed."""
+    """Return a `Presentation` for a path, stream, or Presentation, refusing typed."""
     from pptx import Presentation
     from pptx.errors import UnsupportedStructureError
     from pptx.presentation import Presentation as _PresentationProxy

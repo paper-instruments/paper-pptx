@@ -44,7 +44,7 @@ class TextFitter(tuple):
         """
         Return a (line, remainder) pair where *line* is the longest line in
         *line_source* that will fit in this fitter's width and *remainder* is
-        a |_LineSource| object containing the text following the break point.
+        a `_LineSource` object containing the text following the break point.
         """
         lines = _BinarySearchTree.from_ordered_sequence(line_source)
         predicate = self._fits_in_width_predicate(point_size)
@@ -52,14 +52,14 @@ class TextFitter(tuple):
 
     def _fits_in_width_predicate(self, point_size):
         """
-        Return a function taking a text string value and returns |True| if
+        Return a function taking a text string value and returns `True` if
         that text fits in this fitter when rendered at *point_size*. Used as
         predicate for _break_line()
         """
 
         def predicate(line):
             """
-            Return |True| if *line* fits in this fitter when rendered at
+            Return `True` if *line* fits in this fitter when rendered at
             *point_size*.
             """
             cx = _rendered_size(line.text, point_size, self._font_file)[0]
@@ -71,12 +71,12 @@ class TextFitter(tuple):
     def _fits_inside_predicate(self):
         """Return  function taking an integer point size argument.
 
-        The function returns |True| if the text in this fitter can be wrapped to fit
+        The function returns `True` if the text in this fitter can be wrapped to fit
         entirely within its extents when rendered at that point size.
         """
 
         def predicate(point_size):
-            """Return |True| when text in `line_source` can be wrapped to fit.
+            """Return `True` when text in `line_source` can be wrapped to fit.
 
             Fit means text can be broken into lines that fit entirely within `extents`
             when rendered at `point_size` using the font defined in `font_file`.
@@ -216,8 +216,8 @@ class _LineSource(object):
     """
     Generates all the possible even-word line breaks in a string of text,
     each in the form of a (line, remainder) 2-tuple where *line* contains the
-    text before the break and *remainder* the text after as a |_LineSource|
-    object. Its boolean value is |True| when it contains text, |False| when
+    text before the break and *remainder* the text after as a `_LineSource`
+    object. Its boolean value is `True` when it contains text, `False` when
     its text is the empty string or whitespace only.
     """
 
@@ -238,7 +238,7 @@ class _LineSource(object):
         """
         Generate a (text, remainder) pair for each possible even-word line
         break in this line source, where *text* is a str value and remainder
-        is a |_LineSource| value.
+        is a `_LineSource` value.
         """
         words = self._text.split()
         for idx in range(1, len(words) + 1):
@@ -261,7 +261,7 @@ class _LineSource(object):
 class _Line(tuple):
     """
     A candidate line broken at an even word boundary from a string of text,
-    and a |_LineSource| value containing the text that remains after the line
+    and a `_LineSource` value containing the text that remains after the line
     is broken at this spot.
     """
 

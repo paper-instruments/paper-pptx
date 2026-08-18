@@ -30,12 +30,12 @@ class _BasePlot(object):
     @lazyproperty
     def categories(self):
         """
-        Returns a |category.Categories| sequence object containing
-        a |category.Category| object for each of the category labels
-        associated with this plot. The |category.Category| class derives from
+        Returns a `category.Categories` sequence object containing
+        a `category.Category` object for each of the category labels
+        associated with this plot. The `category.Category` class derives from
         ``str``, so the returned value can be treated as a simple sequence of
         strings for the common case where all you need is the labels in the
-        order they appear on the chart. |category.Categories| provides
+        order they appear on the chart. `category.Categories` provides
         additional properties for dealing with hierarchical categories when
         required.
         """
@@ -44,14 +44,14 @@ class _BasePlot(object):
     @property
     def chart(self):
         """
-        The |Chart| object containing this plot.
+        The `Chart` object containing this plot.
         """
         return self._chart
 
     @property
     def data_labels(self):
         """
-        |DataLabels| instance providing properties and methods on the
+        `DataLabels` instance providing properties and methods on the
         collection of data labels associated with this plot.
         """
         dLbls = self._element.dLbls
@@ -62,8 +62,8 @@ class _BasePlot(object):
     @property
     def has_data_labels(self):
         """
-        Read/write boolean, |True| if the series has data labels. Assigning
-        |True| causes data labels to be added to the plot. Assigning False
+        Read/write boolean, `True` if the series has data labels. Assigning
+        `True` causes data labels to be added to the plot. Assigning False
         removes any existing data labels.
         """
         return self._element.dLbls is not None
@@ -72,9 +72,9 @@ class _BasePlot(object):
     def has_data_labels(self, value):
         """
         Add, remove, or leave alone the ``<c:dLbls>`` child element depending
-        on current state and assigned *value*. If *value* is |True| and no
+        on current state and assigned *value*. If *value* is `True` and no
         ``<c:dLbls>`` element is present, a new default element is added with
-        default child elements and settings. When |False|, any existing dLbls
+        default child elements and settings. When `False`, any existing dLbls
         element is removed.
         """
         if bool(value) is False:
@@ -87,7 +87,7 @@ class _BasePlot(object):
     @lazyproperty
     def series(self):
         """
-        A sequence of |Series| objects representing the series in this plot,
+        A sequence of `Series` objects representing the series in this plot,
         in the order they appear in the plot.
         """
         return SeriesCollection(self._element)
@@ -180,7 +180,7 @@ class BubblePlot(_BasePlot):
         """
         An integer between 0 and 300 inclusive indicating the percentage of
         the default size at which bubbles should be displayed. Assigning
-        |None| produces the same behavior as assigning `100`.
+        `None` produces the same behavior as assigning `100`.
         """
         bubbleScale = self._element.bubbleScale
         if bubbleScale is None:
@@ -259,7 +259,7 @@ class PlotTypeInspector(object):
     @classmethod
     def chart_type(cls, plot):
         """
-        Return the member of :ref:`XlChartType` that corresponds to the chart
+        Return the member of `XlChartType` that corresponds to the chart
         type of *plot*.
         """
         try:

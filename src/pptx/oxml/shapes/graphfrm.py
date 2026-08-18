@@ -44,7 +44,7 @@ class CT_GraphicalObject(BaseOxmlElement):
 
     @property
     def chart(self) -> CT_Chart | None:
-        """The `c:chart` grandchild element, or |None| if not present."""
+        """The `c:chart` grandchild element, or `None` if not present."""
         return self.graphicData.chart
 
 
@@ -132,14 +132,14 @@ class CT_GraphicalObjectFrame(BaseShapeElement):
 
     @property
     def chart(self) -> CT_Chart | None:
-        """The `c:chart` great-grandchild element, or |None| if not present."""
+        """The `c:chart` great-grandchild element, or `None` if not present."""
         return self.graphic.chart
 
     @property
     def chart_rId(self) -> str | None:
         """The `rId` attribute of the `c:chart` great-grandchild element.
 
-        |None| if not present.
+        `None` if not present.
         """
         chart = self.chart
         if chart is None:

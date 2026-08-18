@@ -29,6 +29,11 @@ if TYPE_CHECKING:
     from pptx.presentation import Presentation
     from pptx.slide import Slide
 
+__all__ = [
+    "apply_presentation_footers",
+    "apply_slide_footers",
+]
+
 # -- ISO 29500-1 21.1.2.2.4 reserved datetime field tokens, with the strftime rendering
 # -- used ONLY to seed the consumer-refreshed cached text (spec example formats)
 DATETIME_FIELD_FORMATS: "Dict[str, str]" = {

@@ -22,7 +22,7 @@ class ElementProxy(object):
         self._element = element
 
     def __eq__(self, other: object) -> bool:
-        """Return |True| if this proxy object refers to the same oxml element as does *other*.
+        """Return `True` if this proxy object refers to the same oxml element as does *other*.
 
         ElementProxy objects are value objects and should maintain no mutable local state.
         Equality for proxy objects is defined as referring to the same XML element, whether or not
@@ -47,8 +47,8 @@ class ParentedElementProxy(ElementProxy):
     """Provides access to ancestor objects and part.
 
     An ancestor may occasionally be required to provide a service, such as add or drop a
-    relationship. Provides the :attr:`_parent` attribute to subclasses and the public
-    :attr:`parent` read-only property.
+    relationship. Provides the `_parent` attribute to subclasses and the public
+    `parent` read-only property.
     """
 
     def __init__(self, element: BaseOxmlElement, parent: ProvidesPart):
@@ -59,7 +59,7 @@ class ParentedElementProxy(ElementProxy):
     def parent(self):
         """The ancestor proxy object to this one.
 
-        For example, the parent of a shape is generally the |SlideShapes| object that contains it.
+        For example, the parent of a shape is generally the `SlideShapes` object that contains it.
         """
         return self._parent
 

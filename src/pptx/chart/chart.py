@@ -18,7 +18,7 @@ from pptx.util import lazyproperty
 
 
 def _require_xml_encodable(value, name):
-    """Raise |ValueError| when `value` cannot be represented in XML 1.0.
+    """Raise `ValueError` when `value` cannot be represented in XML 1.0.
 
     Part of validate-fully-then-mutate (paper-pptx): a str that passes isinstance checks but
     explodes during serialization would otherwise corrupt the chart mid-replacement.
@@ -135,7 +135,7 @@ class Chart(PartElementProxy):
     def category_axis(self):
         """
         The category axis of this chart. In the case of an XY or Bubble
-        chart, this is the X axis. Raises |ValueError| if no category
+        chart, this is the X axis. Raises `ValueError` if no category
         axis is defined (as is the case for a pie chart, for example).
         """
         catAx_lst = self._chartSpace.catAx_lst
@@ -156,9 +156,9 @@ class Chart(PartElementProxy):
     def chart_style(self):
         """
         Read/write integer index of chart style used to format this chart.
-        Range is from 1 to 48. Value is |None| if no explicit style has been
+        Range is from 1 to 48. Value is `None` if no explicit style has been
         assigned, in which case the default chart style is used. Assigning
-        |None| causes any explicit setting to be removed. The integer index
+        `None` causes any explicit setting to be removed. The integer index
         corresponds to the style's position in the chart style gallery in the
         PowerPoint UI.
         """
@@ -176,18 +176,18 @@ class Chart(PartElementProxy):
 
     @property
     def chart_title(self):
-        """A |ChartTitle| object providing access to title properties.
+        """A `ChartTitle` object providing access to title properties.
 
         Calling this property is destructive in the sense it adds a chart
         title element (`c:title`) to the chart XML if one is not already
-        present. Use :attr:`has_title` to test for presence of a chart title
+        present. Use `has_title` to test for presence of a chart title
         non-destructively.
         """
         return ChartTitle(self._element.get_or_add_title())
 
     @property
     def chart_type(self):
-        """Member of :ref:`XlChartType` enumeration specifying type of this chart.
+        """Member of `XlChartType` enumeration specifying type of this chart.
 
         If the chart has two plots, for example, a line plot overlayed on a bar plot,
         the type reported is for the first (back-most) plot. Read-only.
@@ -204,8 +204,8 @@ class Chart(PartElementProxy):
     @property
     def has_legend(self):
         """
-        Read/write boolean, |True| if the chart has a legend. Assigning
-        |True| causes a legend to be added to the chart if it doesn't already
+        Read/write boolean, `True` if the chart has a legend. Assigning
+        `True` causes a legend to be added to the chart if it doesn't already
         have one. Assigning False removes any existing legend definition
         along with any existing legend settings.
         """
@@ -219,8 +219,8 @@ class Chart(PartElementProxy):
     def has_title(self):
         """Read/write boolean, specifying whether this chart has a title.
 
-        Assigning |True| causes a title to be added if not already present.
-        Assigning |False| removes any existing title along with its text and
+        Assigning `True` causes a title to be added if not already present.
+        Assigning `False` removes any existing title along with its text and
         settings.
         """
         title = self._chartSpace.chart.title
@@ -241,7 +241,7 @@ class Chart(PartElementProxy):
     @property
     def legend(self):
         """
-        A |Legend| object providing access to the properties of the legend
+        A `Legend` object providing access to the properties of the legend
         for this chart.
         """
         legend_elm = self._chartSpace.chart.legend
@@ -267,7 +267,7 @@ class Chart(PartElementProxy):
 
     def replace_data(self, chart_data):
         """
-        Use the categories and series values in the |ChartData| object
+        Use the categories and series values in the `ChartData` object
         *chart_data* to replace those in the XML and Excel worksheet for this
         chart.
         """
@@ -276,15 +276,15 @@ class Chart(PartElementProxy):
         self._workbook.update_from_xlsx_blob(chart_data.xlsx_blob)
 
     def replace_data_safe(self, categories, series, *, number_format=None):
-        """Validate `categories`/`series` fully, then route to :meth:`replace_data`.
+        """Validate `categories`/`series` fully, then route to `replace_data`.
 
         paper-pptx addition: the safety-and-addressing wrapper over the existing replacement
         mechanism. `categories` is a sequence of str; `series` is a sequence of
         `(name, values)` pairs where each `values` is a sequence of numbers (or None for a
         missing point) exactly as long as `categories`.
 
-        Data-shape problems raise |ValueError| (programmer error). Structural refusals
-        (|UnsupportedStructureError|, document untouched): a chart type outside the
+        Data-shape problems raise `ValueError` (programmer error). Structural refusals
+        (`UnsupportedStructureError`, document untouched): a chart type outside the
         supported category-chart families (XY/bubble/stock/surface/radar and 3-D variants
         are not supported) or a multi-plot (combo) chart. Charts without an embedded
         workbook (e.g. LibreOffice/Google-authored) are supported: their chart
@@ -401,7 +401,7 @@ class Chart(PartElementProxy):
     @lazyproperty
     def series(self):
         """
-        A |SeriesCollection| object containing all the series in this
+        A `SeriesCollection` object containing all the series in this
         chart. When the chart has multiple plots, all the series for the
         first plot appear before all those for the second, and so on. Series
         within a plot have an explicit ordering and appear in that sequence.
@@ -411,8 +411,8 @@ class Chart(PartElementProxy):
     @property
     def value_axis(self):
         """
-        The |ValueAxis| object providing access to properties of the value
-        axis of this chart. Raises |ValueError| if the chart has no value
+        The `ValueAxis` object providing access to properties of the value
+        axis of this chart. Raises `ValueError` if the chart has no value
         axis.
         """
         valAx_lst = self._chartSpace.valAx_lst
@@ -425,7 +425,7 @@ class Chart(PartElementProxy):
     @property
     def _workbook(self):
         """
-        The |ChartWorkbook| object providing access to the Excel source data
+        The `ChartWorkbook` object providing access to the Excel source data
         for this chart.
         """
         return self.part.chart_workbook
@@ -445,9 +445,9 @@ class ChartTitle(ElementProxy):
 
     @lazyproperty
     def format(self):
-        """|ChartFormat| object providing access to line and fill formatting.
+        """`ChartFormat` object providing access to line and fill formatting.
 
-        Return the |ChartFormat| object providing shape formatting properties
+        Return the `ChartFormat` object providing shape formatting properties
         for this chart title, such as its line color and fill.
         """
         return ChartFormat(self._title)
@@ -456,9 +456,9 @@ class ChartTitle(ElementProxy):
     def has_text_frame(self):
         """Read/write Boolean specifying whether this title has a text frame.
 
-        Return |True| if this chart title has a text frame, and |False|
-        otherwise. Assigning |True| causes a text frame to be added if not
-        already present. Assigning |False| causes any existing text frame to
+        Return `True` if this chart title has a text frame, and `False`
+        otherwise. Assigning `True` causes a text frame to be added if not
+        already present. Assigning `False` causes any existing text frame to
         be removed along with its text and formatting.
         """
         if self._title.tx_rich is None:
@@ -474,12 +474,12 @@ class ChartTitle(ElementProxy):
 
     @property
     def text_frame(self):
-        """|TextFrame| instance for this chart title.
+        """`TextFrame` instance for this chart title.
 
-        Return a |TextFrame| instance allowing read/write access to the text
+        Return a `TextFrame` instance allowing read/write access to the text
         of this chart title and its text formatting properties. Accessing this
         property is destructive in the sense it adds a text frame if one is
-        not present. Use :attr:`has_text_frame` to test for the presence of
+        not present. Use `has_text_frame` to test for the presence of
         a text frame non-destructively.
         """
         rich = self._title.get_or_add_tx_rich()

@@ -15,7 +15,7 @@ from pptx.oxml.xmlchemy import (
 
 class _BaseColorElement(BaseOxmlElement):
     """
-    Base class for <a:srgbClr> and <a:schemeClr> elements.
+    Base class for `<a:srgbClr>` and `<a:schemeClr>` elements.
     """
 
     lumMod = ZeroOrOne("a:lumMod")
@@ -23,7 +23,7 @@ class _BaseColorElement(BaseOxmlElement):
 
     def add_lumMod(self, value):
         """
-        Return a newly added <a:lumMod> child element.
+        Return a newly added `<a:lumMod>` child element.
         """
         lumMod = self._add_lumMod()
         lumMod.val = value
@@ -31,7 +31,7 @@ class _BaseColorElement(BaseOxmlElement):
 
     def add_lumOff(self, value):
         """
-        Return a newly added <a:lumOff> child element.
+        Return a newly added `<a:lumOff>` child element.
         """
         lumOff = self._add_lumOff()
         lumOff.val = value
@@ -39,7 +39,7 @@ class _BaseColorElement(BaseOxmlElement):
 
     def clear_lum(self):
         """
-        Return self after removing any <a:lumMod> and <a:lumOff> child
+        Return self after removing any `<a:lumMod>` and `<a:lumOff>` child
         elements.
         """
         self._remove_lumMod()
@@ -65,13 +65,13 @@ class CT_Color(BaseOxmlElement):
 
 class CT_HslColor(_BaseColorElement):
     """
-    Custom element class for <a:hslClr> element.
+    Custom element class for `<a:hslClr>` element.
     """
 
 
 class CT_Percentage(BaseOxmlElement):
     """
-    Custom element class for <a:lumMod> and <a:lumOff> elements.
+    Custom element class for `<a:lumMod>` and `<a:lumOff>` elements.
     """
 
     val = RequiredAttribute("val", ST_Percentage)
@@ -79,13 +79,13 @@ class CT_Percentage(BaseOxmlElement):
 
 class CT_PresetColor(_BaseColorElement):
     """
-    Custom element class for <a:prstClr> element.
+    Custom element class for `<a:prstClr>` element.
     """
 
 
 class CT_SchemeColor(_BaseColorElement):
     """
-    Custom element class for <a:schemeClr> element.
+    Custom element class for `<a:schemeClr>` element.
     """
 
     val = RequiredAttribute("val", MSO_THEME_COLOR)
@@ -93,13 +93,13 @@ class CT_SchemeColor(_BaseColorElement):
 
 class CT_ScRgbColor(_BaseColorElement):
     """
-    Custom element class for <a:scrgbClr> element.
+    Custom element class for `<a:scrgbClr>` element.
     """
 
 
 class CT_SRgbColor(_BaseColorElement):
     """
-    Custom element class for <a:srgbClr> element.
+    Custom element class for `<a:srgbClr>` element.
     """
 
     val = RequiredAttribute("val", ST_HexColorRGB)
@@ -107,5 +107,5 @@ class CT_SRgbColor(_BaseColorElement):
 
 class CT_SystemColor(_BaseColorElement):
     """
-    Custom element class for <a:sysClr> element.
+    Custom element class for `<a:sysClr>` element.
     """

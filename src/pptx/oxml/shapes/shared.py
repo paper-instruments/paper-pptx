@@ -101,7 +101,7 @@ class BaseShapeElement(BaseOxmlElement):
     def ph_idx(self) -> int:
         """Integer value of placeholder idx attribute.
 
-        Raises |ValueError| if shape is not a placeholder.
+        Raises `ValueError` if shape is not a placeholder.
         """
         ph = self.ph
         if ph is None:
@@ -112,7 +112,7 @@ class BaseShapeElement(BaseOxmlElement):
     def ph_orient(self) -> str:
         """Placeholder orientation, e.g. 'vert'.
 
-        Raises |ValueError| if shape is not a placeholder.
+        Raises `ValueError` if shape is not a placeholder.
         """
         ph = self.ph
         if ph is None:
@@ -182,7 +182,7 @@ class BaseShapeElement(BaseOxmlElement):
 
     @property
     def xfrm(self):
-        """The `a:xfrm` grandchild element or |None| if not found.
+        """The `a:xfrm` grandchild element or `None` if not found.
 
         This version works for `p:sp`, `p:cxnSp`, and `p:pic` elements, others will need to
         override.
@@ -237,7 +237,7 @@ class CT_ApplicationNonVisualDrawingProps(BaseOxmlElement):
 
 
 class CT_LineProperties(BaseOxmlElement):
-    """Custom element class for <a:ln> element"""
+    """Custom element class for `<a:ln>` element"""
 
     _tag_seq = (
         "a:noFill",
@@ -278,7 +278,7 @@ class CT_LineProperties(BaseOxmlElement):
     def prstDash_val(self):
         """Return value of `val` attribute of `a:prstDash` child.
 
-        Return |None| if not present.
+        Return `None` if not present.
         """
         prstDash = self.prstDash
         if prstDash is None:
@@ -325,7 +325,7 @@ class CT_Placeholder(BaseOxmlElement):
 
 class CT_Point2D(BaseOxmlElement):
     """
-    Custom element class for <a:off> element.
+    Custom element class for `<a:off>` element.
     """
 
     x: Length = RequiredAttribute("x", ST_Coordinate)  # pyright: ignore[reportAssignmentType]
@@ -334,7 +334,7 @@ class CT_Point2D(BaseOxmlElement):
 
 class CT_PositiveSize2D(BaseOxmlElement):
     """
-    Custom element class for <a:ext> element.
+    Custom element class for `<a:ext>` element.
     """
 
     cx = RequiredAttribute("cx", ST_PositiveCoordinate)

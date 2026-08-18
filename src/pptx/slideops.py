@@ -136,7 +136,7 @@ def _document_identity_values(package) -> set:
 
 
 def clone_slide_part(source_part: "SlidePart", policy) -> "SlidePart":
-    """Return a new |SlidePart| that is a policy-governed deep copy of `source_part`.
+    """Return a new `SlidePart` that is a policy-governed deep copy of `source_part`.
 
     The new part is fully related (layout, media, charts+workbooks, notes per `policy`) but
     NOT yet added to the presentation's slide list — the caller owns `p:sldIdLst`.

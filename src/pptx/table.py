@@ -23,7 +23,7 @@ class Table(object):
     """A DrawingML table object.
 
     Not intended to be constructed directly, use
-    :meth:`.Slide.shapes.add_table` to add a table to a slide.
+    `Slide.shapes.add_table` to add a table to a slide.
     """
 
     def __init__(self, tbl: CT_Table, graphic_frame: GraphicFrame):
@@ -34,16 +34,16 @@ class Table(object):
     def cell(self, row_idx: int, col_idx: int) -> _Cell:
         """Return cell at `row_idx`, `col_idx`.
 
-        Return value is an instance of |_Cell|. `row_idx` and `col_idx` are zero-based, e.g.
+        Return value is an instance of `_Cell`. `row_idx` and `col_idx` are zero-based, e.g.
         cell(0, 0) is the top, left cell in the table.
         """
         return _Cell(self._tbl.tc(row_idx, col_idx), self)
 
     @lazyproperty
     def columns(self) -> _ColumnCollection:
-        """|_ColumnCollection| instance for this table.
+        """`_ColumnCollection` instance for this table.
 
-        Provides access to |_Column| objects representing the table's columns. |_Column| objects
+        Provides access to `_Column` objects representing the table's columns. `_Column` objects
         are accessed using list notation, e.g. `col = tbl.columns[0]`.
         """
         return _ColumnCollection(self._tbl, self)
@@ -56,9 +56,9 @@ class Table(object):
         column, and the graphic frame's width is recalculated from the remaining columns.
 
         Merged-cell guard is cell-wise: the operation refuses
-        (|UnsupportedStructureError|, tree untouched) only when a *horizontal* merge extends
+        (`UnsupportedStructureError`, tree untouched) only when a *horizontal* merge extends
         beyond the deleted column - a vertical merge lying wholly inside the column is
-        deleted with it. Deleting the last remaining column raises |ValueError| (delete the
+        deleted with it. Deleting the last remaining column raises `ValueError` (delete the
         table's shape instead).
         """
         self._validate_structure()
@@ -91,10 +91,10 @@ class Table(object):
         from the remaining rows.
 
         Merged-cell guard is cell-wise: the operation refuses
-        (|UnsupportedStructureError|, tree untouched) only when a *vertical* merge extends
+        (`UnsupportedStructureError`, tree untouched) only when a *vertical* merge extends
         beyond the deleted row - a horizontal merge lying wholly inside the row (e.g. a
         merged header) is deleted with it and must not poison other rows' operations.
-        Deleting the last remaining row raises |ValueError|.
+        Deleting the last remaining row raises `ValueError`.
         """
         self._validate_structure()
         row_count = len(self._tbl.tr_lst)
@@ -165,7 +165,7 @@ class Table(object):
         position in every row - the grid stays consistent by construction - and the graphic
         frame's width is recalculated.
 
-        Merged-cell guard is cell-wise: refuses (|UnsupportedStructureError|, tree
+        Merged-cell guard is cell-wise: refuses (`UnsupportedStructureError`, tree
         untouched) only when the insertion boundary would split a horizontal merge; vertical
         merges elsewhere in the table never block the operation.
         """
@@ -214,7 +214,7 @@ class Table(object):
         Merge attributes are never copied - the new row is always unmerged. Text is never
         copied. The graphic frame's height is recalculated.
 
-        Merged-cell guard is cell-wise: refuses (|UnsupportedStructureError|, tree
+        Merged-cell guard is cell-wise: refuses (`UnsupportedStructureError`, tree
         untouched) only when the insertion boundary would split a vertical merge; a merged
         header row never blocks body-row insertion.
         """
@@ -315,9 +315,9 @@ class Table(object):
 
     @lazyproperty
     def rows(self):
-        """|_RowCollection| instance for this table.
+        """`_RowCollection` instance for this table.
 
-        Provides access to |_Row| objects representing the table's rows. |_Row| objects are
+        Provides access to `_Row` objects representing the table's rows. `_Row` objects are
         accessed using list notation, e.g. `col = tbl.rows[0]`.
         """
         return _RowCollection(self._tbl, self)
@@ -378,7 +378,7 @@ class Table(object):
                 )
 
     def _refuse_merge_conflict(self, operation: str, conflicts: list[_MergeRegion]) -> None:
-        """Raise |UnsupportedStructureError| naming every merged region in `conflicts`."""
+        """Raise `UnsupportedStructureError` naming every merged region in `conflicts`."""
         from pptx.errors import UnsupportedStructureError
 
         raise UnsupportedStructureError(
@@ -393,7 +393,7 @@ class Table(object):
 
     @staticmethod
     def _validate_grid_index(value: int, name: str, count: int, *, lower: int = 0) -> None:
-        """Raise |ValueError| unless `value` is an int in `range(lower, count)`."""
+        """Raise `ValueError` unless `value` is an int in `range(lower, count)`."""
         if isinstance(value, bool) or not isinstance(value, int) or not (
             lower <= value < count
         ):
@@ -443,7 +443,7 @@ class _Cell(Subshape):
         self._tc = tc
 
     def __eq__(self, other: object) -> bool:
-        """|True| if this object proxies the same element as `other`.
+        """`True` if this object proxies the same element as `other`.
 
         Equality for proxy objects is defined as referring to the same XML element, whether or not
         they are the same proxy object instance.
@@ -459,7 +459,7 @@ class _Cell(Subshape):
 
     @lazyproperty
     def fill(self) -> FillFormat:
-        """|FillFormat| instance for this cell.
+        """`FillFormat` instance for this cell.
 
         Provides access to fill properties such as foreground color.
         """
@@ -478,7 +478,7 @@ class _Cell(Subshape):
         A merge-origin cell "spans" the other grid cells in its merge range, consuming their area
         and "shadowing" the spanned grid cells.
 
-        Note this value is |False| for a merge-origin cell. A merge-origin cell spans other grid
+        Note this value is `False` for a merge-origin cell. A merge-origin cell spans other grid
         cells, but is not itself a spanned cell.
         """
         return self._tc.is_spanned
@@ -487,7 +487,7 @@ class _Cell(Subshape):
     def margin_left(self) -> Length:
         """Left margin of cells.
 
-        Read/write. If assigned |None|, the default value is used, 0.1 inches for left and right
+        Read/write. If assigned `None`, the default value is used, 0.1 inches for left and right
         margins and 0.05 inches for top and bottom.
         """
         return self._tc.marL
@@ -534,7 +534,7 @@ class _Cell(Subshape):
         diagonal of the cell region may be specified in either order, e.g. self=bottom-right,
         other_cell=top-left, etc.
 
-        Raises |ValueError| if the specified range already contains merged cells anywhere within
+        Raises `ValueError` if the specified range already contains merged cells anywhere within
         its extents or if `other_cell` is not in the same table as `self`.
         """
         tc_range = TcRange(self._tc, other_cell._tc)
@@ -562,7 +562,7 @@ class _Cell(Subshape):
         """int count of rows spanned by this cell.
 
         The value of this property may be misleading (often 1) on cells where `.is_merge_origin`
-        is not |True|, since only a merge-origin cell contains complete span information. This
+        is not `True`, since only a merge-origin cell contains complete span information. This
         property is only intended for use on cells known to be a merge origin by testing
         `.is_merge_origin`.
         """
@@ -573,7 +573,7 @@ class _Cell(Subshape):
         """int count of columns spanned by this cell.
 
         The value of this property may be misleading (often 1) on cells where `.is_merge_origin`
-        is not |True|, since only a merge-origin cell contains complete span information. This
+        is not `True`, since only a merge-origin cell contains complete span information. This
         property is only intended for use on cells known to be a merge origin by testing
         `.is_merge_origin`.
         """
@@ -585,7 +585,7 @@ class _Cell(Subshape):
         The merged cell represented by this object will be "unmerged", yielding a separate
         unmerged cell for each grid cell previously spanned by this merge.
 
-        Raises |ValueError| when this cell is not a merge-origin cell. Test with
+        Raises `ValueError` when this cell is not a merge-origin cell. Test with
         `.is_merge_origin` before calling.
         """
         if not self.is_merge_origin:
@@ -619,7 +619,7 @@ class _Cell(Subshape):
 
     @property
     def text_frame(self) -> TextFrame:
-        """|TextFrame| containing the text that appears in the cell."""
+        """`TextFrame` containing the text that appears in the cell."""
         txBody = self._tc.get_or_add_txBody()
         return TextFrame(txBody, self)
 
@@ -627,11 +627,11 @@ class _Cell(Subshape):
     def vertical_anchor(self) -> MSO_VERTICAL_ANCHOR | None:
         """Vertical alignment of this cell.
 
-        This value is a member of the :ref:`MsoVerticalAnchor` enumeration or |None|. A value of
-        |None| indicates the cell has no explicitly applied vertical anchor setting and its
+        This value is a member of the `MsoVerticalAnchor` enumeration or `None`. A value of
+        `None` indicates the cell has no explicitly applied vertical anchor setting and its
         effective value is inherited from its style-hierarchy ancestors.
 
-        Assigning |None| to this property causes any explicitly applied vertical anchor setting to
+        Assigning `None` to this property causes any explicitly applied vertical anchor setting to
         be cleared and inheritance of its effective value to be restored.
         """
         return self._tc.anchor
@@ -642,7 +642,7 @@ class _Cell(Subshape):
 
     @staticmethod
     def _validate_margin_value(margin_value: Length | None) -> None:
-        """Raise ValueError if `margin_value` is not a positive integer value or |None|."""
+        """Raise ValueError if `margin_value` is not a positive integer value or `None`."""
         if not isinstance(margin_value, int) and margin_value is not None:
             tmpl = "margin value must be integer or None, got '%s'"
             raise TypeError(tmpl % margin_value)

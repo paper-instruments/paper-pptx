@@ -50,7 +50,7 @@ class TextFrame(Subshape):
 
     def add_paragraph(self):
         """
-        Return new |_Paragraph| instance appended to the sequence of
+        Return new `_Paragraph` instance appended to the sequence of
         paragraphs contained in this text frame.
         """
         p = self._txBody.add_p()
@@ -62,7 +62,7 @@ class TextFrame(Subshape):
 
         Determins the type of automatic resizing used to fit the text of this shape within its
         bounding box when the text would otherwise extend beyond the shape boundaries. May be
-        |None|, `MSO_AUTO_SIZE.NONE`, `MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT`, or
+        `None`, `MSO_AUTO_SIZE.NONE`, `MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT`, or
         `MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE`.
         """
         return self._bodyPr.autofit
@@ -91,9 +91,9 @@ class TextFrame(Subshape):
         Make the text in this text frame fit entirely within the bounds of its shape by setting
         word wrap on and applying the "best-fit" font size to all the text it contains.
 
-        :attr:`TextFrame.auto_size` is set to :attr:`MSO_AUTO_SIZE.NONE`. The font size will not
+        `TextFrame.auto_size` is set to `MSO_AUTO_SIZE.NONE`. The font size will not
         be set larger than `max_size` points. If the path to a matching TrueType font is provided
-        as `font_file`, that font file will be used for the font metrics. If `font_file` is |None|,
+        as `font_file`, that font file will be used for the font metrics. If `font_file` is `None`,
         best efforts are made to locate a font file with matchhing `font_family`, `bold`, and
         `italic` installed on the current system (usually succeeds if the font is installed).
         """
@@ -108,10 +108,10 @@ class TextFrame(Subshape):
     def font_scale(self) -> float | None:
         """Font scale percent of this frame's `a:normAutofit`, e.g. 62.5 (paper-pptx addition).
 
-        100.0 when the frame has `a:normAutofit` with no explicit scale; |None| when the
+        100.0 when the frame has `a:normAutofit` with no explicit scale; `None` when the
         frame's autofit setting is anything other than `a:normAutofit`. Read-only: PowerPoint
         owns this value (it records the shrink-to-fit reduction last applied); use
-        :meth:`normalize_autofit` to freeze it into explicit sizes.
+        `normalize_autofit` to freeze it into explicit sizes.
         """
         normAutofit = self._bodyPr.normAutofit
         return normAutofit.fontScale if normAutofit is not None else None
@@ -120,7 +120,7 @@ class TextFrame(Subshape):
     def line_space_reduction(self) -> float | None:
         """Line-spacing reduction percent of `a:normAutofit`, e.g. 20.0 (paper-pptx addition).
 
-        0.0 when the frame has `a:normAutofit` with no explicit reduction; |None| when the
+        0.0 when the frame has `a:normAutofit` with no explicit reduction; `None` when the
         frame's autofit setting is anything other than `a:normAutofit`. Read-only.
         """
         normAutofit = self._bodyPr.normAutofit
@@ -128,9 +128,9 @@ class TextFrame(Subshape):
 
     @property
     def margin_bottom(self) -> Length:
-        """|Length| value representing the inset of text from the bottom text frame border.
+        """`Length` value representing the inset of text from the bottom text frame border.
 
-        :meth:`pptx.util.Inches` provides a convenient way of setting the value, e.g.
+        `pptx.util.Inches` provides a convenient way of setting the value, e.g.
         `text_frame.margin_bottom = Inches(0.05)`.
         """
         return self._bodyPr.bIns
@@ -141,7 +141,7 @@ class TextFrame(Subshape):
 
     @property
     def margin_left(self) -> Length:
-        """Inset of text from left text frame border as |Length| value."""
+        """Inset of text from left text frame border as `Length` value."""
         return self._bodyPr.lIns
 
     @margin_left.setter
@@ -150,7 +150,7 @@ class TextFrame(Subshape):
 
     @property
     def margin_right(self) -> Length:
-        """Inset of text from right text frame border as |Length| value."""
+        """Inset of text from right text frame border as `Length` value."""
         return self._bodyPr.rIns
 
     @margin_right.setter
@@ -159,7 +159,7 @@ class TextFrame(Subshape):
 
     @property
     def margin_top(self) -> Length:
-        """Inset of text from top text frame border as |Length| value."""
+        """Inset of text from top text frame border as `Length` value."""
         return self._bodyPr.tIns
 
     @margin_top.setter
@@ -177,16 +177,16 @@ class TextFrame(Subshape):
         - `a:normAutofit` with a font scale: every explicit font size in the frame (run,
           paragraph-default, and end-paragraph properties) is multiplied by the scale. If any
           run's size is not locally resolvable (neither its own `sz` nor its paragraph's
-          default), |UnsupportedStructureError| is raised — unless `resolve=True`, in which
+          default), `UnsupportedStructureError` is raised — unless `resolve=True`, in which
           case the size is resolved through the effective-style walk (placeholder → layout →
           master → theme) and frozen from the resolved value; what the walk cannot resolve
           still refuses. This API never silently guesses.
         - `a:normAutofit` with a line-spacing reduction: every paragraph's explicit line
           spacing is reduced accordingly; any paragraph without explicit line spacing raises
-          |UnsupportedStructureError| (`resolve` covers font sizes only in this version).
+          `UnsupportedStructureError` (`resolve` covers font sizes only in this version).
         - `a:spAutoFit`, `a:noAutofit`, or no autofit element: no text metrics change.
 
-        `min_font_size` (a |Length|, e.g. `Pt(11)`) is applied after freezing: explicit sizes
+        `min_font_size` (a `Length`, e.g. `Pt(11)`) is applied after freezing: explicit sizes
         below the floor are raised to it. Validation completes fully before the first write
         (a refusal leaves the frame byte-identical).
         """
@@ -358,7 +358,7 @@ class TextFrame(Subshape):
     def vertical_anchor(self) -> MSO_VERTICAL_ANCHOR | None:
         """Represents the vertical alignment of text in this text frame.
 
-        |None| indicates the effective value should be inherited from this object's style hierarchy.
+        `None` indicates the effective value should be inherited from this object's style hierarchy.
         """
         return self._txBody.bodyPr.anchor
 
@@ -467,9 +467,9 @@ class Font(object):
 
     @property
     def bold(self) -> bool | None:
-        """Get or set boolean bold value of |Font|, e.g. `paragraph.font.bold = True`.
+        """Get or set boolean bold value of `Font`, e.g. `paragraph.font.bold = True`.
 
-        If set to |None|, the bold setting is cleared and is inherited from an enclosing shape's
+        If set to `None`, the bold setting is cleared and is inherited from an enclosing shape's
         setting, or a setting in a style or master. Returns None if no bold attribute is present,
         meaning the effective bold value is inherited from a master or the theme.
         """
@@ -481,14 +481,14 @@ class Font(object):
 
     @lazyproperty
     def color(self) -> ColorFormat:
-        """The |ColorFormat| instance that provides access to the color settings for this font."""
+        """The `ColorFormat` instance that provides access to the color settings for this font."""
         if self.fill.type != MSO_FILL.SOLID:
             self.fill.solid()
         return self.fill.fore_color
 
     @lazyproperty
     def fill(self) -> FillFormat:
-        """|FillFormat| instance for this font.
+        """`FillFormat` instance for this font.
 
         Provides access to fill properties such as fill color.
         """
@@ -496,7 +496,7 @@ class Font(object):
 
     @property
     def italic(self) -> bool | None:
-        """Get or set boolean italic value of |Font| instance.
+        """Get or set boolean italic value of `Font` instance.
 
         Has the same behaviors as bold with respect to None values.
         """
@@ -508,9 +508,9 @@ class Font(object):
 
     @property
     def language_id(self) -> MSO_LANGUAGE_ID | None:
-        """Get or set the language id of this |Font| instance.
+        """Get or set the language id of this `Font` instance.
 
-        The language id is a member of the :ref:`MsoLanguageId` enumeration. Assigning |None|
+        The language id is a member of the `MsoLanguageId` enumeration. Assigning `None`
         removes any language setting, the same behavior as assigning `MSO_LANGUAGE_ID.NONE`.
         """
         lang = self._rPr.lang
@@ -526,10 +526,10 @@ class Font(object):
 
     @property
     def name(self) -> str | None:
-        """Get or set the typeface name for this |Font| instance.
+        """Get or set the typeface name for this `Font` instance.
 
         Causes the text it controls to appear in the named font, if a matching font is found.
-        Returns |None| if the typeface is currently inherited from the theme. Setting it to |None|
+        Returns `None` if the typeface is currently inherited from the theme. Setting it to `None`
         removes any override of the theme typeface.
         """
         latin = self._rPr.latin
@@ -549,10 +549,10 @@ class Font(object):
     def size(self) -> Length | None:
         """Indicates the font height in English Metric Units (EMU).
 
-        Read/write. |None| indicates the font size should be inherited from its style hierarchy,
-        such as a placeholder or document defaults (usually 18pt). |Length| is a subclass of |int|
+        Read/write. `None` indicates the font size should be inherited from its style hierarchy,
+        such as a placeholder or document defaults (usually 18pt). `Length` is a subclass of `int`
         having properties for convenient conversion into points or other length units. Likewise,
-        the :class:`pptx.util.Pt` class allows convenient specification of point values::
+        the `pptx.util.Pt` class allows convenient specification of point values::
 
             >>> font.size = Pt(24)
             >>> font.size
@@ -577,11 +577,11 @@ class Font(object):
     def underline(self) -> bool | MSO_TEXT_UNDERLINE_TYPE | None:
         """Indicaties the underline setting for this font.
 
-        Value is |True|, |False|, |None|, or a member of the :ref:`MsoTextUnderlineType`
-        enumeration. |None| is the default and indicates the underline setting should be inherited
-        from the style hierarchy, such as from a placeholder. |True| indicates single underline.
-        |False| indicates no underline. Other settings such as double and wavy underlining are
-        indicated with members of the :ref:`MsoTextUnderlineType` enumeration.
+        Value is `True`, `False`, `None`, or a member of the `MsoTextUnderlineType`
+        enumeration. `None` is the default and indicates the underline setting should be inherited
+        from the style hierarchy, such as from a placeholder. `True` indicates single underline.
+        `False` indicates no underline. Other settings such as double and wavy underlining are
+        indicated with members of the `MsoTextUnderlineType` enumeration.
         """
         u = self._rPr.u
         if u is MSO_UNDERLINE.NONE:
@@ -657,7 +657,7 @@ class _Paragraph(Subshape):
 
         paper-pptx addition. `format_code` is "datetime" or "datetime1" through
         "datetime13" (the ECMA-376 date/time field formats); anything else raises
-        |ValueError|. The field's cached text is left empty; PowerPoint renders the live
+        `ValueError`. The field's cached text is left empty; PowerPoint renders the live
         value. Recognized by `pptx.inspect.inspect_text` via `TextBlock.fields`.
         """
         valid = {"datetime"} | {"datetime%d" % n for n in range(1, 14)}
@@ -697,8 +697,8 @@ class _Paragraph(Subshape):
     def alignment(self) -> PP_PARAGRAPH_ALIGNMENT | None:
         """Horizontal alignment of this paragraph.
 
-        The value |None| indicates the paragraph should 'inherit' its effective value from its
-        style hierarchy. Assigning |None| removes any explicit setting, causing its inherited
+        The value `None` indicates the paragraph should 'inherit' its effective value from its
+        style hierarchy. Assigning `None` removes any explicit setting, causing its inherited
         value to be used.
         """
         return self._pPr.algn
@@ -709,10 +709,10 @@ class _Paragraph(Subshape):
 
     @lazyproperty
     def bullet(self) -> BulletFormat:
-        """|BulletFormat| object providing bullet and numbering control for this paragraph.
+        """`BulletFormat` object providing bullet and numbering control for this paragraph.
 
         paper-pptx addition. Read properties report this paragraph's local `a:pPr` state only
-        (|None| means inherited); setters write real `a:buChar`/`a:buAutoNum`/`a:buNone`
+        (`None` means inherited); setters write real `a:buChar`/`a:buAutoNum`/`a:buNone`
         bullets with hanging-indent geometry.
         """
         return BulletFormat(self._p, self.part)
@@ -728,7 +728,7 @@ class _Paragraph(Subshape):
 
     @property
     def font(self) -> Font:
-        """|Font| object containing default character properties for the runs in this paragraph.
+        """`Font` object containing default character properties for the runs in this paragraph.
 
         These character properties override default properties inherited from parent objects such
         as the text frame the paragraph is contained in and they may be overridden by character
@@ -754,10 +754,10 @@ class _Paragraph(Subshape):
     def line_spacing(self) -> int | float | Length | None:
         """The space between baselines in successive lines of this paragraph.
 
-        A value of |None| indicates no explicit value is assigned and its effective value is
+        A value of `None` indicates no explicit value is assigned and its effective value is
         inherited from the paragraph's style hierarchy. A numeric value, e.g. `2` or `1.5`,
-        indicates spacing is applied in multiples of line heights. A |Length| value such as
-        `Pt(12)` indicates spacing is a fixed height. The |Pt| value class is a convenient way to
+        indicates spacing is applied in multiples of line heights. A `Length` value such as
+        `Pt(12)` indicates spacing is a fixed height. The `Pt` value class is a convenient way to
         apply line spacing in units of points.
         """
         pPr = self._p.pPr
@@ -779,8 +779,8 @@ class _Paragraph(Subshape):
     def space_after(self) -> Length | None:
         """The spacing to appear between this paragraph and the subsequent paragraph.
 
-        A value of |None| indicates no explicit value is assigned and its effective value is
-        inherited from the paragraph's style hierarchy. |Length| objects provide convenience
+        A value of `None` indicates no explicit value is assigned and its effective value is
+        inherited from the paragraph's style hierarchy. `Length` objects provide convenience
         properties, such as `.pt` and `.inches`, that allow easy conversion to various length
         units.
         """
@@ -798,8 +798,8 @@ class _Paragraph(Subshape):
     def space_before(self) -> Length | None:
         """The spacing to appear between this paragraph and the prior paragraph.
 
-        A value of |None| indicates no explicit value is assigned and its effective value is
-        inherited from the paragraph's style hierarchy. |Length| objects provide convenience
+        A value of `None` indicates no explicit value is assigned and its effective value is
+        inherited from the paragraph's style hierarchy. `Length` objects provide convenience
         properties, such as `.pt` and `.cm`, that allow easy conversion to various length units.
         """
         pPr = self._p.pPr
@@ -863,7 +863,7 @@ class _Run(Subshape):
         self._r = r
 
     def effective_font(self):
-        """Return an |EffectiveFont| with this run's resolved size, name, and color.
+        """Return an `EffectiveFont` with this run's resolved size, name, and color.
 
         paper-pptx addition: executes the documented inheritance walk (run -> paragraph ->
         shape list style -> placeholder/layout/master styles -> presentation defaults ->
@@ -876,7 +876,7 @@ class _Run(Subshape):
 
     @property
     def font(self):
-        """|Font| instance containing run-level character properties for the text in this run.
+        """`Font` instance containing run-level character properties for the text in this run.
 
         Character properties can be and perhaps most often are inherited from parent objects such
         as the paragraph and slide layout the run is contained in. Only those specifically

@@ -25,8 +25,8 @@ class _InheritsDimensions(object):
     """
     Mixin class that provides inherited dimension behavior. Specifically,
     left, top, width, and height report the value from the layout placeholder
-    where they would have otherwise reported |None|. This behavior is
-    distinctive to placeholders. :meth:`_base_placeholder` must be overridden
+    where they would have otherwise reported `None`. This behavior is
+    distinctive to placeholders. `_base_placeholder` must be overridden
     by all subclasses to provide lookup of the appropriate base placeholder
     to inherit from.
     """
@@ -60,7 +60,7 @@ class _InheritsDimensions(object):
     @property
     def shape_type(self):
         """
-        Member of :ref:`MsoShapeType` specifying the type of this shape.
+        Member of `MsoShapeType` specifying the type of this shape.
         Unconditionally ``MSO_SHAPE_TYPE.PLACEHOLDER`` in this case.
         Read-only.
         """
@@ -97,7 +97,7 @@ class _InheritsDimensions(object):
         """
         Return the layout or master placeholder shape this placeholder
         inherits from. Not to be confused with an instance of
-        |BasePlaceholder| (necessarily).
+        `BasePlaceholder` (necessarily).
         """
         raise NotImplementedError("Must be implemented by all subclasses.")
 
@@ -134,14 +134,14 @@ class _BaseSlidePlaceholder(_InheritsDimensions, Shape):
     def is_placeholder(self):
         """
         Boolean indicating whether this shape is a placeholder.
-        Unconditionally |True| in this case.
+        Unconditionally `True` in this case.
         """
         return True
 
     @property
     def shape_type(self):
         """
-        Member of :ref:`MsoShapeType` specifying the type of this shape.
+        Member of `MsoShapeType` specifying the type of this shape.
         Unconditionally ``MSO_SHAPE_TYPE.PLACEHOLDER`` in this case.
         Read-only.
         """
@@ -151,7 +151,7 @@ class _BaseSlidePlaceholder(_InheritsDimensions, Shape):
     def _base_placeholder(self):
         """
         Return the layout placeholder this slide placeholder inherits from.
-        Not to be confused with an instance of |BasePlaceholder|
+        Not to be confused with an instance of `BasePlaceholder`
         (necessarily).
         """
         layout, idx = self.part.slide_layout, self._element.ph_idx
@@ -160,10 +160,10 @@ class _BaseSlidePlaceholder(_InheritsDimensions, Shape):
     def _replace_placeholder_with(self, element):
         """
         Substitute *element* for this placeholder element in the shapetree.
-        This placeholder's `._element` attribute is set to |None| and its
+        This placeholder's `._element` attribute is set to `None` and its
         original element is free for garbage collection. Any attribute access
         (including a method call) on this placeholder after this call raises
-        |AttributeError|.
+        `AttributeError`.
         """
         element._nvXxPr.nvPr._insert_ph(self._element.ph)
         self._element.addprevious(element)
@@ -262,7 +262,7 @@ class NotesSlidePlaceholder(_InheritsDimensions, Shape):
     def _base_placeholder(self):
         """
         Return the notes master placeholder this notes slide placeholder
-        inherits from, or |None| if no placeholder of the matching type is
+        inherits from, or `None` if no placeholder of the matching type is
         present.
         """
         notes_master = self.part.notes_master
@@ -282,15 +282,15 @@ class ChartPlaceholder(_BaseSlidePlaceholder):
 
     def insert_chart(self, chart_type, chart_data):
         """
-        Return a |PlaceholderGraphicFrame| object containing a new chart of
+        Return a `PlaceholderGraphicFrame` object containing a new chart of
         *chart_type* depicting *chart_data* and having the same position and
         size as this placeholder. *chart_type* is one of the
-        :ref:`XlChartType` enumeration values. *chart_data* is a |ChartData|
+        `XlChartType` enumeration values. *chart_data* is a `ChartData`
         object populated with the categories and series values for the chart.
-        Note that the new |Chart| object is not returned directly. The chart
+        Note that the new `Chart` object is not returned directly. The chart
         object may be accessed using the
-        :attr:`~.PlaceholderGraphicFrame.chart` property of the returned
-        |PlaceholderGraphicFrame| object.
+        `PlaceholderGraphicFrame.chart` property of the returned
+        `PlaceholderGraphicFrame` object.
         """
         rId = self.part.add_chart_part(chart_type, chart_data)
         graphicFrame = self._new_chart_graphicFrame(
@@ -312,12 +312,12 @@ class PicturePlaceholder(_BaseSlidePlaceholder):
     """Placeholder shape that can only accept a picture."""
 
     def insert_picture(self, image_file):
-        """Return a |PlaceholderPicture| object depicting the image in `image_file`.
+        """Return a `PlaceholderPicture` object depicting the image in `image_file`.
 
         `image_file` may be either a path (string) or a file-like object. The image is
-        cropped to fill the entire space of the placeholder. A |PlaceholderPicture|
-        object has all the properties and methods of a |Picture| shape except that the
-        value of its :attr:`~._BaseSlidePlaceholder.shape_type` property is
+        cropped to fill the entire space of the placeholder. A `PlaceholderPicture`
+        object has all the properties and methods of a `Picture` shape except that the
+        value of its `_BaseSlidePlaceholder.shape_type` property is
         `MSO_SHAPE_TYPE.PLACEHOLDER` instead of `MSO_SHAPE_TYPE.PICTURE`.
         """
         pic = self._new_placeholder_pic(image_file)
@@ -356,7 +356,7 @@ class PlaceholderGraphicFrame(GraphicFrame):
     def is_placeholder(self):
         """
         Boolean indicating whether this shape is a placeholder.
-        Unconditionally |True| in this case.
+        Unconditionally `True` in this case.
         """
         return True
 
@@ -379,16 +379,16 @@ class TablePlaceholder(_BaseSlidePlaceholder):
     """Placeholder shape that can only accept a table."""
 
     def insert_table(self, rows, cols):
-        """Return |PlaceholderGraphicFrame| object containing a `rows` by `cols` table.
+        """Return `PlaceholderGraphicFrame` object containing a `rows` by `cols` table.
 
         The position and width of the table are those of the placeholder and its height
-        is proportional to the number of rows. A |PlaceholderGraphicFrame| object has
-        all the properties and methods of a |GraphicFrame| shape except that the value
-        of its :attr:`~._BaseSlidePlaceholder.shape_type` property is unconditionally
+        is proportional to the number of rows. A `PlaceholderGraphicFrame` object has
+        all the properties and methods of a `GraphicFrame` shape except that the value
+        of its `_BaseSlidePlaceholder.shape_type` property is unconditionally
         `MSO_SHAPE_TYPE.PLACEHOLDER`. Note that the return value is not the new table
         but rather *contains* the new table. The table can be accessed using the
-        :attr:`~.PlaceholderGraphicFrame.table` property of the returned
-        |PlaceholderGraphicFrame| object.
+        `PlaceholderGraphicFrame.table` property of the returned
+        `PlaceholderGraphicFrame` object.
         """
         graphicFrame = self._new_placeholder_table(rows, cols)
         self._replace_placeholder_with(graphicFrame)

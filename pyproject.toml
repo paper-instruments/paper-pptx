@@ -46,7 +46,7 @@ version = {attr = "pptx._version.__paper_version__"}
 
 [project.urls]
 Changelog = "https://github.com/paper-instruments/paper-pptx/releases"
-Documentation = "https://github.com/paper-instruments/paper-pptx"
+Documentation = "https://docs.paperinstruments.com/docs/pptx"
 Homepage = "https://github.com/paper-instruments/paper-pptx"
 Issues = "https://github.com/paper-instruments/paper-pptx/issues"
 Repository = "https://github.com/paper-instruments/paper-pptx"

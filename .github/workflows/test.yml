@@ -165,10 +165,46 @@ jobs:
             --yes python-pptx
           expect_failure "$matrix_root/unsafe-uninstall/bin/paper-pptx-doctor"
 
+  api:
+    name: Public API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # -- the merge base is unreachable from a shallow clone --
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.28"
+      - name: Check for public API breakage
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # -- Baseline on the merge base, never on the last release tag. The merge rule asks
+          # -- "does this change break the public API?", and only the merge base answers it.
+          # -- A release-tag baseline re-reports every breakage already accepted on the
+          # -- branch, so the gate would fail every PR and get switched off within a week.
+          if [ -n "$BASE_REF" ]; then
+            git fetch --quiet origin "$BASE_REF"
+            baseline="$(git merge-base HEAD "origin/$BASE_REF")"
+          else
+            baseline="${BEFORE:-HEAD~1}"
+          fi
+          echo "comparing public API against $baseline"
+          uvx --from griffe==2.2.0 griffe check pptx -s src -a "$baseline" -f github
+
   required:
     name: Required
     if: always()
-    needs: [test, libreoffice, docs, build]
+    needs: [test, libreoffice, docs, build, api]
     runs-on: ubuntu-latest
     steps:
       - name: Require every quality job
@@ -177,8 +213,10 @@ jobs:
           LIBREOFFICE_RESULT: ${{ needs.libreoffice.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          API_RESULT: ${{ needs.api.result }}
         run: |
           test "$TEST_RESULT" = success
           test "$LIBREOFFICE_RESULT" = success
           test "$DOCS_RESULT" = success
           test "$BUILD_RESULT" = success
+          test "$API_RESULT" = success

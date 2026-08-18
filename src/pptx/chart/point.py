@@ -29,7 +29,7 @@ class _BasePoints(Sequence):
 class BubblePoints(_BasePoints):
     """
     Sequence providing access to the individual data points in
-    a |BubbleSeries| object.
+    a `BubbleSeries` object.
     """
 
     def __len__(self):
@@ -42,7 +42,7 @@ class BubblePoints(_BasePoints):
 
 class CategoryPoints(_BasePoints):
     """
-    Sequence providing access to individual |Point| objects, each
+    Sequence providing access to individual `Point` objects, each
     representing the visual properties of a data point in the specified
     category series.
     """
@@ -67,14 +67,14 @@ class Point(object):
     @lazyproperty
     def data_label(self):
         """
-        The |DataLabel| object representing the label on this data point.
+        The `DataLabel` object representing the label on this data point.
         """
         return DataLabel(self._ser, self._idx)
 
     @lazyproperty
     def format(self):
         """
-        The |ChartFormat| object providing access to the shape formatting
+        The `ChartFormat` object providing access to the shape formatting
         properties of this data point, such as line and fill.
         """
         dPt = self._ser.get_or_add_dPt_for_point(self._idx)
@@ -83,7 +83,7 @@ class Point(object):
     @lazyproperty
     def marker(self):
         """
-        The |Marker| instance for this point, providing access to the visual
+        The `Marker` instance for this point, providing access to the visual
         properties of the data point marker, such as fill and line. Setting
         these properties overrides any value set at the series level.
         """
@@ -93,7 +93,7 @@ class Point(object):
 
 class XyPoints(_BasePoints):
     """
-    Sequence providing access to the individual data points in an |XySeries|
+    Sequence providing access to the individual data points in an `XySeries`
     object.
     """
 

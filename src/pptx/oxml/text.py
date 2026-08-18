@@ -273,7 +273,7 @@ class CT_TextBodyProperties(BaseOxmlElement):
 class CT_TextCharacterProperties(BaseOxmlElement):
     """Custom element class for `a:rPr`, `a:defRPr`, and `a:endParaRPr`.
 
-    'rPr' is short for 'run properties', and it corresponds to the |Font| proxy class.
+    'rPr' is short for 'run properties', and it corresponds to the `Font` proxy class.
     """
 
     get_or_add_hlinkClick: Callable[[], CT_Hyperlink]
@@ -437,7 +437,7 @@ class CT_TextListStyle(BaseOxmlElement):
     """
 
     def pPr_for_lvl(self, level: int) -> CT_TextParagraphProperties | None:
-        """Return the `a:lvl{level+1}pPr` child for 0-based indent `level`, or |None|.
+        """Return the `a:lvl{level+1}pPr` child for 0-based indent `level`, or `None`.
 
         Read-only helper for the effective-style inheritance walk.
         """
@@ -623,9 +623,9 @@ class CT_TextParagraphProperties(BaseOxmlElement):
     def line_spacing(self) -> float | Length | None:
         """The spacing between baselines of successive lines in this paragraph.
 
-        A float value indicates a number of lines. A |Length| value indicates a fixed spacing.
+        A float value indicates a number of lines. A `Length` value indicates a fixed spacing.
         Value is contained in `./a:lnSpc/a:spcPts/@val` or `./a:lnSpc/a:spcPct/@val`. Value is
-        |None| if no element is present.
+        `None` if no element is present.
         """
         lnSpc = self.lnSpc
         if lnSpc is None:

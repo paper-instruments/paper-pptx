@@ -198,7 +198,7 @@ class CT_Scaling(BaseOxmlElement):
     @property
     def maximum(self):
         """
-        The float value of the ``<c:max>`` child element, or |None| if no max
+        The float value of the ``<c:max>`` child element, or `None` if no max
         element is present.
         """
         max = self.max
@@ -210,7 +210,7 @@ class CT_Scaling(BaseOxmlElement):
     def maximum(self, value):
         """
         Set the value of the ``<c:max>`` child element to the float *value*,
-        or remove the max element if *value* is |None|.
+        or remove the max element if *value* is `None`.
         """
         self._remove_max()
         if value is None:
@@ -220,7 +220,7 @@ class CT_Scaling(BaseOxmlElement):
     @property
     def minimum(self):
         """
-        The float value of the ``<c:min>`` child element, or |None| if no min
+        The float value of the ``<c:min>`` child element, or `None` if no min
         element is present.
         """
         min = self.min
@@ -232,7 +232,7 @@ class CT_Scaling(BaseOxmlElement):
     def minimum(self, value):
         """
         Set the value of the ``<c:min>`` child element to the float *value*,
-        or remove the min element if *value* is |None|.
+        or remove the min element if *value* is `None`.
         """
         self._remove_min()
         if value is None:

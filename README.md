@@ -52,7 +52,8 @@ presentation byte-for-byte unchanged rather than guessing.
 
 ## Installation
 
-Requires Python 3.9+.
+Requires Python 3.9+. Runs on any Python-capable platform, including macOS and
+Linux, and does not require PowerPoint to be installed or licensed.
 
 ```bash
 python -m pip uninstall -y python-pptx paper-pptx
@@ -101,7 +102,7 @@ print(len(delta.slide_changes), "slides changed")
 A fuller composition workflow (import a slide from another deck, apply live
 footers, and verify) is in
 [A complete example](#compose-assemble-decks-across-files) below and in
-[`docs/user/paper-additions.rst`](docs/user/paper-additions.rst).
+[What we changed from python-pptx, and why](#what-we-changed-from-python-pptx-and-why).
 
 ## What we changed from python-pptx, and why
 
@@ -331,7 +332,7 @@ part leaves the package by becoming unreachable, and the serializer never writes
 an unreachable part, so anything a live slide still uses structurally cannot be
 removed. Unused layouts go through `SlideLayouts.remove()`, which refuses a
 layout still in use. The recipe is in
-[`docs/user/paper-additions.rst`](docs/user/paper-additions.rst).
+[What we changed from python-pptx, and why](#what-we-changed-from-python-pptx-and-why).
 
 A complete example:
 
@@ -458,14 +459,14 @@ from `pptx` itself; import from the module named below.
 
 | Module | What it does | Reference |
 |---|---|---|
-| `pptx.inspect` | Effective (rendered) values with provenance; text inspection with content-hash anchors; deck manifest | [docs](docs/api/inspect.rst) |
-| `pptx.edit` | Deck-wide and anchored text replacement that preserves run formatting | [docs](docs/api/edit.rst) |
-| `pptx.diff` | Semantic deck-to-deck diff (`diff_decks`) | [docs](docs/api/diff.rst) |
-| `pptx.compose` | Cross-deck slide import and deck append (via `Presentation.import_slide` / `append_deck`) | [docs](docs/api/compose.rst) |
-| `pptx.rebind` | Layout rebinding with shift reports (via `Slide.rebind_layout`) | [docs](docs/api/rebind.rst) |
-| `pptx.hf` | Real slide-number/date/footer fields (via `apply_footers`) | [docs](docs/api/hf.rst) |
-| `pptx.package` | Semantic package diff and byte-minimal `patch_save` | [docs](docs/api/package.rst) |
-| `pptx.errors` | The `PaperRefusal` typed-refusal hierarchy | [docs](docs/api/errors.rst) |
+| `pptx.inspect` | Effective (rendered) values with provenance; text inspection with content-hash anchors; deck manifest | [docs](https://docs.paperinstruments.com/docs/pptx/api/inspect) |
+| `pptx.edit` | Deck-wide and anchored text replacement that preserves run formatting | [docs](https://docs.paperinstruments.com/docs/pptx/api/edit) |
+| `pptx.diff` | Semantic deck-to-deck diff (`diff_decks`) | [docs](https://docs.paperinstruments.com/docs/pptx/api/diff) |
+| `pptx.compose` | Cross-deck slide import and deck append (via `Presentation.import_slide` / `append_deck`) | [docs](https://docs.paperinstruments.com/docs/pptx/api/compose) |
+| `pptx.rebind` | Layout rebinding with shift reports (via `Slide.rebind_layout`) | [docs](https://docs.paperinstruments.com/docs/pptx/api/rebind) |
+| `pptx.hf` | Real slide-number/date/footer fields (via `apply_footers`) | [docs](https://docs.paperinstruments.com/docs/pptx/api/hf) |
+| `pptx.package` | Semantic package diff and byte-minimal `patch_save` | [docs](https://docs.paperinstruments.com/docs/pptx/api/package) |
+| `pptx.errors` | The `PaperRefusal` typed-refusal hierarchy | [docs](https://docs.paperinstruments.com/docs/pptx/api/errors) |
 
 Methods added to inherited classes: `Presentation.batch`; `Slides.clone` /
 `delete` / `reorder` / `move`; `SlideShapes.delete` / `move` / `add_copy` and
@@ -489,17 +490,30 @@ history and compatibility.
 
 ## Documentation
 
-There is no hosted documentation site yet. The Sphinx docs build in CI and
-extend the upstream python-pptx documentation:
+The documentation site is
+**[docs.paperinstruments.com](https://docs.paperinstruments.com/docs/pptx)**.
 
-- [`docs/user/paper-additions.rst`](docs/user/paper-additions.rst) — the
-  narrative guide to everything the fork adds (perceive / edit / compose /
-  verify), with worked examples.
-- [`docs/api/`](docs/api/) — reference pages for each added module.
-- The remaining documentation is inherited from python-pptx and describes the
-  shared, unchanged foundation.
+Docstrings are the single source of truth for what a function does, what it
+refuses, and what it returns. They ship in the wheel, so
+`help(pptx.edit.replace_text)` is authoritative offline — and the site's
+[API reference](https://docs.paperinstruments.com/docs/pptx/api) is
+generated from them, so no API fact is written twice.
 
-Build locally with `uv sync --group docs` and `uv run make docs`.
+- [Reference guide](https://docs.paperinstruments.com/docs/pptx/reference)
+  — the safety contract and the four groupings, with worked examples.
+- This README is the short tour: what the fork adds, grouped as
+  [perceive](#perceive-read-what-the-deck-actually-renders),
+  [edit](#edit-change-one-deck-without-flattening-it),
+  [compose](#compose-assemble-decks-across-files), and
+  [verify](#verify-prove-what-changed).
+- The [API surface map](#api-surface-map) lists every added module.
+- Everything inherited is documented in the
+  [python-pptx documentation](https://python-pptx.readthedocs.io/) and is
+  unchanged.
+
+The repository also still carries the inherited Sphinx tree under `docs/`, which
+nothing publishes; it is being retired now that the reference is generated. Build
+it locally with `uv sync --group docs` and `uv run make docs`.
 
 ## Roadmap and known limitations
 

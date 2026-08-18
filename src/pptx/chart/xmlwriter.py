@@ -55,7 +55,7 @@ def ChartXmlWriter(chart_type, chart_data):
 
 def SeriesXmlRewriterFactory(chart_type, chart_data):
     """
-    Return a |_BaseSeriesXmlRewriter| subclass appropriate to *chart_type*.
+    Return a `_BaseSeriesXmlRewriter` subclass appropriate to *chart_type*.
     """
     XL_CT = XL_CHART_TYPE
 

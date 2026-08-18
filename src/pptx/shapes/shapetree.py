@@ -153,10 +153,10 @@ class _BaseShapes(ParentedElementProxy):
         shapes, but because the search time rises with the square of the shape count, this option
         can be useful for optimizing generation of a slide composed of many shapes.
 
-        Shape-id collisions can occur (causing a repair error on load) if more than one |Slide|
-        object is used to interact with the same slide in the presentation. Note that the |Slides|
-        collection creates a new |Slide| object each time a slide is accessed (e.g. `slide =
-        prs.slides[0]`, so you must be careful to limit use to a single |Slide| object.
+        Shape-id collisions can occur (causing a repair error on load) if more than one `Slide`
+        object is used to interact with the same slide in the presentation. Note that the `Slides`
+        collection creates a new `Slide` object each time a slide is accessed (e.g. `slide =
+        prs.slides[0]`, so you must be careful to limit use to a single `Slide` object.
         """
         return self._cached_max_shape_id is not None
 
@@ -245,12 +245,12 @@ class _BaseGroupShapes(_BaseShapes):
         """Add a new chart of `chart_type` to the slide.
 
         The chart is positioned at (`x`, `y`), has size (`cx`, `cy`), and depicts `chart_data`.
-        `chart_type` is one of the :ref:`XlChartType` enumeration values. `chart_data` is a
-        |ChartData| object populated with the categories and series values for the chart.
+        `chart_type` is one of the `XlChartType` enumeration values. `chart_data` is a
+        `ChartData` object populated with the categories and series values for the chart.
 
-        Note that a |GraphicFrame| shape object is returned, not the |Chart| object contained in
-        that graphic frame shape. The chart object may be accessed using the :attr:`chart`
-        property of the returned |GraphicFrame| object.
+        Note that a `GraphicFrame` shape object is returned, not the `Chart` object contained in
+        that graphic frame shape. The chart object may be accessed using the `chart`
+        property of the returned `GraphicFrame` object.
         """
         rId = self.part.add_chart_part(chart_type, chart_data)
         graphicFrame = self._add_chart_graphicFrame(rId, x, y, cx, cy)
@@ -267,7 +267,7 @@ class _BaseGroupShapes(_BaseShapes):
     ) -> Connector:
         """Add a newly created connector shape to the end of this shape tree.
 
-        `connector_type` is a member of the :ref:`MsoConnectorType` enumeration and the end-point
+        `connector_type` is a member of the `MsoConnectorType` enumeration and the end-point
         values are specified as EMU values. The returned connector is of type `connector_type` and
         has begin and end points as specified.
         """
@@ -276,7 +276,7 @@ class _BaseGroupShapes(_BaseShapes):
         return cast(Connector, self._shape_factory(cxnSp))
 
     def add_group_shape(self, shapes: Iterable[BaseShape] = ()) -> GroupShape:
-        """Return a |GroupShape| object newly appended to this shape tree.
+        """Return a `GroupShape` object newly appended to this shape tree.
 
         The group shape is empty and must be populated with shapes using methods on its shape
         tree, available on its `.shapes` property. The position and extents of the group shape are
@@ -362,7 +362,7 @@ class _BaseGroupShapes(_BaseShapes):
 
         `image_file` can be either a path to a file (a string) or a file-like object. The picture
         is positioned with its top-left corner at (`top`, `left`). If `width` and `height` are
-        both |None|, the native size of the image is used. If only one of `width` or `height` is
+        both `None`, the native size of the image is used. If only one of `width` or `height` is
         used, the unspecified dimension is calculated to preserve the aspect ratio of the image.
         If both are specified, the picture is stretched to fit, without regard to its native
         aspect ratio.
@@ -375,9 +375,9 @@ class _BaseGroupShapes(_BaseShapes):
     def add_shape(
         self, autoshape_type_id: MSO_SHAPE, left: Length, top: Length, width: Length, height: Length
     ) -> Shape:
-        """Return new |Shape| object appended to this shape tree.
+        """Return new `Shape` object appended to this shape tree.
 
-        `autoshape_type_id` is a member of :ref:`MsoAutoShapeType` e.g. `MSO_SHAPE.RECTANGLE`
+        `autoshape_type_id` is a member of `MsoAutoShapeType` e.g. `MSO_SHAPE.RECTANGLE`
         specifying the type of shape to be added. The remaining arguments specify the new shape's
         position and size.
         """
@@ -398,7 +398,7 @@ class _BaseGroupShapes(_BaseShapes):
     def build_freeform(
         self, start_x: float = 0, start_y: float = 0, scale: tuple[float, float] | float = 1.0
     ) -> FreeformBuilder:
-        """Return |FreeformBuilder| object to specify a freeform shape.
+        """Return `FreeformBuilder` object to specify a freeform shape.
 
         The optional `start_x` and `start_y` arguments specify the starting pen position in local
         coordinates. They will be rounded to the nearest integer before use and each default to
@@ -410,7 +410,7 @@ class _BaseGroupShapes(_BaseShapes):
         the `scale` argument, e.g. `scale=(1.0, 2.0)`. In this case the first number is
         interpreted as the horizontal (X) scale and the second as the vertical (Y) scale.
 
-        A convenient method for calculating scale is to divide a |Length| object by an equivalent
+        A convenient method for calculating scale is to divide a `Length` object by an equivalent
         count of local coordinate units, e.g. `scale = Inches(1)/1000` for 1000 local units per
         inch.
         """
@@ -421,7 +421,7 @@ class _BaseGroupShapes(_BaseShapes):
     def index(self, shape: BaseShape) -> int:
         """Return the index of `shape` in this sequence.
 
-        Raises |ValueError| if `shape` is not in the collection.
+        Raises `ValueError` if `shape` is not in the collection.
         """
         shape_elms = list(self._element.iter_shape_elms())
         return shape_elms.index(shape.element)
@@ -538,7 +538,7 @@ class GroupShapes(_BaseGroupShapes):
 def _shape_kind(shape) -> str:
     """Return a human-readable kind for `shape`, robust to exotic shapes (paper-pptx).
 
-    `shape_type` can be |None| or raise for shapes upstream does not classify (e.g. SmartArt
+    `shape_type` can be `None` or raise for shapes upstream does not classify (e.g. SmartArt
     graphic frames); error messages must never crash while being built.
     """
     try:
@@ -607,7 +607,7 @@ class SlideShapes(_BaseGroupShapes):
 
         **EXPERIMENTAL.** This method has important limitations:
 
-        * The size must be specified; no auto-scaling such as that provided by :meth:`add_picture`
+        * The size must be specified; no auto-scaling such as that provided by `add_picture`
           is performed.
         * The MIME type of the video file should be specified, e.g. 'video/mp4'. The provided
           video file is not interrogated for its type. The MIME type `video/unknown` is used by
@@ -638,12 +638,12 @@ class SlideShapes(_BaseGroupShapes):
     def add_table(
         self, rows: int, cols: int, left: Length, top: Length, width: Length, height: Length
     ) -> GraphicFrame:
-        """Add a |GraphicFrame| object containing a table.
+        """Add a `GraphicFrame` object containing a table.
 
         The table has the specified number of `rows` and `cols` and the specified position and
         size. `width` is evenly distributed between the columns of the new table. Likewise,
         `height` is evenly distributed between the rows. Note that the `.table` property on the
-        returned |GraphicFrame| shape must be used to access the enclosed |Table| object.
+        returned `GraphicFrame` shape must be used to access the enclosed `Table` object.
         """
         graphicFrame = self._add_graphicFrame_containing_table(rows, cols, left, top, width, height)
         return cast(GraphicFrame, self._shape_factory(graphicFrame))
@@ -654,9 +654,9 @@ class SlideShapes(_BaseGroupShapes):
         paper-pptx addition. The copy gets fresh shape ids; its
         relationships follow the pinned policy: image/media parts shared, external
         (hyperlink) relationships copied, charts deep-copied WITH their embedded workbooks
-        and style parts. Any other relationship type refuses with |RelationshipPolicyError|
+        and style parts. Any other relationship type refuses with `RelationshipPolicyError`
         before anything changes. A shape from another presentation raises
-        |TargetNotFoundError|.
+        `TargetNotFoundError`.
         """
         from pptx._ownership import require_shape_attached, require_shape_tree_attached
         from pptx.errors import RelationshipPolicyError, TargetNotFoundError
@@ -746,13 +746,13 @@ class SlideShapes(_BaseGroupShapes):
         return copied_shape
 
     def chart_by_name(self, name: str):
-        """Return the |Chart| held by the shape on this slide named `name`.
+        """Return the `Chart` held by the shape on this slide named `name`.
 
         paper-pptx addition, the chart-addressing half of safe chart-data replacement.
         Group-aware: shapes inside groups are found too. Raises
-        |TargetNotFoundError| when no shape has that name, or when shapes with the name
+        `TargetNotFoundError` when no shape has that name, or when shapes with the name
         exist but none holds a chart (the message says what was found instead). Raises
-        |AmbiguousTargetError| when more than one chart-bearing shape has the name — this
+        `AmbiguousTargetError` when more than one chart-bearing shape has the name — this
         API never guesses between them.
         """
         from pptx.errors import AmbiguousTargetError, TargetNotFoundError
@@ -779,7 +779,7 @@ class SlideShapes(_BaseGroupShapes):
         paper-pptx addition. Relationships referenced by the removed
         subtree are dropped unless something else in the part still references them (two
         pictures can share one image relationship). A shape that is not a direct member of
-        this collection — including a shape inside a group — raises |TargetNotFoundError|
+        this collection — including a shape inside a group — raises `TargetNotFoundError`
         (delete the group, or ungroup first).
         """
         from pptx._ownership import require_shape_tree_attached
@@ -813,7 +813,7 @@ class SlideShapes(_BaseGroupShapes):
 
         paper-pptx addition. Index 0 is backmost, the last index topmost —
         the same order this collection iterates. `to_index` outside range raises
-        |ValueError|; a shape not directly in this collection raises |TargetNotFoundError|.
+        `ValueError`; a shape not directly in this collection raises `TargetNotFoundError`.
         """
         from pptx._ownership import require_shape_tree_attached
         from pptx.errors import TargetNotFoundError
@@ -845,11 +845,11 @@ class SlideShapes(_BaseGroupShapes):
                 members[to_index].addprevious(element)
 
     def picture_by_name(self, name: str):
-        """Return the |Picture| on this slide named `name` (group-aware).
+        """Return the `Picture` on this slide named `name` (group-aware).
 
         paper-pptx addition, with the same contract as `chart_by_name`:
-        |TargetNotFoundError| when nothing (or nothing picture-shaped) has the name,
-        |AmbiguousTargetError| when several pictures do.
+        `TargetNotFoundError` when nothing (or nothing picture-shaped) has the name,
+        `AmbiguousTargetError` when several pictures do.
         """
         from pptx.shapes.picture import Picture
 
@@ -858,13 +858,13 @@ class SlideShapes(_BaseGroupShapes):
     def shape_by_name(self, name: str):
         """Return the single shape on this slide named `name` (group-aware).
 
-        paper-pptx addition: |TargetNotFoundError| / |AmbiguousTargetError|,
+        paper-pptx addition: `TargetNotFoundError` / `AmbiguousTargetError`,
         never first-match.
         """
         return self._by_name_of_kind(name, "shape", lambda s: True)
 
     def table_by_name(self, name: str):
-        """Return the |Table| held by the graphic frame on this slide named `name`.
+        """Return the `Table` held by the graphic frame on this slide named `name`.
 
         paper-pptx addition, same contract as `chart_by_name`.
         """
@@ -907,7 +907,7 @@ class SlideShapes(_BaseGroupShapes):
     def title(self) -> Shape | None:
         """The title placeholder shape on the slide.
 
-        |None| if the slide has no title placeholder.
+        `None` if the slide has no title placeholder.
         """
         for elm in self._spTree.iter_ph_elms():
             if elm.ph_idx == 0:
@@ -993,7 +993,7 @@ class BasePlaceholders(_BaseShapes):
     """Base class for placeholder collections.
 
     Subclasses differentiate behaviors for a master, layout, and slide. By default, placeholder
-    shapes are constructed using |BaseShapeFactory|. Subclasses should override
+    shapes are constructed using `BaseShapeFactory`. Subclasses should override
     :method:`_shape_factory` to use custom placeholder classes.
     """
 
@@ -1004,7 +1004,7 @@ class BasePlaceholders(_BaseShapes):
 
 
 class LayoutPlaceholders(BasePlaceholders):
-    """Sequence of |LayoutPlaceholder| instance for each placeholder shape on a slide layout."""
+    """Sequence of `LayoutPlaceholder` instance for each placeholder shape on a slide layout."""
 
     __iter__: Callable[  # pyright: ignore[reportIncompatibleMethodOverride]
         [], Iterator[LayoutPlaceholder]
@@ -1063,7 +1063,7 @@ class NotesSlidePlaceholders(MasterPlaceholders):
 class SlidePlaceholders(ParentedElementProxy):
     """Collection of placeholder shapes on a slide.
 
-    Supports iteration, :func:`len`, and dictionary-style lookup on the `idx` value of the
+    Supports iteration, `len`, and dictionary-style lookup on the `idx` value of the
     placeholders it contains.
     """
 
@@ -1073,7 +1073,7 @@ class SlidePlaceholders(ParentedElementProxy):
         """Access placeholder shape having `idx`.
 
         Note that while this looks like list access, idx is actually a dictionary key and will
-        raise |KeyError| if no placeholder with that idx value is in the collection.
+        raise `KeyError` if no placeholder with that idx value is in the collection.
         """
         for e in self._element.iter_ph_elms():
             if e.ph_idx == idx:
@@ -1160,7 +1160,7 @@ def SlideShapeFactory(shape_elm: ShapeElement, parent: ProvidesPart) -> BaseShap
 class _MoviePicElementCreator(object):
     """Functional service object for creating a new movie p:pic element.
 
-    It's entire external interface is its :meth:`new_movie_pic` class method that returns a new
+    It's entire external interface is its `new_movie_pic` class method that returns a new
     `p:pic` element containing the specified video. This class is not intended to be constructed
     or an instance of it retained by the caller; it is a "one-shot" object, really a function
     wrapped in a object such that its helper methods can be organized here.
@@ -1265,7 +1265,7 @@ class _MoviePicElementCreator(object):
 
     @lazyproperty
     def _video(self) -> Video:
-        """Return a |Video| object containing the movie file."""
+        """Return a `Video` object containing the movie file."""
         return Video.from_path_or_file_like(self._movie_file, self._mime_type)
 
     @lazyproperty
@@ -1290,7 +1290,7 @@ class _MoviePicElementCreator(object):
 class _OleObjectElementCreator(object):
     """Functional service object for creating a new OLE-object p:graphicFrame element.
 
-    It's entire external interface is its :meth:`graphicFrame` class method that returns a new
+    It's entire external interface is its `graphicFrame` class method that returns a new
     `p:graphicFrame` element containing the specified embedded OLE-object shape. This class is not
     intended to be constructed or an instance of it retained by the caller; it is a "one-shot"
     object, really a function wrapped in a object such that its helper methods can be organized

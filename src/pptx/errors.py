@@ -45,7 +45,7 @@ class StaleAnchorError(TargetNotFoundError):
 
     The document changed since the anchor was produced. Refusing beats guessing: use
     `pptx.edit.refind()` to recover a fresh anchor explicitly. (Subclass of
-    |TargetNotFoundError| so existing handlers keep working.)
+    `TargetNotFoundError` so existing handlers keep working.)
     """
 
 

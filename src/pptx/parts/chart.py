@@ -27,7 +27,7 @@ class ChartPart(XmlPart):
 
     @classmethod
     def new(cls, chart_type: XL_CHART_TYPE, chart_data: ChartData, package: Package):
-        """Return new |ChartPart| instance added to `package`.
+        """Return new `ChartPart` instance added to `package`.
 
         Returned chart-part contains a chart of `chart_type` depicting `chart_data`.
         """
@@ -42,13 +42,13 @@ class ChartPart(XmlPart):
 
     @lazyproperty
     def chart(self):
-        """|Chart| object representing the chart in this part."""
+        """`Chart` object representing the chart in this part."""
         return Chart(self._element, self)
 
     @lazyproperty
     def chart_workbook(self):
         """
-        The |ChartWorkbook| object providing access to the external chart
+        The `ChartWorkbook` object providing access to the external chart
         data in a linked or embedded Excel workbook.
         """
         return ChartWorkbook(self._element, self)
@@ -64,8 +64,8 @@ class ChartWorkbook(object):
 
     def update_from_xlsx_blob(self, xlsx_blob):
         """
-        Replace the Excel spreadsheet in the related |EmbeddedXlsxPart| with
-        the Excel binary in *xlsx_blob*, adding a new |EmbeddedXlsxPart| if
+        Replace the Excel spreadsheet in the related `EmbeddedXlsxPart` with
+        the Excel binary in *xlsx_blob*, adding a new `EmbeddedXlsxPart` if
         there isn't one.
         """
         xlsx_part = self.xlsx_part
@@ -76,10 +76,10 @@ class ChartWorkbook(object):
 
     @property
     def xlsx_part(self):
-        """Optional |EmbeddedXlsxPart| object containing data for this chart.
+        """Optional `EmbeddedXlsxPart` object containing data for this chart.
 
         This related part has its rId at `c:chartSpace/c:externalData/@rId`. This value
-        is |None| if there is no `<c:externalData>` element.
+        is `None` if there is no `<c:externalData>` element.
         """
         xlsx_part_rId = self._chartSpace.xlsx_part_rId
         return None if xlsx_part_rId is None else self._chart_part.related_part(xlsx_part_rId)
@@ -87,7 +87,7 @@ class ChartWorkbook(object):
     @xlsx_part.setter
     def xlsx_part(self, xlsx_part):
         """
-        Set the related |EmbeddedXlsxPart| to *xlsx_part*. Assume one does
+        Set the related `EmbeddedXlsxPart` to *xlsx_part*. Assume one does
         not already exist.
         """
         rId = self._chart_part.relate_to(xlsx_part, RT.PACKAGE)

@@ -33,7 +33,7 @@ class GroupShape(BaseShape):
 
     @property
     def has_text_frame(self) -> bool:
-        """Unconditionally |False|.
+        """Unconditionally `False`.
 
         A group shape does not have a textframe and cannot itself contain text. This does not
         impact the ability of shapes contained by the group to each have their own text.
@@ -42,16 +42,16 @@ class GroupShape(BaseShape):
 
     @lazyproperty
     def shadow(self) -> ShadowFormat:
-        """|ShadowFormat| object representing shadow effect for this group.
+        """`ShadowFormat` object representing shadow effect for this group.
 
-        A |ShadowFormat| object is always returned, even when no shadow is explicitly defined on
+        A `ShadowFormat` object is always returned, even when no shadow is explicitly defined on
         this group shape (i.e. when the group inherits its shadow behavior).
         """
         return ShadowFormat(self._grpSp.grpSpPr)
 
     @property
     def shape_type(self) -> MSO_SHAPE_TYPE:
-        """Member of :ref:`MsoShapeType` identifying the type of this shape.
+        """Member of `MsoShapeType` identifying the type of this shape.
 
         Unconditionally `MSO_SHAPE_TYPE.GROUP` in this case
         """
@@ -59,9 +59,9 @@ class GroupShape(BaseShape):
 
     @lazyproperty
     def shapes(self) -> GroupShapes:
-        """|GroupShapes| object for this group.
+        """`GroupShapes` object for this group.
 
-        The |GroupShapes| object provides access to the group's member shapes and provides methods
+        The `GroupShapes` object provides access to the group's member shapes and provides methods
         for adding new ones.
         """
         from pptx.shapes.shapetree import GroupShapes

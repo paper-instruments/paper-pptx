@@ -35,16 +35,16 @@ class PresentationPart(XmlPart):
 
     @property
     def core_properties(self) -> CorePropertiesPart:
-        """A |CoreProperties| object for the presentation.
+        """A `CoreProperties` object for the presentation.
 
         Provides read/write access to the Dublin Core properties of this presentation.
         """
         return self.package.core_properties
 
     def get_slide(self, slide_id: int) -> Slide | None:
-        """Return optional related |Slide| object identified by `slide_id`.
+        """Return optional related `Slide` object identified by `slide_id`.
 
-        Returns |None| if no slide with `slide_id` is related to this presentation.
+        Returns `None` if no slide with `slide_id` is related to this presentation.
         """
         for sldId in self._element.sldIdLst:
             if sldId.id == slide_id:
@@ -54,7 +54,7 @@ class PresentationPart(XmlPart):
     @lazyproperty
     def notes_master(self) -> NotesMaster:
         """
-        Return the |NotesMaster| object for this presentation. If the
+        Return the `NotesMaster` object for this presentation. If the
         presentation does not have a notes master, one is created from
         a default template. The same single instance is returned on each
         call.
@@ -63,7 +63,7 @@ class PresentationPart(XmlPart):
 
     @lazyproperty
     def notes_master_part(self) -> NotesMasterPart:
-        """Return the |NotesMasterPart| object for this presentation.
+        """Return the `NotesMasterPart` object for this presentation.
 
         If the presentation does not have a notes master, one is created from a default template.
         The same single instance is returned on each call.
@@ -78,17 +78,17 @@ class PresentationPart(XmlPart):
     @lazyproperty
     def presentation(self):
         """
-        A |Presentation| object providing access to the content of this
+        A `Presentation` object providing access to the content of this
         presentation.
         """
         return Presentation(self._element, self)
 
     def related_slide(self, rId: str) -> Slide:
-        """Return |Slide| object for related |SlidePart| related by `rId`."""
+        """Return `Slide` object for related `SlidePart` related by `rId`."""
         return self.related_part(rId).slide
 
     def related_slide_master(self, rId: str) -> SlideMaster:
-        """Return |SlideMaster| object for |SlideMasterPart| related by `rId`."""
+        """Return `SlideMaster` object for `SlideMasterPart` related by `rId`."""
         return self.related_part(rId).slide_master
 
     def rename_slide_parts(self, rIds: Iterable[str]):
@@ -107,7 +107,7 @@ class PresentationPart(XmlPart):
         """Save this presentation package to `path_or_stream`.
 
         `path_or_stream` can be either a path to a filesystem location (a string) or a
-        file-like object. A pass-through; :meth:`pptx.opc.package.OpcPackage.save` carries
+        file-like object. A pass-through; `pptx.opc.package.OpcPackage.save` carries
         the write contract.
         """
         self.package.save(path_or_stream)
@@ -121,7 +121,7 @@ class PresentationPart(XmlPart):
 
     @property
     def _next_slide_partname(self):
-        """Return |PackURI| instance containing next available slide partname.
+        """Return `PackURI` instance containing next available slide partname.
 
         Delegates to the package allocator, which searches for a partname nothing else
         holds. Deriving the number from the slide count instead — as upstream does — is

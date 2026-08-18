@@ -7,7 +7,7 @@ from pptx.oxml.xmlchemy import BaseOxmlElement, OptionalAttribute
 
 
 class CT_Hyperlink(BaseOxmlElement):
-    """Custom element class for <a:hlinkClick> elements."""
+    """Custom element class for `<a:hlinkClick>` elements."""
 
     rId: str = OptionalAttribute("r:id", XsdString)  # pyright: ignore[reportAssignmentType]
     action: str | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
@@ -39,7 +39,7 @@ class CT_Hyperlink(BaseOxmlElement):
     def action_verb(self) -> str | None:
         """The host portion of the `ppaction://` URL contained in the action attribute.
 
-        For example 'customshow' in 'ppaction://customshow?id=0&return=true'. Returns |None| if no
+        For example 'customshow' in 'ppaction://customshow?id=0&return=true'. Returns `None` if no
         action attribute is present.
         """
         url = self.action

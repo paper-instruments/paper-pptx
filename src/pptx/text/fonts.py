@@ -111,7 +111,7 @@ class _Font(object):
     @property
     def is_bold(self):
         """
-        |True| if this font is marked as a bold style of its font family.
+        `True` if this font is marked as a bold style of its font family.
         """
         try:
             return self._tables["head"].is_bold
@@ -122,7 +122,7 @@ class _Font(object):
     @property
     def is_italic(self):
         """
-        |True| if this font is marked as an italic style of its font family.
+        `True` if this font is marked as an italic style of its font family.
         """
         try:
             return self._tables["head"].is_italic
@@ -133,7 +133,7 @@ class _Font(object):
     @classmethod
     def open(cls, font_file_path):
         """
-        Return a |_Font| instance loaded from *font_file_path*.
+        Return a `_Font` instance loaded from *font_file_path*.
         """
         return cls(_Stream.open(font_file_path))
 
@@ -196,7 +196,7 @@ class _Stream(object):
 
     @classmethod
     def open(cls, path):
-        """Return |_Stream| providing binary access to contents of file at `path`."""
+        """Return `_Stream` providing binary access to contents of file at `path`."""
         return cls(open(path, "rb"))
 
     def close(self):
@@ -247,14 +247,14 @@ class _HeadTable(_BaseTable):
     @property
     def is_bold(self):
         """
-        |True| if this font is marked as having emboldened characters.
+        `True` if this font is marked as having emboldened characters.
         """
         return bool(self._macStyle & 1)
 
     @property
     def is_italic(self):
         """
-        |True| if this font is marked as having italicized characters.
+        `True` if this font is marked as having italicized characters.
         """
         return bool(self._macStyle & 2)
 
@@ -363,7 +363,7 @@ class _NameTable(_BaseTable):
         self, bufr, platform_id, encoding_id, strings_offset, name_str_offset, length
     ):
         """
-        Return the unicode name string at *name_str_offset* or |None| if
+        Return the unicode name string at *name_str_offset* or `None` if
         decoding its format is not supported.
         """
         raw_name = self._raw_name_string(bufr, strings_offset, name_str_offset, length)
@@ -392,7 +392,7 @@ class _NameTable(_BaseTable):
 
 def _TableFactory(tag, stream, offset, length):
     """
-    Return an instance of |Table| appropriate to *tag*, loaded from
+    Return an instance of `Table` appropriate to *tag*, loaded from
     *font_file* with content of *length* starting at *offset*.
     """
     TableClass = {"head": _HeadTable, "name": _NameTable}.get(tag, _BaseTable)

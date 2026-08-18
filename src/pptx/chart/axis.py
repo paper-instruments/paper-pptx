@@ -26,11 +26,11 @@ class _BaseAxis(object):
 
     @property
     def axis_title(self):
-        """An |AxisTitle| object providing access to title properties.
+        """An `AxisTitle` object providing access to title properties.
 
         Calling this property is destructive in the sense that it adds an
         axis title element (`c:title`) to the axis XML if one is not already
-        present. Use :attr:`has_title` to test for presence of axis title
+        present. Use `has_title` to test for presence of axis title
         non-destructively.
         """
         return AxisTitle(self._element.get_or_add_title())
@@ -38,7 +38,7 @@ class _BaseAxis(object):
     @lazyproperty
     def format(self):
         """
-        The |ChartFormat| object providing access to the shape formatting
+        The `ChartFormat` object providing access to the shape formatting
         properties of this axis, such as its line color and fill.
         """
         return ChartFormat(self._element)
@@ -47,8 +47,8 @@ class _BaseAxis(object):
     def has_major_gridlines(self):
         """
         Read/write boolean value specifying whether this axis has gridlines
-        at its major tick mark locations. Assigning |True| to this property
-        causes major gridlines to be displayed. Assigning |False| causes them
+        at its major tick mark locations. Assigning `True` to this property
+        causes major gridlines to be displayed. Assigning `False` causes them
         to be removed.
         """
         if self._element.majorGridlines is None:
@@ -66,8 +66,8 @@ class _BaseAxis(object):
     def has_minor_gridlines(self):
         """
         Read/write boolean value specifying whether this axis has gridlines
-        at its minor tick mark locations. Assigning |True| to this property
-        causes minor gridlines to be displayed. Assigning |False| causes them
+        at its minor tick mark locations. Assigning `True` to this property
+        causes minor gridlines to be displayed. Assigning `False` causes them
         to be removed.
         """
         if self._element.minorGridlines is None:
@@ -85,9 +85,9 @@ class _BaseAxis(object):
     def has_title(self):
         """Read/write boolean specifying whether this axis has a title.
 
-        |True| if this axis has a title, |False| otherwise. Assigning |True|
+        `True` if this axis has a title, `False` otherwise. Assigning `True`
         causes an axis title to be added if not already present. Assigning
-        |False| causes any existing title to be deleted.
+        `False` causes any existing title to be deleted.
         """
         if self._element.title is None:
             return False
@@ -103,7 +103,7 @@ class _BaseAxis(object):
     @lazyproperty
     def major_gridlines(self):
         """
-        The |MajorGridlines| object representing the major gridlines for
+        The `MajorGridlines` object representing the major gridlines for
         this axis.
         """
         return MajorGridlines(self._element)
@@ -111,7 +111,7 @@ class _BaseAxis(object):
     @property
     def major_tick_mark(self):
         """
-        Read/write :ref:`XlTickMark` value specifying the type of major tick
+        Read/write `XlTickMark` value specifying the type of major tick
         mark to display on this axis.
         """
         majorTickMark = self._element.majorTickMark
@@ -131,7 +131,7 @@ class _BaseAxis(object):
         """
         Read/write float value specifying the upper limit of the value range
         for this axis, the number at the top or right of the vertical or
-        horizontal value scale, respectively. The value |None| indicates the
+        horizontal value scale, respectively. The value `None` indicates the
         upper limit should be determined automatically based on the range of
         data point values associated with the axis.
         """
@@ -146,8 +146,8 @@ class _BaseAxis(object):
     def minimum_scale(self):
         """
         Read/write float value specifying lower limit of value range, the
-        number at the bottom or left of the value scale. |None| if no minimum
-        scale has been set. The value |None| indicates the lower limit should
+        number at the bottom or left of the value scale. `None` if no minimum
+        scale has been set. The value `None` indicates the lower limit should
         be determined automatically based on the range of data point values
         associated with the axis.
         """
@@ -161,7 +161,7 @@ class _BaseAxis(object):
     @property
     def minor_tick_mark(self):
         """
-        Read/write :ref:`XlTickMark` value specifying the type of minor tick
+        Read/write `XlTickMark` value specifying the type of minor tick
         mark for this axis.
         """
         minorTickMark = self._element.minorTickMark
@@ -200,7 +200,7 @@ class _BaseAxis(object):
     @lazyproperty
     def tick_labels(self):
         """
-        The |TickLabels| instance providing access to axis tick label
+        The `TickLabels` instance providing access to axis tick label
         formatting properties. Tick labels are the numbers appearing on
         a value axis or the category names appearing on a category axis.
         """
@@ -209,7 +209,7 @@ class _BaseAxis(object):
     @property
     def tick_label_position(self):
         """
-        Read/write :ref:`XlTickLabelPosition` value specifying where the tick
+        Read/write `XlTickLabelPosition` value specifying where the tick
         labels for this axis should appear.
         """
         tickLblPos = self._element.tickLblPos
@@ -227,7 +227,7 @@ class _BaseAxis(object):
     @property
     def visible(self):
         """
-        Read/write. |True| if axis is visible, |False| otherwise.
+        Read/write. `True` if axis is visible, `False` otherwise.
         """
         delete = self._element.delete_
         if delete is None:
@@ -251,9 +251,9 @@ class AxisTitle(ElementProxy):
 
     @lazyproperty
     def format(self):
-        """|ChartFormat| object providing access to shape formatting.
+        """`ChartFormat` object providing access to shape formatting.
 
-        Return the |ChartFormat| object providing shape formatting properties
+        Return the `ChartFormat` object providing shape formatting properties
         for this axis title, such as its line color and fill.
         """
         return ChartFormat(self._element)
@@ -262,9 +262,9 @@ class AxisTitle(ElementProxy):
     def has_text_frame(self):
         """Read/write Boolean specifying presence of a text frame.
 
-        Return |True| if this axis title has a text frame, and |False|
-        otherwise. Assigning |True| causes a text frame to be added if not
-        already present. Assigning |False| causes any existing text frame to
+        Return `True` if this axis title has a text frame, and `False`
+        otherwise. Assigning `True` causes a text frame to be added if not
+        already present. Assigning `False` causes any existing text frame to
         be removed along with any text contained in the text frame.
         """
         if self._title.tx_rich is None:
@@ -280,9 +280,9 @@ class AxisTitle(ElementProxy):
 
     @property
     def text_frame(self):
-        """|TextFrame| instance for this axis title.
+        """`TextFrame` instance for this axis title.
 
-        Return a |TextFrame| instance allowing read/write access to the text
+        Return a `TextFrame` instance allowing read/write access to the text
         of this axis title and its text formatting properties. Accessing this
         property is destructive as it adds a new text frame if not already
         present.
@@ -297,8 +297,8 @@ class CategoryAxis(_BaseAxis):
     @property
     def category_type(self):
         """
-        A member of :ref:`XlCategoryType` specifying the scale type of this
-        axis. Unconditionally ``CATEGORY_SCALE`` for a |CategoryAxis| object.
+        A member of `XlCategoryType` specifying the scale type of this
+        axis. Unconditionally ``CATEGORY_SCALE`` for a `CategoryAxis` object.
         """
         return XL_CATEGORY_TYPE.CATEGORY_SCALE
 
@@ -313,8 +313,8 @@ class DateAxis(_BaseAxis):
     @property
     def category_type(self):
         """
-        A member of :ref:`XlCategoryType` specifying the scale type of this
-        axis. Unconditionally ``TIME_SCALE`` for a |DateAxis| object.
+        A member of `XlCategoryType` specifying the scale type of this
+        axis. Unconditionally ``TIME_SCALE`` for a `DateAxis` object.
         """
         return XL_CATEGORY_TYPE.TIME_SCALE
 
@@ -329,7 +329,7 @@ class MajorGridlines(ElementProxy):
     @lazyproperty
     def format(self):
         """
-        The |ChartFormat| object providing access to the shape formatting
+        The `ChartFormat` object providing access to the shape formatting
         properties of this data point, such as line and fill.
         """
         majorGridlines = self._xAx.get_or_add_majorGridlines()
@@ -346,7 +346,7 @@ class TickLabels(object):
     @lazyproperty
     def font(self):
         """
-        The |Font| object that provides access to the text properties for
+        The `Font` object that provides access to the text properties for
         these tick labels, such as bold, italic, etc.
         """
         defRPr = self._element.defRPr
@@ -360,9 +360,9 @@ class TickLabels(object):
         numbers on this axis. The syntax for these strings is the same as it
         appears in the PowerPoint or Excel UI. Returns 'General' if no number
         format has been set. Note that this format string has no effect on
-        rendered tick labels when :meth:`number_format_is_linked` is |True|.
+        rendered tick labels when `number_format_is_linked` is `True`.
         Assigning a format string to this property automatically sets
-        :meth:`number_format_is_linked` to |False|.
+        `number_format_is_linked` to `False`.
         """
         numFmt = self._element.numFmt
         if numFmt is None:
@@ -380,7 +380,7 @@ class TickLabels(object):
         """
         Read/write boolean specifying whether number formatting should be
         taken from the source spreadsheet rather than the value of
-        :meth:`number_format`.
+        `number_format`.
         """
         numFmt = self._element.numFmt
         if numFmt is None:
@@ -428,7 +428,7 @@ class ValueAxis(_BaseAxis):
     @property
     def crosses(self):
         """
-        Member of :ref:`XlAxisCrosses` enumeration specifying the point on
+        Member of `XlAxisCrosses` enumeration specifying the point on
         this axis where the other axis crosses, such as auto/zero, minimum,
         or maximum. Returns `XL_AXIS_CROSSES.CUSTOM` when a specific numeric
         crossing point (e.g. 1.5) is defined.
@@ -455,7 +455,7 @@ class ValueAxis(_BaseAxis):
     def crosses_at(self):
         """
         Numeric value on this axis at which the perpendicular axis crosses.
-        Returns |None| if no crossing value is set.
+        Returns `None` if no crossing value is set.
         """
         crossesAt = self._cross_xAx.crossesAt
         if crossesAt is None:
@@ -475,7 +475,7 @@ class ValueAxis(_BaseAxis):
     def major_unit(self):
         """
         The float number of units between major tick marks on this value
-        axis. |None| corresponds to the 'Auto' setting in the UI, and
+        axis. `None` corresponds to the 'Auto' setting in the UI, and
         specifies the value should be calculated by PowerPoint based on the
         underlying chart data.
         """
@@ -495,7 +495,7 @@ class ValueAxis(_BaseAxis):
     def minor_unit(self):
         """
         The float number of units between minor tick marks on this value
-        axis. |None| corresponds to the 'Auto' setting in the UI, and
+        axis. `None` corresponds to the 'Auto' setting in the UI, and
         specifies the value should be calculated by PowerPoint based on the
         underlying chart data.
         """

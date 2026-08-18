@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 class Presentation(PartElementProxy):
     """PresentationML (PML) presentation.
 
-    Not intended to be constructed directly. Use :func:`pptx.Presentation` to open or
+    Not intended to be constructed directly. Use `pptx.Presentation` to open or
     create a presentation.
     """
 
@@ -54,12 +54,12 @@ class Presentation(PartElementProxy):
         (honoring `firstSlideNum`); consumers renumber live after any reorder.
         `date_format`: a `datetime`..`datetime13` token for an automatically-updating date
         field; `fixed_date`: literal date text (the dialog's "Fixed" mode); passing both
-        raises |ValueError|. `now` seeds the date field's cached text (None = wall clock);
+        raises `ValueError`. `now` seeds the date field's cached text (None = wall clock);
         the package never vouches for cached values — they are consumer-refreshed hints.
         `skip_title_slides`: the dialog's "Don't show on title slide" — slides on a
         `type="title"` layout get the all-removed state.
 
-        Refuses atomically (|UnsupportedStructureError|, validated deck-wide before the
+        Refuses atomically (`UnsupportedStructureError`, validated deck-wide before the
         first write) when a wanted element has no layout furniture to inherit from, or
         when explicit `p:hf` flags on a layout/master disable it (clear those via
         `header_footers` first — this API never flips them silently).
@@ -93,7 +93,7 @@ class Presentation(PartElementProxy):
 
         **It also validates operations that had no validation at all.** The mutation
         surface inherited from python-pptx — `text_frame.text`, `add_textbox`,
-        `add_picture`, :meth:`Slides.add_slide` and the rest — runs no transaction of its
+        `add_picture`, `Slides.add_slide` and the rest — runs no transaction of its
         own. Inside a block the enclosing transaction covers them, so a sequence that
         previously succeeded and saved an unreadable deck now refuses. That is the
         intended improvement, not a regression, but it does mean working code can start
@@ -109,13 +109,13 @@ class Presentation(PartElementProxy):
           not just the offending one.
         - **Only the end state is checked.** A deck that is momentarily invalid inside the
           block but valid at exit commits normally.
-        - **Saving inside a block is refused** (|BoundaryViolationError|), because the
+        - **Saving inside a block is refused** (`BoundaryViolationError`), because the
           package has not been validated yet and the edits may still roll back. Save after
           the block closes.
         - **Blocks on two different decks must exit in reverse order** of entry, or
           ``RuntimeError``.
         - **Digitally signed decks refuse at block entry**, before any edit runs.
-        - :meth:`import_slide` and :meth:`append_deck` return their report before the
+        - `import_slide` and `append_deck` return their report before the
           import has been proven reopenable; that proof moves to block exit.
 
         An exception raised by the caller inside the block rolls the package back and
@@ -131,7 +131,7 @@ class Presentation(PartElementProxy):
     ) -> "tuple[ImportReport, ...]":
         """Import every slide of `source_prs`, in order, at the end of this deck.
 
-        paper-pptx addition, built on :meth:`import_slide` — same `mode`
+        paper-pptx addition, built on `import_slide` — same `mode`
         semantics and refusal ledger. The COMPLETE source deck validates before the first
         write: a refusal on any source slide leaves this presentation untouched. Source
         sections are not copied (this deck's section structure governs — declared).
@@ -190,7 +190,7 @@ class Presentation(PartElementProxy):
 
     @property
     def core_properties(self):
-        """|CoreProperties| instance for this presentation.
+        """`CoreProperties` instance for this presentation.
 
         Provides read/write access to the Dublin Core document properties for the presentation.
         """
@@ -198,7 +198,7 @@ class Presentation(PartElementProxy):
 
     @property
     def notes_master(self) -> NotesMaster:
-        """Instance of |NotesMaster| for this presentation.
+        """Instance of `NotesMaster` for this presentation.
 
         If the presentation does not have a notes master, one is created from a default template
         and returned. The same single instance is returned on each call.
@@ -213,13 +213,13 @@ class Presentation(PartElementProxy):
         A file-path destination is written atomically, resolving symlinks, so a failure
         part-way through leaves any existing file untouched. A file-like destination is
         written straight through once the whole package has serialized successfully. See
-        :meth:`pptx.opc.package.OpcPackage.save` for what atomic replacement costs.
+        `pptx.opc.package.OpcPackage.save` for what atomic replacement costs.
 
-        :func:`pptx.package.patch_save` is the narrow-save alternative: it is atomic too,
+        `pptx.package.patch_save` is the narrow-save alternative: it is atomic too,
         and additionally restores the original bytes of every part that did not change, so
         a no-op round trip is byte-identical.
 
-        Refuses with |BoundaryViolationError| while a :meth:`batch` block is open on this
+        Refuses with `BoundaryViolationError` while a `batch` block is open on this
         package: those edits have not been validated yet and may still roll back, so
         writing them out would publish a package the block is not prepared to stand
         behind. Save once the block has closed.
@@ -239,7 +239,7 @@ class Presentation(PartElementProxy):
     def slide_height(self) -> Length | None:
         """Height of slides in this presentation, in English Metric Units (EMU).
 
-        Returns |None| if no slide width is defined. Read/write.
+        Returns `None` if no slide width is defined. Read/write.
         """
         sldSz = self._element.sldSz
         if sldSz is None:
@@ -253,7 +253,7 @@ class Presentation(PartElementProxy):
 
     @property
     def slide_layouts(self) -> SlideLayouts:
-        """|SlideLayouts| collection belonging to the first |SlideMaster| of this presentation.
+        """`SlideLayouts` collection belonging to the first `SlideMaster` of this presentation.
 
         A presentation can have more than one slide master and each master will have its own set
         of layouts. This property is a convenience for the common case where the presentation has
@@ -264,7 +264,7 @@ class Presentation(PartElementProxy):
     @property
     def slide_master(self):
         """
-        First |SlideMaster| object belonging to this presentation. Typically,
+        First `SlideMaster` object belonging to this presentation. Typically,
         presentations have only a single slide master. This property provides
         simpler access in that common case.
         """
@@ -272,14 +272,14 @@ class Presentation(PartElementProxy):
 
     @lazyproperty
     def slide_masters(self) -> SlideMasters:
-        """|SlideMasters| collection of slide-masters belonging to this presentation."""
+        """`SlideMasters` collection of slide-masters belonging to this presentation."""
         return SlideMasters(self._element.get_or_add_sldMasterIdLst(), self)
 
     @property
     def slide_width(self):
         """
         Width of slides in this presentation, in English Metric Units (EMU).
-        Returns |None| if no slide width is defined. Read/write.
+        Returns `None` if no slide width is defined. Read/write.
         """
         sldSz = self._element.sldSz
         if sldSz is None:
@@ -293,7 +293,7 @@ class Presentation(PartElementProxy):
 
     @lazyproperty
     def slides(self):
-        """|Slides| object containing the slides in this presentation."""
+        """`Slides` object containing the slides in this presentation."""
         sldIdLst = self._element.get_or_add_sldIdLst()
         self.part.rename_slide_parts([cast("CT_SlideId", sldId).rId for sldId in sldIdLst])
         return Slides(sldIdLst, self)

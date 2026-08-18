@@ -45,7 +45,7 @@ class _BasePicture(BaseShape):
 
     @property
     def crop_bottom(self) -> float:
-        """|float| representing relative portion cropped from shape bottom.
+        """`float` representing relative portion cropped from shape bottom.
 
         Read/write. 1.0 represents 100%. For example, 25% is represented by 0.25. Negative values
         are valid as are values greater than 1.0.
@@ -58,7 +58,7 @@ class _BasePicture(BaseShape):
 
     @property
     def crop_left(self) -> float:
-        """|float| representing relative portion cropped from left of shape.
+        """`float` representing relative portion cropped from left of shape.
 
         Read/write. 1.0 represents 100%. A negative value extends the side beyond the image
         boundary.
@@ -71,7 +71,7 @@ class _BasePicture(BaseShape):
 
     @property
     def crop_right(self) -> float:
-        """|float| representing relative portion cropped from right of shape.
+        """`float` representing relative portion cropped from right of shape.
 
         Read/write. 1.0 represents 100%.
         """
@@ -83,7 +83,7 @@ class _BasePicture(BaseShape):
 
     @property
     def crop_top(self) -> float:
-        """|float| representing relative portion cropped from shape top.
+        """`float` representing relative portion cropped from shape top.
 
         Read/write. 1.0 represents 100%.
         """
@@ -109,7 +109,7 @@ class _BasePicture(BaseShape):
     def ln(self) -> CT_LineProperties | None:
         """The `a:ln` element for this `p:pic`.
 
-        Contains the line format properties such as line color and width. |None| if no `a:ln`
+        Contains the line format properties such as line color and width. `None` if no `a:ln`
         element is present.
         """
         return self._pic.ln
@@ -118,21 +118,21 @@ class _BasePicture(BaseShape):
 class Movie(_BasePicture):
     """A movie shape, one that places a video on a slide.
 
-    Like |Picture|, a movie shape is based on the `p:pic` element. A movie is composed of a video
+    Like `Picture`, a movie shape is based on the `p:pic` element. A movie is composed of a video
     and a *poster frame*, the placeholder image that represents the video before it is played.
     """
 
     @lazyproperty
     def media_format(self) -> _MediaFormat:
-        """The |_MediaFormat| object for this movie.
+        """The `_MediaFormat` object for this movie.
 
-        The |_MediaFormat| object provides access to formatting properties for the movie.
+        The `_MediaFormat` object provides access to formatting properties for the movie.
         """
         return _MediaFormat(self._pic, self)
 
     @property
     def media_type(self) -> PP_MEDIA_TYPE:
-        """Member of :ref:`PpMediaType` describing this shape.
+        """Member of `PpMediaType` describing this shape.
 
         The return value is unconditionally `PP_MEDIA_TYPE.MOVIE` in this case.
         """
@@ -140,9 +140,9 @@ class Movie(_BasePicture):
 
     @property
     def poster_frame(self):
-        """Return |Image| object containing poster frame for this movie.
+        """Return `Image` object containing poster frame for this movie.
 
-        Returns |None| if this movie has no poster frame (uncommon).
+        Returns `None` if this movie has no poster frame (uncommon).
         """
         slide_part, rId = self.part, self._pic.blip_rId
         if rId is None:
@@ -151,7 +151,7 @@ class Movie(_BasePicture):
 
     @property
     def shape_type(self) -> MSO_SHAPE_TYPE:
-        """Return member of :ref:`MsoShapeType` describing this shape.
+        """Return member of `MsoShapeType` describing this shape.
 
         The return value is unconditionally `MSO_SHAPE_TYPE.MEDIA` in this
         case.
@@ -173,7 +173,7 @@ class Picture(_BasePicture):
         paper-pptx addition. Position, size, rotation, masking geometry, and crop
         (`a:srcRect`) are not touched — only the `a:blip/@r:embed` target changes. By
         default the new image's canonical format must match the existing image part's
-        extension (jpg == jpeg); a mismatch refuses with |UnsupportedStructureError|.
+        extension (jpg == jpeg); a mismatch refuses with `UnsupportedStructureError`.
         Passing `allow_format_change=True` permits a cross-format swap: the new
         image gets its own correctly-typed part and `[Content_Types].xml` follows
         automatically at save (it is regenerated from live parts).
@@ -245,9 +245,9 @@ class Picture(_BasePicture):
         `MSO_AUTO_SHAPE_TYPE.RECTANGLE`, which performs no cropping because the extents of the
         rectangle exactly correspond to the extents of the picture.
 
-        The available shapes correspond to the members of :ref:`MsoAutoShapeType`.
+        The available shapes correspond to the members of `MsoAutoShapeType`.
 
-        The return value can also be |None|, indicating the picture either has no geometry (not
+        The return value can also be `None`, indicating the picture either has no geometry (not
         expected) or has custom geometry, like a freeform shape. A picture with no geometry will
         have no visible representation on the slide, although it can be selected. This is because
         without geometry, there is no "inside-the-shape" for it to appear in.
@@ -269,7 +269,7 @@ class Picture(_BasePicture):
 
     @property
     def image(self):
-        """The |Image| object for this picture.
+        """The `Image` object for this picture.
 
         Provides access to the properties and bytes of the image in this picture shape.
         """

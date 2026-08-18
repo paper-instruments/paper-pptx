@@ -178,7 +178,7 @@ class OptionalAttribute(BaseAttribute):
     """Defines an optional attribute on a custom element class.
 
     An optional attribute returns a default value when not present for reading. When assigned
-    |None|, the attribute is removed.
+    `None`, the attribute is removed.
     """
 
     def __init__(self, attr_name: str, simple_type: type[AttributeType], default: Any = None):
@@ -232,9 +232,9 @@ class RequiredAttribute(BaseAttribute):
     """Defines a required attribute on a custom element class.
 
     A required attribute is assumed to be present for reading, so does not have a default value;
-    its actual value is always used. If missing on read, an |InvalidXmlError| is raised. It also
-    does not remove the attribute if |None| is assigned. Assigning |None| raises |TypeError| or
-    |ValueError|, depending on the simple type of the attribute.
+    its actual value is always used. If missing on read, an `InvalidXmlError` is raised. It also
+    does not remove the attribute if `None` is assigned. Assigning `None` raises `TypeError` or
+    `ValueError`, depending on the simple type of the attribute.
     """
 
     @property
@@ -374,7 +374,7 @@ class _BaseChildElement:
     def _getter(self) -> Callable[[BaseOxmlElement], BaseOxmlElement | None]:
         """Callable suitable for the "get" side of the property descriptor.
 
-        This default getter returns the child element with matching tag name or |None| if not
+        This default getter returns the child element with matching tag name or `None` if not
         present.
         """
 
@@ -615,7 +615,7 @@ class ZeroOrOneChoice(_BaseChildElement):
     def _add_choice_getter(self):
         """Add a read-only `.{prop_name}` property to the element class.
 
-        The property returns the present member of this group, or |None| if none are present.
+        The property returns the present member of this group, or `None` if none are present.
         """
         property_ = property(self._choice_getter, None, None)
         # assign unconditionally to overwrite element name definition

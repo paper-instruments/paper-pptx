@@ -19,7 +19,7 @@ class Marker(ElementProxy):
     @lazyproperty
     def format(self):
         """
-        The |ChartFormat| instance for this marker, providing access to shape
+        The `ChartFormat` instance for this marker, providing access to shape
         properties such as fill and line.
         """
         marker = self._element.get_or_add_marker()
@@ -29,9 +29,9 @@ class Marker(ElementProxy):
     def size(self):
         """
         An integer between 2 and 72 inclusive indicating the size of this
-        marker in points. A value of |None| indicates no explicit value is
+        marker in points. A value of `None` indicates no explicit value is
         set and the size is inherited from a higher-level setting or the
-        PowerPoint default (which may be 9). Assigning |None| removes any
+        PowerPoint default (which may be 9). Assigning `None` removes any
         explicitly assigned size, causing this value to be inherited.
         """
         marker = self._element.marker
@@ -51,8 +51,8 @@ class Marker(ElementProxy):
     @property
     def style(self):
         """
-        A member of the :ref:`XlMarkerStyle` enumeration indicating the shape
-        of this marker. Returns |None| if no explicit style has been set,
+        A member of the `XlMarkerStyle` enumeration indicating the shape
+        of this marker. Returns `None` if no explicit style has been set,
         which corresponds to the "Automatic" option in the PowerPoint UI.
         """
         marker = self._element.marker

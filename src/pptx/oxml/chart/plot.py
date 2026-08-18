@@ -28,7 +28,7 @@ class BaseChartElement(BaseOxmlElement):
     def cat(self):
         """
         Return the `c:cat` element of the first series in this xChart, or
-        |None| if not present.
+        `None` if not present.
         """
         cats = self.xpath("./c:ser[1]/c:cat")
         return cats[0] if cats else None
@@ -53,7 +53,7 @@ class BaseChartElement(BaseOxmlElement):
         """
         Return a sequence representing the `c:pt` elements under the `c:cat`
         element of the first series in this xChart element. A category having
-        no value will have no corresponding `c:pt` element; |None| will
+        no value will have no corresponding `c:pt` element; `None` will
         appear in that position in such cases. Items appear in `idx` order.
         Only those in the first ``<c:lvl>`` element are included in the case
         of multi-level categories.

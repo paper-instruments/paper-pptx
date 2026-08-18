@@ -20,8 +20,8 @@ class _BaseChartData(Sequence):
 
     A chart data object serves as a proxy for the chart data table that will be written to an
     Excel worksheet; operating as a sequence of series as well as providing access to chart-level
-    attributes. A chart data object is used as a parameter in :meth:`shapes.add_chart` and
-    :meth:`Chart.replace_data`. The data structure varies between major chart categories such as
+    attributes. A chart data object is used as a parameter in `shapes.add_chart` and
+    `Chart.replace_data`. The data structure varies between major chart categories such as
     category charts and XY charts.
     """
 
@@ -256,8 +256,8 @@ class CategoryChartData(_BaseChartData):
     """
     Accumulates data specifying the categories and series values for a chart
     and acts as a proxy for the chart data table that will be written to an
-    Excel worksheet. Used as a parameter in :meth:`shapes.add_chart` and
-    :meth:`Chart.replace_data`.
+    Excel worksheet. Used as a parameter in `shapes.add_chart` and
+    `Chart.replace_data`.
 
     This object is suitable for use with category charts, i.e. all those
     having a discrete set of label values (categories) as the range of their
@@ -270,7 +270,7 @@ class CategoryChartData(_BaseChartData):
 
     def add_category(self, label):
         """
-        Return a newly created |data.Category| object having *label* and
+        Return a newly created `data.Category` object having *label* and
         appended to the end of the category collection for this chart.
         *label* can be a string, a number, a datetime.date, or
         datetime.datetime object. All category labels in a chart must be the
@@ -295,14 +295,14 @@ class CategoryChartData(_BaseChartData):
 
     @property
     def categories(self):
-        """|data.Categories| object providing access to category-object hierarchy.
+        """`data.Categories` object providing access to category-object hierarchy.
 
         Assigning an iterable of category labels (strings, numbers, or dates) replaces
-        the |data.Categories| object with a new one containing a category for each label
+        the `data.Categories` object with a new one containing a category for each label
         in the sequence.
 
         Creating a chart from chart data having date categories will cause the chart to
-        have a |DateAxis| for its category axis.
+        have a `DateAxis` for its category axis.
         """
         if not getattr(self, "_categories", False):
             self._categories = Categories()
@@ -341,7 +341,7 @@ class CategoryChartData(_BaseChartData):
 
 class Categories(Sequence):
     """
-    A sequence of |data.Category| objects, also having certain hierarchical
+    A sequence of `data.Category` objects, also having certain hierarchical
     graph behaviors for support of multi-level (nested) categories.
     """
 
@@ -357,21 +357,21 @@ class Categories(Sequence):
         """
         Return the count of the highest level of category in this sequence.
         If it contains hierarchical (multi-level) categories, this number
-        will differ from :attr:`category_count`, which is the number of leaf
+        will differ from `category_count`, which is the number of leaf
         nodes.
         """
         return self._categories.__len__()
 
     def add_category(self, label):
         """
-        Return a newly created |data.Category| object having *label* and
+        Return a newly created `data.Category` object having *label* and
         appended to the end of this category sequence. *label* can be
         a string, a number, a datetime.date, or datetime.datetime object. All
         category labels in a chart must be the same type. All category labels
         in a chart having multi-level categories must be strings.
 
         Creating a chart from chart data having date categories will cause
-        the chart to have a |DateAxis| for its category axis.
+        the chart to have a `DateAxis` for its category axis.
         """
         category = Category(label, self)
         self._categories.append(category)
@@ -380,9 +380,9 @@ class Categories(Sequence):
     @property
     def are_dates(self):
         """
-        Return |True| if the first category in this collection has a date
+        Return `True` if the first category in this collection has a date
         label (as opposed to str or numeric). A date label is one of type
-        datetime.date or datetime.datetime. Returns |False| otherwise,
+        datetime.date or datetime.datetime. Returns `False` otherwise,
         including when this category collection is empty. It also returns
         False when this category collection is hierarchical, because
         hierarchical categories can only be written as string labels.
@@ -398,10 +398,10 @@ class Categories(Sequence):
     @property
     def are_numeric(self):
         """
-        Return |True| if the first category in this collection has a numeric
+        Return `True` if the first category in this collection has a numeric
         label (as opposed to a string label), including if that value is
         a datetime.date or datetime.datetime object (as those are converted
-        to integers for storage in Excel). Returns |False| otherwise,
+        to integers for storage in Excel). Returns `False` otherwise,
         including when this category collection is empty. It also returns
         False when this category collection is hierarchical, because
         hierarchical categories can only be written as string labels.
@@ -481,7 +481,7 @@ class Categories(Sequence):
         Excel to format these category values, e.g. '0.0' or 'mm/dd/yyyy'.
         This string is only relevant when the categories are numeric or date
         type, although it returns 'General' without error when the categories
-        are string labels. Assigning |None| causes the default number format
+        are string labels. Assigning `None` causes the default number format
         to be used, based on the type of the category labels.
         """
         GENERAL = "General"
@@ -521,7 +521,7 @@ class Category(object):
 
     def add_sub_category(self, label):
         """
-        Return a newly created |data.Category| object having *label* and
+        Return a newly created `data.Category` object having *label* and
         appended to the end of the sub-category sequence for this category.
         """
         category = Category(label, self)
@@ -606,7 +606,7 @@ class Category(object):
         """
         Return an integer representing the date label of this category as the
         number of days since January 1, 1900 (or 1904 if date_1904 is
-        |True|).
+        `True`).
         """
         date, label = datetime.date, self._label
         # -- get date from label in type-independent-ish way
@@ -624,8 +624,8 @@ class Category(object):
 
 class ChartData(CategoryChartData):
     """
-    |ChartData| is simply an alias for |CategoryChartData| and may be removed
-    in a future release. All new development should use |CategoryChartData|
+    `ChartData` is simply an alias for `CategoryChartData` and may be removed
+    in a future release. All new development should use `CategoryChartData`
     for creating or replacing the data in chart types other than XY and
     Bubble.
     """
@@ -651,7 +651,7 @@ class CategorySeriesData(_BaseSeriesData):
     @property
     def categories(self):
         """
-        The |data.Categories| object that provides access to the category
+        The `data.Categories` object that provides access to the category
         objects for this series.
         """
         return self._chart_data.categories
@@ -690,7 +690,7 @@ class XyChartData(_BaseChartData):
 
     def add_series(self, name, number_format=None):
         """
-        Return an |XySeriesData| object newly created and added at the end of
+        Return an `XySeriesData` object newly created and added at the end of
         this sequence, identified by *name* and values formatted with
         *number_format*.
         """
@@ -716,7 +716,7 @@ class BubbleChartData(XyChartData):
 
     def add_series(self, name, number_format=None):
         """
-        Return a |BubbleSeriesData| object newly created and added at the end
+        Return a `BubbleSeriesData` object newly created and added at the end
         of this sequence, and having series named *name* and values formatted
         with *number_format*.
         """

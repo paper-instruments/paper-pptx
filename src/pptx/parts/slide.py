@@ -33,9 +33,9 @@ class BaseSlidePart(XmlPart):
     _element: CT_Slide
 
     def get_image(self, rId: str) -> Image:
-        """Return an |Image| object containing the image related to this slide by *rId*.
+        """Return an `Image` object containing the image related to this slide by *rId*.
 
-        Raises |KeyError| if no image is related by that id, which would generally indicate a
+        Raises `KeyError` if no image is related by that id, which would generally indicate a
         corrupted .pptx file.
         """
         return cast("ImagePart", self.related_part(rId)).image
@@ -43,7 +43,7 @@ class BaseSlidePart(XmlPart):
     def get_or_add_image_part(self, image_file: str | IO[bytes]):
         """Return `(image_part, rId)` pair corresponding to `image_file`.
 
-        The returned |ImagePart| object contains the image in `image_file` and is
+        The returned `ImagePart` object contains the image in `image_file` and is
         related to this slide with the key `rId`. If either the image part or
         relationship already exists, they are reused, otherwise they are newly created.
         """
@@ -77,7 +77,7 @@ class NotesMasterPart(BaseSlidePart):
     @lazyproperty
     def notes_master(self):
         """
-        Return the |NotesMaster| object that proxies this notes master part.
+        Return the `NotesMaster` object that proxies this notes master part.
         """
         return NotesMaster(self._element, self)
 
@@ -114,7 +114,7 @@ class NotesSlidePart(BaseSlidePart):
 
     @classmethod
     def new(cls, package, slide_part):
-        """Return new |NotesSlidePart| for the slide in `slide_part`.
+        """Return new `NotesSlidePart` for the slide in `slide_part`.
 
         The new notes-slide part is based on the (singleton) notes master and related to
         both the notes-master part and `slide_part`. If no notes-master is present,
@@ -128,13 +128,13 @@ class NotesSlidePart(BaseSlidePart):
 
     @lazyproperty
     def notes_master(self):
-        """Return the |NotesMaster| object this notes slide inherits from."""
+        """Return the `NotesMaster` object this notes slide inherits from."""
         notes_master_part = self.part_related_by(RT.NOTES_MASTER)
         return notes_master_part.notes_master
 
     @lazyproperty
     def notes_slide(self):
-        """Return the |NotesSlide| object that proxies this notes slide part."""
+        """Return the `NotesSlide` object that proxies this notes slide part."""
         return NotesSlide(self._element, self)
 
     @classmethod
@@ -169,7 +169,7 @@ class SlidePart(BaseSlidePart):
         return slide_part
 
     def add_chart_part(self, chart_type: XL_CHART_TYPE, chart_data: ChartData):
-        """Return str rId of new |ChartPart| object containing chart of `chart_type`.
+        """Return str rId of new `ChartPart` object containing chart of `chart_type`.
 
         The chart depicts `chart_data` and is related to the slide contained in this
         part by `rId`.
@@ -191,7 +191,7 @@ class SlidePart(BaseSlidePart):
     def get_or_add_video_media_part(self, video: Video) -> tuple[str, str]:
         """Return rIds for media and video relationships to media part.
 
-        A new |MediaPart| object is created if it does not already exist
+        A new `MediaPart` object is created if it does not already exist
         (such as would occur if the same video appeared more than once in
          a presentation). Two relationships to the media part are created,
         one each with MEDIA and VIDEO relationship types. The need for two
@@ -207,7 +207,7 @@ class SlidePart(BaseSlidePart):
     def has_notes_slide(self):
         """
         Return True if this slide has a notes slide, False otherwise. A notes
-        slide is created by the :attr:`notes_slide` property when one doesn't
+        slide is created by the `notes_slide` property when one doesn't
         exist; use this property to test for a notes slide without the
         possible side-effect of creating one.
         """
@@ -219,7 +219,7 @@ class SlidePart(BaseSlidePart):
 
     @lazyproperty
     def notes_slide(self) -> NotesSlide:
-        """The |NotesSlide| instance associated with this slide.
+        """The `NotesSlide` instance associated with this slide.
 
         If the slide does not have a notes slide, a new one is created. The same single instance
         is returned on each call.
@@ -233,7 +233,7 @@ class SlidePart(BaseSlidePart):
     @lazyproperty
     def slide(self):
         """
-        The |Slide| object representing this slide part.
+        The `Slide` object representing this slide part.
         """
         return Slide(self._element, self)
 
@@ -245,13 +245,13 @@ class SlidePart(BaseSlidePart):
 
     @property
     def slide_layout(self) -> SlideLayout:
-        """|SlideLayout| object the slide in this part inherits appearance from."""
+        """`SlideLayout` object the slide in this part inherits appearance from."""
         slide_layout_part = self.part_related_by(RT.SLIDE_LAYOUT)
         return slide_layout_part.slide_layout
 
     def _add_notes_slide_part(self):
         """
-        Return a newly created |NotesSlidePart| object related to this slide
+        Return a newly created `NotesSlidePart` object related to this slide
         part. Caller is responsible for ensuring this slide doesn't already
         have a notes slide part.
         """
@@ -269,7 +269,7 @@ class SlideLayoutPart(BaseSlidePart):
     @lazyproperty
     def slide_layout(self):
         """
-        The |SlideLayout| object representing this part.
+        The `SlideLayout` object representing this part.
         """
         return SlideLayout(self._element, self)
 
@@ -286,12 +286,12 @@ class SlideMasterPart(BaseSlidePart):
     """
 
     def related_slide_layout(self, rId: str) -> SlideLayout:
-        """Return |SlideLayout| related to this slide-master by key `rId`."""
+        """Return `SlideLayout` related to this slide-master by key `rId`."""
         return self.related_part(rId).slide_layout
 
     @lazyproperty
     def slide_master(self):
         """
-        The |SlideMaster| object representing this part.
+        The `SlideMaster` object representing this part.
         """
         return SlideMaster(self._element, self)

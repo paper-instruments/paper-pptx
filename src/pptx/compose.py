@@ -53,6 +53,14 @@ if TYPE_CHECKING:
     from pptx.presentation import Presentation
     from pptx.slide import Slide, SlideLayout
 
+__all__ = [
+    "ImportReport",
+    "SCHEMA_NAME",
+    "SCHEMA_VERSION",
+    "append_deck",
+    "import_slide",
+]
+
 SCHEMA_NAME = "paper-import-report"
 SCHEMA_VERSION = 1
 
@@ -108,7 +116,7 @@ class ImportReport:
     * ``baked_shapes`` -- names of placeholders converted to free baked shapes.
     * ``dropped_placeholders`` -- names of furniture placeholders (dt/ftr/sldNum)
       removed under "bake".
-    * ``run_shifts`` -- :class:`pptx.rebind.RunShift` entries for every run whose
+    * ``run_shifts`` -- `pptx.rebind.RunShift` entries for every run whose
       resolved appearance changed (populated for "adopt_theme"; empty for
       keep_appearance).
     """
@@ -165,7 +173,7 @@ def import_slide(
     section: "Optional[str]" = None,
     target_layout: "Optional[SlideLayout]" = None,
 ) -> ImportReport:
-    """Import one slide from `source_prs` into `dest_prs`; return the |ImportReport|."""
+    """Import one slide from `source_prs` into `dest_prs`; return the `ImportReport`."""
     source_slide = _validate_arguments(
         dest_prs, source_prs, slide, mode, position, notes, section, target_layout
     )
@@ -451,7 +459,7 @@ def _owned_source_target(owner_part, rel, context: str):
 
 
 def _resolved_run_values(shape) -> list:
-    """[(paragraph_idx, run_idx, {facet: value})] of RESOLVED effective values only.
+    """[(paragraph_idx, run_idx, `{facet: value}`)] of RESOLVED effective values only.
 
     Shapes without a text frame (placeholder pictures, graphic frames) have no runs.
     """

@@ -39,9 +39,9 @@ class ImagePart(Part):
 
     @classmethod
     def new(cls, package: Package, image: Image) -> ImagePart:
-        """Return new |ImagePart| instance containing `image`.
+        """Return new `ImagePart` instance containing `image`.
 
-        `image` is an |Image| object.
+        `image` is an `Image` object.
         """
         return cls(
             package.next_image_partname(image.ext),
@@ -71,7 +71,7 @@ class ImagePart(Part):
 
     @property
     def image(self) -> Image:
-        """An |Image| object containing the image in this image part.
+        """An `Image` object containing the image in this image part.
 
         Note this is a `pptx.image.Image` object, not a PIL Image.
         """
@@ -80,9 +80,9 @@ class ImagePart(Part):
     def scale(self, scaled_cx: int | None, scaled_cy: int | None) -> tuple[int, int]:
         """Return scaled image dimensions in EMU based on the combination of parameters supplied.
 
-        If `scaled_cx` and `scaled_cy` are both |None|, the native image size is returned. If
-        neither `scaled_cx` nor `scaled_cy` is |None|, their values are returned unchanged. If a
-        value is provided for either `scaled_cx` or `scaled_cy` and the other is |None|, the
+        If `scaled_cx` and `scaled_cy` are both `None`, the native image size is returned. If
+        neither `scaled_cx` nor `scaled_cy` is `None`, their values are returned unchanged. If a
+        value is provided for either `scaled_cx` or `scaled_cy` and the other is `None`, the
         missing value is calculated such that the image's aspect ratio is preserved.
         """
         image_cx, image_cy = self._native_size
@@ -149,12 +149,12 @@ class Image(object):
 
     @classmethod
     def from_blob(cls, blob: bytes, filename: str | None = None) -> Image:
-        """Return a new |Image| object loaded from the image binary in `blob`."""
+        """Return a new `Image` object loaded from the image binary in `blob`."""
         return cls(blob, filename)
 
     @classmethod
     def from_file(cls, image_file: str | IO[bytes]) -> Image:
-        """Return a new |Image| object loaded from `image_file`.
+        """Return a new `Image` object loaded from `image_file`.
 
         `image_file` can be either a path (str) or a file-like object.
         """
@@ -193,7 +193,7 @@ class Image(object):
         def int_dpi(dpi: Any):
             """Return an integer dots-per-inch value corresponding to `dpi`.
 
-            If `dpi` is |None|, a non-numeric type, less than 1 or greater than 2048, 72 is
+            If `dpi` is `None`, a non-numeric type, less than 1 or greater than 2048, 72 is
             returned.
             """
             try:
@@ -241,7 +241,7 @@ class Image(object):
     def filename(self) -> str | None:
         """Filename from path used to load this image, if loaded from the filesystem.
 
-        |None| if no filename was used in loading, such as when loaded from an in-memory stream.
+        `None` if no filename was used in loading, such as when loaded from an in-memory stream.
         """
         return self._filename
 

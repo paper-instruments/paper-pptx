@@ -17,9 +17,9 @@ class MediaPart(Part):
 
     @classmethod
     def new(cls, package, media):
-        """Return new |MediaPart| instance containing `media`.
+        """Return new `MediaPart` instance containing `media`.
 
-        `media` must be a |Media| object.
+        `media` must be a `Media` object.
         """
         return cls(
             package.next_media_partname(media.ext),

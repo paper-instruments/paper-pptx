@@ -28,7 +28,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
 
     The initial pen position is provided on construction. From there, drawing proceeds using
     successive calls to draw line segments. The freeform shape may be closed by calling the
-    :meth:`close` method.
+    `close` method.
 
     A shape may have more than one contour, in which case overlapping areas are "subtracted". A
     contour is a sequence of line segments beginning with a "move-to" operation. A move-to
@@ -71,7 +71,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
         x_scale: float,
         y_scale: float,
     ):
-        """Return a new |FreeformBuilder| object.
+        """Return a new `FreeformBuilder` object.
 
         The initial pen location is specified (in local coordinates) by
         (`start_x`, `start_y`).
@@ -85,7 +85,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
         to the nearest integer before use. The optional `close` parameter determines whether the
         resulting contour is `closed` or left `open`.
 
-        Returns this |FreeformBuilder| object so it can be used in chained calls.
+        Returns this `FreeformBuilder` object so it can be used in chained calls.
         """
         for x, y in vertices:
             self._add_line_segment(x, y)
@@ -97,7 +97,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
         """Return new freeform shape positioned relative to specified offset.
 
         `origin_x` and `origin_y` locate the origin of the local coordinate system in slide
-        coordinates (EMU), perhaps most conveniently by use of a |Length| object.
+        coordinates (EMU), perhaps most conveniently by use of a `Length` object.
 
         Note that this method may be called more than once to add multiple shapes of the same
         geometry in different locations on the slide.
@@ -111,7 +111,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
     def move_to(self, x: float, y: float):
         """Move pen to (x, y) (local coordinates) without drawing line.
 
-        Returns this |FreeformBuilder| object so it can be used in chained calls.
+        Returns this `FreeformBuilder` object so it can be used in chained calls.
         """
         self._drawing_operations.append(_MoveTo.new(self, x, y))
         return self
@@ -145,7 +145,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
         return Emu(min_y)
 
     def _add_close(self):
-        """Add a close |_Close| operation to the drawing sequence."""
+        """Add a close `_Close` operation to the drawing sequence."""
         self._drawing_operations.append(_Close.new())
 
     def _add_freeform_sp(self, origin_x: Length, origin_y: Length):
@@ -160,7 +160,7 @@ class FreeformBuilder(Sequence[DrawingOperation]):
         )
 
     def _add_line_segment(self, x: float, y: float) -> None:
-        """Add a |_LineSegment| operation to the drawing sequence."""
+        """Add a `_LineSegment` operation to the drawing sequence."""
         self._drawing_operations.append(_LineSegment.new(self, x, y))
 
     @lazyproperty

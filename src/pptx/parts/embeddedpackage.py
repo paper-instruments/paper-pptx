@@ -23,7 +23,7 @@ class EmbeddedPackagePart(Part):
 
     @classmethod
     def factory(cls, prog_id: PROG_ID | str, object_blob: bytes, package: Package):
-        """Return a new |EmbeddedPackagePart| subclass instance added to *package*.
+        """Return a new `EmbeddedPackagePart` subclass instance added to *package*.
 
         The subclass is determined by `prog_id` which corresponds to the "application"
         used to open the "file-type" of `object_blob`. The returned part contains the
@@ -49,7 +49,7 @@ class EmbeddedPackagePart(Part):
 
     @classmethod
     def new(cls, blob: bytes, package: Package):
-        """Return new |EmbeddedPackagePart| subclass object.
+        """Return new `EmbeddedPackagePart` subclass object.
 
         The returned part object contains `blob` and is added to `package`.
         """

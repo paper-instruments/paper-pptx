@@ -41,7 +41,7 @@ class PackageReader(Container[bytes]):
     def rels_xml_for(self, partname: PackURI) -> bytes | None:
         """Return optional rels item XML for `partname`.
 
-        Returns `None` if no rels item is present for `partname`. `partname` is a |PackURI|
+        Returns `None` if no rels item is present for `partname`. `partname` is a `PackURI`
         instance.
         """
         blob_reader, uri = self._blob_reader, partname.rels_uri
@@ -49,12 +49,12 @@ class PackageReader(Container[bytes]):
 
     @property
     def partnames(self) -> set[PackURI] | None:
-        """Physical member names, or |None| for an expanded directory package."""
+        """Physical member names, or `None` for an expanded directory package."""
         return getattr(self._blob_reader, "partnames", None)
 
     @lazyproperty
     def _blob_reader(self) -> _PhysPkgReader:
-        """|_PhysPkgReader| subtype providing read access to the package file."""
+        """`_PhysPkgReader` subtype providing read access to the package file."""
         return _PhysPkgReader.factory(self._pkg_file)
 
 
@@ -62,10 +62,10 @@ class PackageWriter:
     """Writes a zip-format OPC package to `pkg_file`.
 
     `pkg_file` can be either a path to a zip file (a string) or a file-like object. `pkg_rels` is
-    the |_Relationships| object containing relationships for the package. `parts` is a sequence of
-    |Part| subtype instance to be written to the package.
+    the `_Relationships` object containing relationships for the package. `parts` is a sequence of
+    `Part` subtype instance to be written to the package.
 
-    Its single API classmethod is :meth:`write`. This class is not intended to be instantiated.
+    Its single API classmethod is `write`. This class is not intended to be instantiated.
     """
 
     def __init__(self, pkg_file: str | IO[bytes], pkg_rels: _Relationships, parts: Sequence[Part]):
@@ -120,7 +120,7 @@ class PackageWriter:
                 phys_writer.write(part.partname.rels_uri, part.rels.xml)
 
     def _refuse_duplicate_partnames(self) -> None:
-        """Raise |PackageLimitError| when two parts share a partname."""
+        """Raise `PackageLimitError` when two parts share a partname."""
         from pptx.errors import PackageLimitError
 
         seen: set[str] = set()
@@ -159,7 +159,7 @@ class _PhysPkgReader(Container[PackURI]):
 
     @classmethod
     def factory(cls, pkg_file: str | IO[bytes]) -> _PhysPkgReader:
-        """Return |_PhysPkgReader| subtype instance appropriage for `pkg_file`."""
+        """Return `_PhysPkgReader` subtype instance appropriage for `pkg_file`."""
         # --- for pkg_file other than str, assume it's a stream and pass it to Zip
         # --- reader to sort out
         if not isinstance(pkg_file, (str, os.PathLike)):
@@ -177,7 +177,7 @@ class _PhysPkgReader(Container[PackURI]):
 
 
 class _DirPkgReader(_PhysPkgReader):
-    """Implements |PhysPkgReader| interface for OPC package extracted into directory.
+    """Implements `PhysPkgReader` interface for OPC package extracted into directory.
 
     `path` is the path to a directory containing an expanded package.
     """
@@ -202,7 +202,7 @@ class _DirPkgReader(_PhysPkgReader):
 
 
 class _ZipPkgReader(_PhysPkgReader):
-    """Implements |PhysPkgReader| interface for a zip-file OPC package."""
+    """Implements `PhysPkgReader` interface for a zip-file OPC package."""
 
     def __init__(self, pkg_file: str | IO[bytes]):
         self._pkg_file = pkg_file
@@ -214,7 +214,7 @@ class _ZipPkgReader(_PhysPkgReader):
     def __getitem__(self, pack_uri: PackURI) -> bytes:
         """Return bytes for part corresponding to `pack_uri`.
 
-        Raises |KeyError| if no matching member is present in zip archive.
+        Raises `KeyError` if no matching member is present in zip archive.
         """
         if pack_uri not in self._blobs:
             raise KeyError("no member '%s' in package" % pack_uri)
@@ -239,7 +239,7 @@ class _PhysPkgWriter:
 
     @classmethod
     def factory(cls, pkg_file: str | IO[bytes]) -> _ZipPkgWriter:
-        """Return |_PhysPkgWriter| subtype instance appropriage for `pkg_file`.
+        """Return `_PhysPkgWriter` subtype instance appropriage for `pkg_file`.
 
         Currently the only subtype is `_ZipPkgWriter`, but a `_DirPkgWriter` could be implemented
         or even a `_StreamPkgWriter`.
@@ -254,7 +254,7 @@ class _PhysPkgWriter:
 
 
 class _ZipPkgWriter(_PhysPkgWriter):
-    """Implements |PhysPkgWriter| interface for a zip-file (.pptx file) OPC package."""
+    """Implements `PhysPkgWriter` interface for a zip-file (.pptx file) OPC package."""
 
     def __init__(self, pkg_file: str | IO[bytes]):
         self._pkg_file = pkg_file
@@ -319,7 +319,7 @@ class _ContentTypesItem:
     def _defaults_and_overrides(self) -> tuple[dict[str, str], dict[PackURI, str]]:
         """pair of dict (defaults, overrides) accounting for all parts.
 
-        `defaults` is {ext: content_type} and overrides is {partname: content_type}.
+        `defaults` is `{ext: content_type}` and overrides is `{partname: content_type}`.
         """
         defaults = CaseInsensitiveDict(rels=CT.OPC_RELATIONSHIPS, xml=CT.XML)
         overrides: dict[PackURI, str] = {}
