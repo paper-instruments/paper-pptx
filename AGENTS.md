@@ -37,7 +37,7 @@ uv run pyright                           # types
 
 CI runs **pytest and behave only** — not ruff, not pyright. So a repo-wide invariant is enforced
 by writing a test for it, and that is the idiomatic way to add a guard here. See
-`tests/paper/test_public_surface.py` and `tests/paper/test_docstring_hygiene.py`.
+`tests/paper/test_docs_tree.py`, `test_public_surface.py`, and `test_docstring_hygiene.py`.
 
 Two warnings must be filtered locally because `filterwarnings = ["error"]` turns them into
 collection failures; CI does the same:
@@ -106,9 +106,9 @@ regenerates on render — which is why text replacement must not cross a field b
 edit inside one silently disappears. Its xsd excerpt gives the child sequence a `successors=` list
 has to match.
 
-They were never published anywhere, so their `.rst` format is inert — do not "tidy up" `docs/`
-by deleting them. The rest of `docs/` is the inherited Sphinx tree, which nothing publishes and
-which is being retired; `docs/dev/analysis/` is the part that stays.
+They are the only `.rst` in the repo and they stay that way: `tests/paper/test_docs_tree.py`
+fails if any go missing, or if reST reappears anywhere else. They were never published, so the
+format is inert — do not "tidy up" `docs/` by deleting them.
 
 ## Documentation
 

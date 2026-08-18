@@ -1,5 +1,4 @@
 BEHAVE = behave
-MAKE   = make
 
 .PHONY: help
 help:
@@ -7,10 +6,7 @@ help:
 	@echo "  accept       run acceptance tests using behave"
 	@echo "  build        generate both sdist and wheel suitable for upload to PyPI"
 	@echo "  clean        delete intermediate work product and start fresh"
-	@echo "  cleandocs    delete cached HTML documentation and start fresh"
 	@echo "  coverage     run pytest with coverage"
-	@echo "  docs         build HTML documentation using Sphinx (incremental)"
-	@echo "  opendocs     open local HTML documentation in browser"
 
 .PHONY: accept
 accept:
@@ -28,18 +24,6 @@ clean:
 	find . -type f -name .DS_Store -exec rm {} \;
 	rm -rf dist .coverage
 
-.PHONY: cleandocs
-cleandocs:
-	$(MAKE) -C docs clean
-
 .PHONY: coverage
 coverage:
 	py.test --cov-report term-missing --cov=pptx --cov=tests
-
-.PHONY: docs
-docs:
-	$(MAKE) -C docs html
-
-.PHONY: opendocs
-opendocs:
-	open docs/.build/html/index.html

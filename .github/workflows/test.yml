@@ -86,25 +86,6 @@ jobs:
       - name: Run independent-loader contract
         run: uv run python -m pytest -q -m lo_smoke tests/paper
 
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.13"
-      - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-        with:
-          version: "0.11.28"
-      - name: Install documentation dependencies
-        run: uv sync --locked --no-default-groups --group docs --python "3.13"
-      - name: Build documentation without warnings
-        run: uv run sphinx-build -W -b html docs docs/.build/html
-
   build:
     name: Distribution
     runs-on: ubuntu-latest
@@ -204,19 +185,17 @@ jobs:
   required:
     name: Required
     if: always()
-    needs: [test, libreoffice, docs, build, api]
+    needs: [test, libreoffice, build, api]
     runs-on: ubuntu-latest
     steps:
       - name: Require every quality job
         env:
           TEST_RESULT: ${{ needs.test.result }}
           LIBREOFFICE_RESULT: ${{ needs.libreoffice.result }}
-          DOCS_RESULT: ${{ needs.docs.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           API_RESULT: ${{ needs.api.result }}
         run: |
           test "$TEST_RESULT" = success
           test "$LIBREOFFICE_RESULT" = success
-          test "$DOCS_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$API_RESULT" = success

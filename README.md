@@ -511,10 +511,6 @@ generated from them, so no API fact is written twice.
   [python-pptx documentation](https://python-pptx.readthedocs.io/) and is
   unchanged.
 
-The repository also still carries the inherited Sphinx tree under `docs/`, which
-nothing publishes; it is being retired now that the reference is generated. Build
-it locally with `uv sync --group docs` and `uv run make docs`.
-
 ## Roadmap and known limitations
 
 A great many refusals are deliberate scope statements, and converting a
