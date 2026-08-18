@@ -273,6 +273,53 @@ def test_package_changes_use_original_package_members(tmp_path, source_kind):
     assert [delta.partname for delta in report.package_changes] == ["/[Content_Types].xml"]
 
 
+def _deck_with_directory_records(tmp_path):
+    """Copy a fixture, prefixing ZIP folder records that `save()` cannot reproduce.
+
+    Three records, one of them nested, so a predicate keying on a top-level prefix
+    cannot satisfy the assertions by accident.
+    """
+    target = tmp_path / "directory-records.pptx"
+    source = corpus.fixture_path("self_generated/minimal_clean.pptx")
+    with zipfile.ZipFile(source) as incoming, zipfile.ZipFile(target, "w") as outgoing:
+        for name in ("docProps/", "ppt/", "ppt/slides/"):
+            record = zipfile.ZipInfo(name)
+            record.external_attr = (0o040755 << 16) | 0x10
+            outgoing.writestr(record, b"")
+        for info in incoming.infolist():
+            outgoing.writestr(info, incoming.read(info.filename))
+    return str(target)
+
+
+def test_directory_record_deck_gets_one_verdict_however_it_is_named(tmp_path):
+    """A folder-record deck read exactly and read serialized must agree, and be empty.
+
+    Folder records exist on disk and can never appear in a serialization, so comparing
+    the disk side against the other side's rendering reported three removals that
+    described the mismatched comparison rather than any difference in the document.
+    """
+    deck = _deck_with_directory_records(tmp_path)
+
+    from_disk = diff_decks(deck, deck)
+    from_proxy = diff_decks(deck, Presentation(deck))
+
+    assert from_disk.is_empty == from_proxy.is_empty
+    assert from_disk.is_empty, from_disk.to_dict()
+    assert from_proxy.is_empty, from_proxy.to_dict()
+
+
+def test_control_deck_gets_one_verdict_however_it_is_named():
+    """The same agreement on a deck with no folder records, which held before the fix."""
+    deck = _path("self_generated/minimal_clean.pptx")
+
+    from_disk = diff_decks(deck, deck)
+    from_proxy = diff_decks(deck, Presentation(deck))
+
+    assert from_disk.is_empty == from_proxy.is_empty
+    assert from_disk.is_empty, from_disk.to_dict()
+    assert from_proxy.is_empty, from_proxy.to_dict()
+
+
 def test_seekable_stream_positions_survive_success_and_failure():
     data = corpus.fixture_path("self_generated/minimal_clean.pptx").read_bytes()
     before = io.BytesIO(data)
