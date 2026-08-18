@@ -10,7 +10,7 @@ matched slides. At ``detail="full"`` it also reports per-run effective-value shi
 per-paragraph **bullet shifts** via the resolver. Bullets live only in formatting, so a list losing
 its bullets changes no text and no field marker: without that facet the within-slide report is empty
 while the slide visibly loses every glyph. The report also includes ``package_changes``, an
-authoritative semantic diff of every serialized package member. That package-level list prevents
+authoritative semantic diff of every package member. That package-level list prevents
 metadata, relationship, ordering, field, crop, or media changes from disappearing when no
 specialized slide facet applies.
 

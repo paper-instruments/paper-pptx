@@ -192,6 +192,11 @@ def diff_decks(path_a, path_b, *, detail: str = "structure") -> DeckDiff:
     series/category, notes), "full" (+ per-run effective-value shifts via the resolver
     - expensive on large decks, deliberately opt-in).
 
+    When either side is an open |Presentation|, both sides are normalized by serializing
+    before the package-level comparison, because a live presentation has no on-disk package
+    to read; when both sides are a path or a file-like object, the packages are compared
+    exactly.
+
     Matching is by permanent slide id and is intended for lineage-derived decks.
     Independently built decks can reuse ids and are outside this contract. One declared
     hazard: slide ids allocate as max+1, so deleting the highest-id slide and then adding
@@ -318,20 +323,24 @@ def _restore_stream_positions(stream_positions) -> None:
 
 
 def _package_changes(source_a, prs_a, source_b, prs_b) -> tuple:
-    """Return semantic deltas from the exact supplied packages when recoverable."""
+    """Return semantic deltas, reading both sides of the pair the same way."""
     from pptx.package import _diff_maps
+    from pptx.presentation import Presentation as _PresentationProxy
 
-    map_a = _source_package_map(source_a, prs_a, "before")
-    map_b = _source_package_map(source_b, prs_b, "after")
+    # -- the choice belongs to the PAIR, not to one input: reading one side exactly and
+    # -- the other serialized compares two renderings of one document, and reports the
+    # -- difference between the renderings as a change to the document
+    normalized = any(isinstance(s, _PresentationProxy) for s in (source_a, source_b))
+    map_a = _source_package_map(source_a, prs_a, "before", normalized)
+    map_b = _source_package_map(source_b, prs_b, "after", normalized)
     return _diff_maps(map_a, map_b, "before", "after").deltas
 
 
-def _source_package_map(source, prs, label: str) -> dict:
-    """Read a path/stream package exactly; serialize only Presentation proxies."""
+def _source_package_map(source, prs, label: str, normalized: bool) -> dict:
+    """Serialize the side when the pair is normalized; else read the package exactly."""
     from pptx.package import _read_zip_map, _read_zip_map_from_bytes
-    from pptx.presentation import Presentation as _PresentationProxy
 
-    if isinstance(source, _PresentationProxy):
+    if normalized:
         buffer = io.BytesIO()
         # -- serialize through the package, not `Presentation.save`: this is a read for
         # -- comparison, not a publish, so an open `batch()` block must not refuse it
