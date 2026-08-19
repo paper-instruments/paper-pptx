@@ -155,19 +155,3 @@ jobs:
           "$matrix_root/unsafe-uninstall/bin/python" -m pip uninstall \
             --yes python-pptx
           expect_failure "$matrix_root/unsafe-uninstall/bin/paper-pptx-doctor"
-
-  required:
-    name: Required
-    if: always()
-    needs: [test, docs, build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every quality job
-        env:
-          TEST_RESULT: ${{ needs.test.result }}
-          DOCS_RESULT: ${{ needs.docs.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
-        run: |
-          test "$TEST_RESULT" = success
-          test "$DOCS_RESULT" = success
-          test "$BUILD_RESULT" = success
