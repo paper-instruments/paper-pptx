@@ -21,7 +21,7 @@
 from pptx import Presentation   # the import name is unchanged (see "Drop-in by design")
 ```
 
-The fork exists to prevent **silent corruption**: a deck that opens without error but is wrong. Automated systems cannot eyeball a slide, so every added operation returns its outcome as typed, machine-readable data, and an operation that cannot proceed safely raises a typed refusal and leaves the presentation byte-for-byte unchanged rather than guessing.
+The fork exists to prevent **silent corruption**: a deck that opens without error but is wrong. Automated systems cannot eyeball a slide, so every added operation returns its outcome as typed, machine-readable data, and an operation that cannot proceed safely raises a typed refusal and leaves the presentation byte-for-byte unchanged.
 
 ---
 
@@ -29,7 +29,7 @@ The fork exists to prevent **silent corruption**: a deck that opens without erro
 
 `python-pptx` is excellent at *creating* decks. Its lossless package layer, disciplined XML mapping, and a decade of absorbed edge cases are why this fork builds on it.
 
-The harder problem is changing an existing deck without flattening formatting, stranding relationships, or losing content outside the slide body. Stock `run.font.size` returns `None` for any value inherited through the placeholder chain, the only stock write path flattens every run in a paragraph, and there is no public clone, delete, or reorder for slides. An agent cannot look at the result, so it needs the deck's structure and every edit outcome as typed data, and it needs the library to refuse rather than guess.
+The harder problem is changing an existing deck without flattening formatting, stranding relationships, or losing content outside the slide body. Stock `run.font.size` returns `None` for any value inherited through the placeholder chain, the only stock write path flattens every run in a paragraph, and there is no public clone, delete, or reorder for slides. An agent cannot look at the result, so it needs the deck's structure and every edit outcome as typed data, and it needs the library to refuse unsafe edits.
 
 ## Quick start
 
@@ -55,7 +55,7 @@ print(len(delta.slide_changes), "slides changed")
 
 ### Perceive: read what the deck renders
 
-- **`pptx.inspect` effective values, with provenance.** `effective_font()`, `effective_paragraph_format()`, and `effective_shape_format()` resolve size, typeface, color, alignment, line spacing, and bullets through the run, paragraph, placeholder, layout, master, and theme chain, and report which rung supplied each value. Bullet typeface and size resolve on their own chains, because the schema inherits them separately from the glyph. Unresolved is reported as unresolved rather than guessed.
+- **`pptx.inspect` effective values, with provenance.** `effective_font()`, `effective_paragraph_format()`, and `effective_shape_format()` resolve size, typeface, color, alignment, line spacing, and bullets through the run, paragraph, placeholder, layout, master, and theme chain, and report which rung supplied each value. Bullet typeface and size resolve on their own chains, because the schema inherits them separately from the glyph. Unresolved values are reported as unresolved.
 - **Visibility-complete text inspection.** `inspect_text()` reaches nested groups and table cells, which iterating top-level shapes misses, and returns content-hash anchors that survive an edit. Regions it cannot survey are reported as blind blocks rather than skipped.
 - **A deterministic deck manifest.** `inspect_deck()` emits a versioned, JSON-friendly structural manifest: slides, shapes, z-order, geometry, and placeholder identity.
 
