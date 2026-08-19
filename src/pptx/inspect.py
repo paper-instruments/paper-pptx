@@ -1153,6 +1153,13 @@ class _FontResolver(object):
             buSzPct = pPr.find(qn("a:buSzPct"))
             if buSzPct is not None:
                 raw = buSzPct.get("val")
+                if raw is None:
+                    # -- @val is required; when it is absent convert_from_xml would call
+                    # -- .endswith on None and raise AttributeError, which diff_decks does
+                    # -- not catch. Report it unresolved, as the buChar/buAutoNum paths do
+                    # -- for their missing required attributes.
+                    steps.append(ProvenanceStep(label, partname, "buSzPct with no val", False))
+                    return EffectiveValue(None, None, False, tuple(steps))
                 try:
                     fraction = ST_TextBulletSizePercent.convert_from_xml(raw)
                 except (TypeError, ValueError):

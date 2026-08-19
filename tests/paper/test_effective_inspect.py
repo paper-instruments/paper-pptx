@@ -719,6 +719,28 @@ def test_bullet_reports_a_malformed_member_as_unresolved(bullet_tag, attrs):
     assert [step.level for step in bullet.provenance] == ["paragraph pPr", "shape lstStyle lvl1"]
 
 
+def test_bullet_size_reports_a_missing_val_as_unresolved_without_crashing():
+    """`a:buSzPct` with no `@val` must resolve unresolved, not raise.
+
+    The schema requires `@val`; when it is absent, `convert_from_xml` would call
+    `.endswith` on None and raise `AttributeError`, which `diff_decks` does not catch and
+    which would abort a full-detail diff. This mirrors the buChar/buAutoNum honesty rule:
+    an unusable member is reported, not guessed at and not crashed on.
+    """
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    # -- a:buSzPct with no @val, grafted into the shape's lstStyle level-1 properties
+    _graft_lst_style_bullet(body, "lvl1pPr", "buSzPct")
+
+    fmt = effective_paragraph_format(body.text_frame.paragraphs[0])
+
+    assert fmt.bullet_size.resolved is False
+    assert fmt.bullet_size.value is None
+    offender = fmt.bullet_size.provenance[-1]
+    assert offender.supplied is False
+    assert "buSzPct with no val" in offender.detail
+
+
 def test_bullet_resolves_an_inherited_numbered_bullet_and_defaults_start_at_to_one():
     """`@startAt` is optional on `a:buAutoNum`; absent means the sequence starts at 1."""
     prs = _open(BRANDED)
