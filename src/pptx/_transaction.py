@@ -41,6 +41,12 @@ class TransactionRollbackError(RuntimeError):
         original_exception: BaseException,
         failures: Iterable[tuple[str, BaseException]],
     ):
+        """Build the composite error, exposing `original_exception` and `failures` as attributes.
+
+        `original_exception` is the failure that triggered the rollback and the only route back to
+        it, since this error propagates in its place. `failures` holds one `(label, exception)` pair
+        per restore step that failed.
+        """
         self.original_exception = original_exception
         self.failures = tuple(failures)
         details = "; ".join(
@@ -69,6 +75,9 @@ class _ElementTreeState:
     """Original element objects and scalar state for one XML part."""
 
     def __init__(self, root):
+        """Snapshot one element tree, namespace prefixes included, so a rollback restores it byte
+        for byte.
+        """
         from lxml import etree
 
         self._root = root
@@ -166,6 +175,11 @@ class _ObjectGraphState:
     """Mutable state reachable through existing package and caller proxy caches."""
 
     def __init__(self, roots: Iterable[object]):
+        """Snapshot the live proxy objects reachable from `roots`.
+
+        A rollback has to restore Python state as well as XML, or a caller keeps holding proxies
+        that point into a tree that no longer exists.
+        """
         from lxml import etree
 
         from pptx.opc.package import OpcPackage, Part
@@ -266,6 +280,8 @@ class _ValidationReadState:
         *,
         snapshot_all_xml: bool = True,
     ):
+        """Snapshot what validation needs to read, so a failed check can still restore the package.
+        """
         from pptx.opc.package import XmlPart
 
         self._transaction = transaction
@@ -332,6 +348,12 @@ class PackageTransaction:
     """Restore a package's original live graph if the guarded operation raises."""
 
     def __init__(self, package: "OpcPackage", *roots: object):
+        """Prepare a rollback boundary over `package`, tracking the proxies passed as `roots`.
+
+        Validates the relationship graph immediately, so a malformed relationship or a signature
+        part refuses here rather than on entry. Nothing is snapshotted until `__enter__`, so the
+        instance can be built well before the mutation site.
+        """
         self._package = package
         self._roots = tuple(roots)
         self._package_dict = {}
@@ -345,6 +367,15 @@ class PackageTransaction:
         self._validated_reachable_part_dicts(dict(package.__dict__))
 
     def __enter__(self) -> "PackageTransaction":
+        """Capture this block's own rollback snapshot and open the boundary.
+
+        Every entry snapshots independently, nested ones included: an inner block that raises
+        restores state as of its own entry, not the state before the outer block. Only the outermost
+        block on a given package validates the candidate on clean exit.
+
+        Raises RuntimeError if this object is already inside its own `with`, and
+        TransactionRollbackError if capturing the snapshot perturbs live state unrecoverably.
+        """
         if self._context_token is not None:
             raise RuntimeError("PackageTransaction cannot be entered more than once")
         self._capture_entry_snapshot()
@@ -393,6 +424,15 @@ class PackageTransaction:
         self._object_graph_state = state._object_graph_state
 
     def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        """Close the boundary; never suppress an exception.
+
+        On an exception, restore this block's entry snapshot and let the original error propagate,
+        unless a restore step also fails, in which case TransactionRollbackError propagates in its
+        place and the package must be treated as unsafe. On clean exit from the outermost block,
+        save and reopen the candidate, rolling back and re-raising if that fails.
+
+        Raises RuntimeError if the transaction was never entered, or if contexts exit out of order.
+        """
         token = self._context_token
         if token is None:
             raise RuntimeError("PackageTransaction exited without being entered")

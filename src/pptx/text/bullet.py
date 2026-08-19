@@ -61,6 +61,10 @@ class BulletFormat(object):
     """
 
     def __init__(self, p: CT_TextParagraph, part=None):
+        """Wrap a paragraph's bullet properties.
+
+        Passing `part` enables the attachment check and the rollback boundary that the setters use.
+        """
         super(BulletFormat, self).__init__()
         self._p = p
         self._part = part
@@ -184,6 +188,7 @@ class BulletFormat(object):
             pPr.get_or_change_to_buNone()
 
     def _require_attached(self) -> None:
+        """Refuse when the paragraph has been detached from its part."""
         if self._part is None:
             return
         from pptx._ownership import require_element_attached
@@ -191,6 +196,7 @@ class BulletFormat(object):
         require_element_attached(self._p, self._part, argument="paragraph")
 
     def _transaction(self):
+        """Rollback boundary for a bullet edit, or a no-op when the paragraph carries no part."""
         if self._part is None:
             from contextlib import nullcontext
 
@@ -240,6 +246,11 @@ class BulletFormat(object):
         left_margin: Length | None,
         hanging_indent: Length | None,
     ) -> None:
+        """Write the font, size, margin, and indent that every bullet kind shares.
+
+        `hanging_indent` is written as `-abs(value)`, because a hanging indent is negative in
+        ECMA-376.
+        """
         if font_name is not None:
             pPr.get_or_add_buFont().typeface = font_name
         if size_percent is not None:

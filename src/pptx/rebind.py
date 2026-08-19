@@ -76,6 +76,7 @@ class RunShift:
     after: dict
 
     def to_dict(self) -> dict:
+        """Return this run change as a JSON-ready dict."""
         return {
             "part": self.part,
             "shape_id": self.shape_id,
@@ -114,6 +115,7 @@ class RebindReport:
     run_shifts: Tuple[RunShift, ...]
 
     def to_dict(self) -> dict:
+        """Return the rebind report as a JSON-ready dict stamped with its schema and version."""
         return {
             "schema": SCHEMA_NAME,
             "version": SCHEMA_VERSION,
@@ -282,6 +284,7 @@ def _rebind_layout_impl(slide, target_layout, *, placeholder_map, orphan_policy)
 
 
 def _layout_placeholder_slots(target_layout) -> "List[Tuple[PP_PLACEHOLDER, int]]":
+    """Placeholder type and index pairs the target layout offers, ordered by index."""
     slots = []
     for placeholder in target_layout.placeholders:
         slots.append((placeholder.element.ph_type, placeholder.element.ph_idx))
@@ -422,6 +425,7 @@ def _resolution_state(slide, *, align_by_content: bool = False):
 
 
 def _shifts_between(before_state, after_state) -> "Tuple[RunShift, ...]":
+    """Run changes for blocks present in both states, skipping runs whose values match."""
     shifts = []
     for key in sorted(set(before_state) & set(after_state)):
         before_values, text, part, before_payload, run_index = before_state[key]

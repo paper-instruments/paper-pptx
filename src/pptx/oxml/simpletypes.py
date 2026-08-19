@@ -687,16 +687,21 @@ class ST_TextBulletSizePercent(BaseFloatType):
 
     @classmethod
     def convert_from_xml(cls, str_value):
+        """Read a bullet size as a fraction, accepting the percent-string and thousandths-of-a-
+        percent forms.
+        """
         if str_value.endswith("%"):
             return float(str_value[:-1]) / 100.0
         return int(str_value) / 100000.0
 
     @classmethod
     def convert_to_xml(cls, value):
+        """Write a bullet size fraction as a percent string."""
         return "%d%%" % int(round(value * 100.0))
 
     @classmethod
     def validate(cls, value):
+        """Refuse a bullet size outside 0.25..4.0, or one finer than a whole percent."""
         BaseFloatType.validate(value)
         if value < 0.25 or value > 4.0:
             raise ValueError("bullet size fraction must be in range 0.25..4.0, got %s" % value)
@@ -713,6 +718,7 @@ class ST_TextBulletStartAtNum(BaseIntType):
 
     @classmethod
     def validate(cls, value):
+        """Refuse a list start number outside the 1..32767 the schema allows."""
         cls.validate_int_in_range(value, 1, 32767)
 
 
@@ -754,16 +760,21 @@ class ST_TextLineSpaceReductionPercentOrPercentString(BaseFloatType):
 
     @classmethod
     def convert_from_xml(cls, str_value):
+        """Read a line-space reduction as a percent, accepting the percent-string and thousandths
+        forms.
+        """
         if str_value.endswith("%"):
             return float(str_value[:-1])
         return int(str_value) / 1000.0
 
     @classmethod
     def convert_to_xml(cls, value):
+        """Write a line-space reduction percent in thousandths."""
         return str(int(value * 1000.0))
 
     @classmethod
     def validate(cls, value):
+        """Refuse a line-space reduction outside 0.0..100.0 percent."""
         BaseFloatType.validate(value)
         if value < 0.0 or value > 100.0:
             raise ValueError("value must be in range 0.0..100.0 (percent), got %s" % value)
@@ -774,6 +785,9 @@ class ST_TextIndent(ST_Coordinate32Unqualified):
 
     @classmethod
     def validate(cls, value):
+        """Refuse an indent outside -51206400..51206400 EMU (plus or minus 56 inches), or a non-
+        integer.
+        """
         cls.validate_int_in_range(value, -51206400, 51206400)
 
 
@@ -788,6 +802,10 @@ class ST_TextMargin(ST_Coordinate32Unqualified):
 
     @classmethod
     def validate(cls, value):
+        """Refuse a margin outside 0..51206400 EMU (0 to 56 inches), or a non-integer.
+
+        Negatives are refused here, unlike `indent`.
+        """
         cls.validate_int_in_range(value, 0, 51206400)
 
 

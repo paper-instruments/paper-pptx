@@ -409,6 +409,7 @@ class _MergeRegion(object):
     """
 
     def __init__(self, top: int, left: int, rowSpan: int, gridSpan: int):
+        """A merged region, given its origin `(top, left)` and its row and column spans."""
         self.top = top
         self.left = left
         self.rowSpan = rowSpan
@@ -425,11 +426,13 @@ class _MergeRegion(object):
         return self.left + self.gridSpan - 1
 
     def __repr__(self) -> str:
+        """Origin and span bounds, for debugging."""
         return "<_MergeRegion origin=(%d, %d) rows %d..%d cols %d..%d>" % (
             self.top, self.left, self.top, self.bottom, self.left, self.right,
         )
 
     def __str__(self) -> str:
+        """Origin and span bounds in prose, as the surgery refusal messages quote them."""
         return "(%d, %d) spanning rows %d..%d, columns %d..%d" % (
             self.top, self.left, self.top, self.bottom, self.left, self.right,
         )

@@ -6,8 +6,10 @@ requested change unsafe or unsupported and said so instead of guessing. Callers 
 catch `PaperRefusal` distinctly from bugs; programmer errors (bad argument types or values)
 remain `TypeError`/`ValueError` as usual.
 
-Every paper mutating API is structured validate-fully-then-mutate, so a refusal can never
-leave a partial edit behind.
+Paper mutating APIs run inside a package transaction: whatever the operation touched is
+restored if it refuses, and the deck-wide check runs before anything commits. Some APIs
+(`apply_footers`, `append_deck`, `import_slide`, clone) additionally validate in full before
+touching anything. Either way a refusal never leaves a partial edit behind.
 """
 
 from __future__ import annotations
@@ -29,7 +31,12 @@ class PaperRefusal(Exception):
 
 
 class PackageLimitError(PaperRefusal):
-    """The package archive is ambiguous or unsafe to expand."""
+    """The package archive has no single unambiguous reading, or is unsafe to expand.
+
+    Raised reading a package (ambiguous ZIP end records, duplicate or overlapping members,
+    encryption, malformed `[Content_Types].xml`) and writing one (parts that would collide on a
+    single ZIP member name).
+    """
 
 
 class AmbiguousTargetError(PaperRefusal):
@@ -37,7 +44,12 @@ class AmbiguousTargetError(PaperRefusal):
 
 
 class TargetNotFoundError(PaperRefusal):
-    """The addressing given matches nothing in this document."""
+    """The target could not be resolved in this document.
+
+    Either the addressing given (name, index, id, section) matches nothing, or a proxy handed in has
+    gone stale because the shape, part, or content it wrapped is no longer reachable. See
+    |StaleAnchorError| for the content-hash case.
+    """
 
 
 class StaleAnchorError(TargetNotFoundError):
@@ -50,15 +62,29 @@ class StaleAnchorError(TargetNotFoundError):
 
 
 class UnsupportedStructureError(PaperRefusal):
-    """The document contains structure this API cannot operate on safely."""
+    """This API cannot operate safely on the document as it stands.
+
+    Covers input it will not touch (unsupported structure, an unreadable package, a signed deck a
+    rewrite would invalidate) and, at commit or `batch()` exit, edits whose result would not reopen
+    as a presentation. In that second case the edits roll back.
+    """
 
 
 class BoundaryViolationError(PaperRefusal):
-    """The operation would cross a boundary it promised to stay inside."""
+    """An operation ran outside the scope where it is safe.
+
+    Today that means one thing: saving while a `batch()` block is open on the package. Those edits
+    are not validated yet and may still roll back, so save after the block closes.
+    """
 
 
 class RelationshipPolicyError(PaperRefusal):
-    """The relationship graph cannot be honored under the requested policy."""
+    """The relationship graph cannot be carried across as asked.
+
+    Either the source carries relationship types this operation's ledger does not support, or the
+    graph itself is unusable: a malformed relationship collection, an invalid target mode, or an
+    internal relationship pointing outside its own package.
+    """
 
 
 def materialize_slides(prs, operation: str):

@@ -159,7 +159,12 @@ class _PhysPkgReader(Container[PackURI]):
 
     @classmethod
     def factory(cls, pkg_file: str | IO[bytes]) -> _PhysPkgReader:
-        """Return |_PhysPkgReader| subtype instance appropriage for `pkg_file`."""
+        """Return |_PhysPkgReader| subtype instance appropriage for `pkg_file`.
+
+        Accepts a `str` or `os.PathLike` path to a zip package, a path to a directory holding an
+        expanded package, or an open binary stream. Raises PackageNotFoundError when a path names
+        neither a directory nor a zip file.
+        """
         # --- for pkg_file other than str, assume it's a stream and pass it to Zip
         # --- reader to sort out
         if not isinstance(pkg_file, (str, os.PathLike)):
@@ -227,7 +232,13 @@ class _ZipPkgReader(_PhysPkgReader):
 
     @lazyproperty
     def _blobs(self) -> dict[PackURI, bytes]:
-        """dict mapping partname to package part binaries."""
+        """Every physical package member, as {partname: validated bytes}.
+
+        Read on first part access through `preflight_zip` and |GuardedZipReader|, so an archive with
+        more than one reading raises PackageLimitError here instead of loading one interpretation of
+        itself and editing that. Includes members no relationship reaches; ZIP directory records are
+        excluded.
+        """
         preflight_zip(self._pkg_file)
         with zipfile.ZipFile(self._pkg_file, "r") as z:
             guarded = GuardedZipReader(z)

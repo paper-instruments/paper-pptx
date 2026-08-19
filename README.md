@@ -317,7 +317,9 @@ mutated.
 **Layout rebind with a mandatory shift report.** `Slide.rebind_layout()` moves
 a slide to another layout under explicit placeholder and orphan policies, runs
 the effective-value resolver before and after, and reports every run whose
-resolved appearance changed — a rebind never shifts appearance silently.
+resolved font changed, so a typography shift never passes silently. Placeholder
+geometry and text direction are inherited from the layout too and sit outside
+that comparison.
 
 **Real fields, not static text.** `Presentation.apply_footers()` reproduces
 PowerPoint's Insert → Header & Footer behavior: genuine `a:fld` slide-number
@@ -402,9 +404,11 @@ corruption prevention:
   on its next save, and so does `save()`.
 - **Atomic save.** `save()` keeps its signature, but saving to a path now
   writes a sibling temporary file and atomically replaces the destination only
-  after serialization succeeds, preserving the existing file's permission bits;
-  stream saves snapshot and restore the destination on failure. Upstream wrote
-  directly to the destination, so a mid-save failure destroyed the only copy.
+  after serialization succeeds, preserving the existing file's permission bits.
+  Stream saves stage the whole package first, so a serialization failure emits
+  nothing, and restore the destination on failure when it can be read and
+  rewound; a write-only sink keeps whatever landed. Upstream wrote directly to
+  the destination, so a mid-save failure destroyed the only copy.
 - **`SlideLayouts.remove()` hardening.** Same signature, stricter semantics:
   stale or foreign proxies and unsafe states now refuse atomically instead of
   partially mutating.
@@ -419,8 +423,11 @@ corruption prevention:
 ## The safety contract
 
 Every added operation either does exactly what it claims or refuses
-atomically. Mutating operations validate fully before they change anything —
-never mutate-then-validate. When an operation cannot proceed safely, it raises
+atomically. Mutating operations run inside a package transaction: whatever the
+operation touched is restored if it refuses, and the deck-wide check runs
+before anything commits. Some operations, including `apply_footers()`,
+`append_deck()`, `import_slide()` and slide clone, additionally validate in
+full before touching anything. When an operation cannot proceed safely, it raises
 a typed refusal from the hierarchy rooted at `pptx.errors.PaperRefusal`
 (`PackageLimitError`, `TargetNotFoundError`, `StaleAnchorError`,
 `AmbiguousTargetError`, `UnsupportedStructureError`, `RelationshipPolicyError`,

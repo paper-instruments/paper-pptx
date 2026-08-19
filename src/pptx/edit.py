@@ -51,6 +51,7 @@ class ReplaceResult:
     blocks: Tuple[BlockAnchor, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict:
+        """Return the replace result as a JSON-ready dict stamped with its schema and version."""
         return {
             "schema": RESULT_SCHEMA_NAME,
             "version": RESULT_SCHEMA_VERSION,
@@ -323,6 +324,11 @@ def _run_segments(p) -> "List[List[object]]":
 
 
 def _replace_in_segment(runs, find: str, replace: str) -> int:
+    """Replace every occurrence of `find` across `runs`.
+
+    Characters the edit does not touch keep their own run, so formatting survives a replacement that
+    straddles a run boundary.
+    """
     texts = [_run_text_of(r) for r in runs]
     full = "".join(texts)
     matches = _find_occurrences(full, find)
@@ -392,5 +398,6 @@ def _find_occurrences(text: str, find: str) -> "List[Tuple[int, int]]":
 
 
 def _run_text_of(r) -> str:
+    """Text of a run's `a:t` child, or an empty string when absent."""
     t = r.find(qn("a:t"))
     return (t.text or "") if t is not None else ""
