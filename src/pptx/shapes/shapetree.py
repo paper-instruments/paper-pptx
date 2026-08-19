@@ -577,6 +577,10 @@ def _subtree_rIds(element) -> "set[str]":
 
 
 def _part_references_rId(part_element, rId: str) -> bool:
+    """True when any `r:` attribute in the part still points at `rId`.
+
+    Check this before dropping a relationship, so a part a sibling shape still draws survives.
+    """
     for descendant in part_element.iter():
         for attr_name, attr_value in descendant.attrib.items():
             if attr_value == rId and attr_name.startswith(_R_NS_PREFIX):
@@ -871,6 +875,12 @@ class SlideShapes(_BaseGroupShapes):
         return self._by_name_of_kind(name, "table", lambda s: s.has_table).table
 
     def _by_name_of_kind(self, name: str, kind: str, predicate):
+        """Return the one shape named `name` for which `predicate` is true, groups included.
+
+        `kind` is the noun used in refusal messages only. Raises TargetNotFoundError when no shape
+        has the name or none passes `predicate`, and AmbiguousTargetError when several pass, so a
+        caller never edits an arbitrary duplicate.
+        """
         from pptx.errors import AmbiguousTargetError, TargetNotFoundError
 
         named_shapes = [shape for shape in _iter_shapes_deep(self) if shape.name == name]

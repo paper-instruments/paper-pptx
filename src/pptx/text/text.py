@@ -282,8 +282,9 @@ class TextFrame(Subshape):
     def _resolve_run_size(self, r):
         """Return `r`'s effective font size in centipoints via the inheritance walk, or None.
 
-        Used by `normalize_autofit(resolve=True)`. Import is deferred: `pptx.inspect` is a
-        leaf module and importing it at module scope would be a cycle.
+        Used by `normalize_autofit(resolve=True)`. None when `r`'s text body is not inside a `p:sp`
+        on a slide part, or when the walk cannot resolve a size; the caller turns that into a typed
+        refusal. `pptx.parts.slide` is imported lazily to break an import cycle.
         """
         from pptx.inspect import _FontResolver
         from pptx.parts.slide import SlidePart
@@ -679,6 +680,11 @@ class _Paragraph(Subshape):
         self._add_field("slidenum", "1")
 
     def _add_field(self, field_type: str, cached_text: str) -> None:
+        """Append an `a:fld` of `field_type` with `cached_text`, under a freshly minted GUID id.
+
+        PowerPoint re-renders the value when the deck opens. Transactional, and refuses a paragraph
+        detached from its part.
+        """
         import uuid
 
         from pptx._ownership import require_element_attached

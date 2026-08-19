@@ -129,6 +129,7 @@ def apply_slide_footers(
 
 
 def _validate_arguments(footer, slide_number, date_format, fixed_date, now) -> None:
+    """Check the header and footer arguments before any slide is touched."""
     if footer is not None:
         _validate_text("footer", footer)
     if not isinstance(slide_number, bool):
@@ -150,6 +151,10 @@ def _validate_arguments(footer, slide_number, date_format, fixed_date, now) -> N
 
 
 def _validate_text(name: str, value) -> None:
+    """Refuse text that is not a non-empty str, holds a lone surrogate, or holds a C0 control.
+
+    Tab is the one control allowed through, so a footer cannot span lines: a newline is refused.
+    """
     if not isinstance(value, str) or not value:
         raise ValueError("%s must be a non-empty str, or None to remove" % name)
     try:
@@ -194,6 +199,7 @@ def _validate_slide_furniture(slide, footer, slide_number, date_format, fixed_da
 
 
 def _wanted_kinds(footer, slide_number, date_format, fixed_date) -> "List[str]":
+    """Which of date, footer, and slide number the caller asked to be present."""
     wanted = []
     if date_format is not None or fixed_date is not None:
         wanted.append("dt")
@@ -208,6 +214,7 @@ def _wanted_kinds(footer, slide_number, date_format, fixed_date) -> "List[str]":
 
 
 def _first_slide_number(prs: "Presentation") -> int:
+    """The number this deck starts counting slides from."""
     return int(prs._element.get("firstSlideNum", "1"))
 
 
@@ -235,6 +242,11 @@ def _slide_phs(slide, kind):
 
 
 def _apply_to_slide(slide, number, footer, slide_number, date_format, fixed_date, now):
+    """Write the wanted date, footer, and slide-number placeholders onto one slide.
+
+    Clones the placeholder from the layout when the slide has none, and deletes the shapes for
+    unwanted kinds along with any duplicates past the first.
+    """
     wanted = _wanted_kinds(footer, slide_number, date_format, fixed_date)
     furniture = _layout_furniture(slide.slide_layout) if wanted else {}
 
@@ -312,6 +324,7 @@ def _fresh_paragraph(txBody):
 
 
 def _write_field(txBody, field_type: str, cached_text: str, field_id: str) -> None:
+    """Replace a placeholder's text with a field, so PowerPoint re-renders the value on open."""
     p, rPr, endParaRPr = _fresh_paragraph(txBody)
     fld = p.add_fld(field_id, field_type, cached_text)
     if rPr is not None:
@@ -321,6 +334,7 @@ def _write_field(txBody, field_type: str, cached_text: str, field_id: str) -> No
 
 
 def _write_literal(txBody, text: str) -> None:
+    """Replace a placeholder's text with a literal run."""
     p, rPr, endParaRPr = _fresh_paragraph(txBody)
     r = p.add_r()
     r.text = text

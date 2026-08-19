@@ -94,6 +94,7 @@ class ProvenanceStep:
     supplied: bool  #: True on the step that supplied the resolved value
 
     def to_dict(self) -> dict:
+        """Return this rung as a JSON-ready dict, for reports that show where a value came from."""
         return {
             "level": self.level,
             "part": self.part,
@@ -113,6 +114,7 @@ class EffectiveValue:
     bake_color_xml: Optional[bytes] = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict:
+        """Return this resolved value as a JSON-ready dict, provenance trail included."""
         return {
             "value": (
                 int(self.value)
@@ -137,6 +139,10 @@ class EffectiveFont:
     underline: EffectiveValue = None  # pyright: ignore[reportAssignmentType]
 
     def to_dict(self) -> dict:
+        """Return the resolved font as a JSON-ready dict under the `paper-effective-font` schema.
+
+        Use it to report or diff typography without walking the inheritance chain again.
+        """
         return {
             "schema": "paper-effective-font",
             "version": 2,  # -- bold/italic/underline added
@@ -161,6 +167,9 @@ class EffectiveBullet:
     provenance: Tuple[ProvenanceStep, ...]
 
     def to_dict(self) -> dict:
+        """Return the resolved bullet as a JSON-ready dict, recording whether the answer came from
+        this paragraph or an inherited level.
+        """
         return {
             "type": self.type,
             "char": self.char,
@@ -189,6 +198,9 @@ class BlockAnchor:
     content_hash: str
 
     def to_dict(self) -> dict:
+        """Return this anchor as a JSON-ready dict. Store it to re-target the same text block on a
+        later open.
+        """
         return {
             "part": self.part,
             "block_index": self.block_index,
@@ -198,11 +210,13 @@ class BlockAnchor:
 
 @dataclass(frozen=True)
 class InspectedRun:
+    """One run of text paired with the font that renders it."""
     text: str
     font: EffectiveFont
     field_type: Optional[str] = None
 
     def to_dict(self) -> dict:
+        """Return this run as a JSON-ready dict, omitting `field_type` for ordinary text."""
         payload = {"text": self.text, "font": self.font.to_dict()}
         if self.field_type is not None:
             payload["field_type"] = self.field_type
@@ -234,6 +248,7 @@ class TextBlock:
     fields: Tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
+        """Return this block as a JSON-ready dict, anchor included, for reports and diffs."""
         return {
             "anchor": self.anchor.to_dict(),
             "shape_id": self.shape_id,
@@ -262,6 +277,11 @@ class TextInspection:
         return sum(1 for block in self.blocks if block.blind)
 
     def to_dict(self) -> dict:
+        """Return the whole inspection as a JSON-ready dict stamped with its schema name and
+        version.
+
+        Hand this to anything outside Python that needs the text of a part.
+        """
         return {
             "schema": SCHEMA_NAME,
             "version": SCHEMA_VERSION,
@@ -304,6 +324,9 @@ class EffectiveParagraphFormat:
     bullet_size: EffectiveValue  #: fraction of text size, |Length| for points, or follows text
 
     def to_dict(self) -> dict:
+        """Return the resolved paragraph format as a JSON-ready dict under the `paper-effective-
+        paragraph-format` schema.
+        """
         return {
             "schema": "paper-effective-paragraph-format",
             "version": 3,  # -- was 2: bullet_font/bullet_size added
@@ -387,6 +410,7 @@ class ShapeManifest:
     children: Tuple["ShapeManifest", ...] = ()
 
     def to_dict(self) -> dict:
+        """Return this shape's manifest entry as a JSON-ready dict."""
         return {
             "shape_id": self.shape_id,
             "name": self.name,
@@ -419,6 +443,7 @@ class SlideManifest:
     alternate_content_count: int = 0  #: mc:AlternateContent subtrees (not surveyable)
 
     def to_dict(self) -> dict:
+        """Return this slide's manifest entry as a JSON-ready dict, shapes included."""
         return {
             "part": self.part,
             "slide_id": self.slide_id,
@@ -440,9 +465,14 @@ class DeckManifest:
 
     @property
     def slide_count(self) -> int:
+        """Number of slides the manifest describes."""
         return len(self.slides)
 
     def to_dict(self) -> dict:
+        """Return the deck manifest as a JSON-ready dict stamped with its schema and version.
+
+        This is the payload to hand a caller that cannot hold Python objects.
+        """
         return {
             "schema": DECK_MANIFEST_SCHEMA,
             "version": DECK_MANIFEST_VERSION,
@@ -498,6 +528,7 @@ def inspect_deck(prs) -> DeckManifest:
 
 
 def _shape_manifest(shape, z_index: int) -> ShapeManifest:
+    """Build one shape's manifest entry: kind, placeholder type, geometry, and z-order."""
     from pptx.shapes.group import GroupShape
     from pptx.shapes.picture import Picture
     from pptx.shapes.shapetree import _shape_kind
@@ -598,6 +629,7 @@ class EffectiveShapeFormat:
     line_rgb: EffectiveValue
 
     def to_dict(self) -> dict:
+        """Return the resolved fill and line colors as a JSON-ready dict."""
         return {
             "schema": "paper-effective-shape-format",
             "version": 1,
@@ -680,6 +712,14 @@ _MC_ALTERNATE_CONTENT = (
 
 
 def _iter_container(container_elm, group_path):
+    """Walk a shape tree, yielding one tuple per text body, plus one blind marker per region whose
+    text this version cannot survey.
+
+    Groups recurse and table frames yield one tuple per cell. `mc:AlternateContent`, charts, and
+    other graphic frames yield a `txBody=None` marker instead of content: for AlternateContent,
+    which branch renders depends on the consumer and picking one would be a guess. One marker still
+    equals one block index.
+    """
     for child in container_elm:
         if child.tag == _MC_ALTERNATE_CONTENT:
             # -- markup-compatibility content renders one of several branches depending on
@@ -784,6 +824,11 @@ def _walk_container(spTree, group_path, partname, resolver, blocks) -> None:
 def _append_block(
     blocks, partname, shape_elm, p, runs, placeholder_type, container, container_detail, blind
 ) -> None:
+    """Append one paragraph to `blocks` as a `TextBlock`.
+
+    The anchor hash covers only non-field text: a field's display text is volatile, so hashing it
+    would rot the anchor on the next PowerPoint render.
+    """
     text = "".join(inspected.text for inspected in runs if inspected.field_type is None)
     pPr = p.find(qn("a:pPr"))
     level = int(pPr.get("lvl", "0")) if pPr is not None else 0
@@ -809,11 +854,13 @@ def _append_block(
 
 
 def _cNvPr_name(shape_elm) -> str:
+    """Shape name from `p:cNvPr`, or an empty string when the element is absent."""
     cNvPr = shape_elm.find(".//%s" % qn("p:cNvPr"))
     return (cNvPr.get("name") or "") if cNvPr is not None else ""
 
 
 def _run_text(r) -> str:
+    """Text of a run's `a:t` child, or an empty string when absent."""
     t = r.find(qn("a:t"))
     return t.text or "" if t is not None else ""
 
@@ -851,6 +898,7 @@ class _FontResolver(object):
     """Executes the pinned inheritance walk for runs on one slide part. Strictly read-only."""
 
     def __init__(self, slide_part):
+        """Bind the resolver to one slide, caching its layout, master, and theme."""
         self._slide_part = slide_part
         self._layout = slide_part.slide_layout
         self._master = self._layout.slide_master
@@ -859,6 +907,11 @@ class _FontResolver(object):
     # ------------------------------------------------------------------------- public
 
     def effective_font(self, r, sp) -> EffectiveFont:
+        """Resolve the font that renders run `r`, walking run, paragraph, placeholder, master, then
+        theme.
+
+        Refuses when the paragraph declares an indent level outside the 0..8 the schema allows.
+        """
         p = r.getparent()
         pPr = p.find(qn("a:pPr"))
         level = int(pPr.get("lvl", "0")) if pPr is not None else 0
@@ -913,6 +966,12 @@ class _FontResolver(object):
             )
 
     def _placeholder_chain(self, sp, level):
+        """Yield the three placeholder rungs for `sp` at `level`, in inheritance order.
+
+        Layout placeholder `lstStyle`, then master placeholder `lstStyle`, then the master's
+        `p:txStyles` family style. Raises UnsupportedStructureError when the layout or master
+        placeholder match is missing or ambiguous.
+        """
         idx, ph_type = sp.ph_idx, sp.ph_type
         layout_ph = self._layout_placeholder(idx, ph_type)
         yield (
@@ -1272,6 +1331,7 @@ class _FontResolver(object):
         return None, []
 
     def _resolve_solid_fill(self, solidFill, label, partname, steps) -> EffectiveValue:
+        """Read a color out of an `a:solidFill`, appending the rung it came from to `steps`."""
         srgbClr = solidFill.find(qn("a:srgbClr"))
         if srgbClr is not None:
             detail = 'srgbClr val="%s"%s' % (
@@ -1315,12 +1375,16 @@ class _FontResolver(object):
 
     @staticmethod
     def _pPr_from_lstStyle(lstStyle, level):
+        """Paragraph properties for one indent level of an `a:lstStyle`, or None when there are
+        none.
+        """
         if lstStyle is None:
             return None
         return lstStyle.pPr_for_lvl(level)
 
     @staticmethod
     def _ph_lstStyle_pPr(placeholder_proxy, level):
+        """Paragraph properties from a placeholder's own `a:lstStyle` at `level`, or None."""
         if placeholder_proxy is None:
             return None
         txBody = placeholder_proxy._element.find(qn("p:txBody"))
@@ -1329,6 +1393,7 @@ class _FontResolver(object):
         return _FontResolver._pPr_from_lstStyle(txBody.find(qn("a:lstStyle")), level)
 
     def _master_family_style(self, ph_type):
+        """Master text style for the family `ph_type` belongs to: title, body, or other."""
         txStyles = self._master.element.txStyles
         if ph_type in _TITLE_FAMILY:
             return "titleStyle", txStyles.titleStyle if txStyles is not None else None
@@ -1376,6 +1441,10 @@ class _FontResolver(object):
         )
 
     def _master_placeholder(self, ph_type):
+        """Master placeholder matching `ph_type`.
+
+        Refuses when the master declares more than one: neither would be an unambiguous source.
+        """
         matches = [
             placeholder
             for placeholder in self._master.placeholders
@@ -1391,6 +1460,7 @@ class _FontResolver(object):
 
     @staticmethod
     def _master_placeholder_type(ph_type):
+        """Master placeholder type that a slide placeholder of `ph_type` inherits from."""
         if ph_type in _TITLE_FAMILY:
             return PP_PLACEHOLDER.TITLE
         if ph_type in (
@@ -1404,6 +1474,7 @@ class _FontResolver(object):
 
     @staticmethod
     def _ph_lstStyle_defRPr(placeholder_proxy, level):
+        """Default run properties from a placeholder's own `a:lstStyle` at `level`, or None."""
         if placeholder_proxy is None:
             return None
         txBody = placeholder_proxy._element.find(qn("p:txBody"))
@@ -1413,6 +1484,7 @@ class _FontResolver(object):
 
     @staticmethod
     def _defRPr_from_lstStyle(lstStyle, level):
+        """Default run properties for one indent level of an `a:lstStyle`, or None."""
         if lstStyle is None:
             return None
         lvl_pPr = lstStyle.pPr_for_lvl(level)
@@ -1423,6 +1495,11 @@ class _FontResolver(object):
     # ------------------------------------------------------------------------ resolvers
 
     def _resolve_size(self, chain) -> EffectiveValue:
+        """First explicit `sz` found walking `chain`, as an EMU Length with points in `value_pt`.
+
+        There is no default font size to fall back on, so an exhausted chain reports
+        `resolved=False` with the full consulted trail.
+        """
         steps = []
         for label, partname, rPr in chain:
             sz = rPr.get("sz") if rPr is not None else None
@@ -1468,6 +1545,11 @@ class _FontResolver(object):
         return EffectiveValue("none", None, True, tuple(steps))
 
     def _resolve_name(self, chain, text="") -> EffectiveValue:
+        """First explicit `a:latin` typeface found walking `chain`.
+
+        Returns unresolved for runs carrying non-Latin letters: this walk reads the Latin slot only,
+        so East Asian and complex-script selection stays unanswered rather than guessed.
+        """
         if self._has_non_latin_letters(text):
             return EffectiveValue(
                 None,
@@ -1506,6 +1588,7 @@ class _FontResolver(object):
         return EffectiveValue(None, None, False, tuple(steps))
 
     def _resolve_theme_font(self, token, steps) -> EffectiveValue:
+        """Resolve a `+mj-lt` or `+mn-lt` theme font reference against the theme's font scheme."""
         scheme_element = {"mj": "a:majorFont", "mn": "a:minorFont"}.get(token[1:3])
         if self._theme_root is None or scheme_element is None or not token.endswith("-lt"):
             steps.append(
@@ -1543,6 +1626,11 @@ class _FontResolver(object):
         return EffectiveValue(typeface, None, True, tuple(steps))
 
     def _resolve_color(self, chain, sp) -> EffectiveValue:
+        """First explicit color found walking `chain`, as an RRGGBB string.
+
+        Non-solid fills stop the walk unresolved. A color carrying transforms also reports
+        unresolved, with the unapplied transforms in `bake_color_xml`.
+        """
         steps = []
         for label, partname, rPr in chain:
             solidFill = rPr.find(qn("a:solidFill")) if rPr is not None else None
@@ -1606,6 +1694,9 @@ class _FontResolver(object):
         return EffectiveValue(None, None, False, tuple(steps))
 
     def _resolve_scheme_color(self, token, steps, source_partname) -> EffectiveValue:
+        """Resolve a scheme color token through the slide's color map, then the theme's color
+        scheme.
+        """
         slot, map_step = self._map_scheme_token(token, source_partname)
         steps.append(map_step)
         if slot is None:
@@ -1716,6 +1807,12 @@ class _FontResolver(object):
 
     @staticmethod
     def _transformed_color_value(color_element, base_rgb, steps) -> EffectiveValue:
+        """Return an unresolved value carrying `base_rgb` plus the element's unapplied transforms.
+
+        Transforms such as `lumMod` and `tint` are not computed here. The localized `a:srgbClr` goes
+        out as `bake_color_xml` for callers that can write it back verbatim, so the reported value
+        stays `resolved=False` rather than becoming a guess.
+        """
         localized = OxmlElement("a:srgbClr")
         localized.set("val", str(base_rgb).upper())
         for transform in color_element:
@@ -1732,6 +1829,7 @@ class _FontResolver(object):
 
     @staticmethod
     def _has_non_latin_letters(text: str) -> bool:
+        """True when `text` carries a letter outside the Latin scripts."""
         for char in text:
             if not unicodedata.category(char).startswith("L"):
                 continue
@@ -1757,6 +1855,7 @@ class _FontResolver(object):
 
     @staticmethod
     def _non_solid_fill_kind(rPr):
+        """Tag of the non-solid fill on `rPr`, or None when the fill is solid or absent."""
         if rPr is None:
             return None
         for tag in ("a:gradFill", "a:blipFill", "a:pattFill", "a:noFill", "a:grpFill"):
@@ -1766,13 +1865,21 @@ class _FontResolver(object):
 
     @staticmethod
     def _absence(rPr, what) -> str:
+        """Provenance detail for a rung that supplied nothing."""
         return "level not present" if rPr is None else what + " here"
 
     @property
     def _presentation_part(self):
+        """Presentation part this slide belongs to."""
         return self._slide_part.package.presentation_part
 
     def _load_theme(self):
+        """Parse the master's theme part, returning `(root, partname)`.
+
+        Returns `(None, None)` when the master has no theme relationship, so callers report an
+        unresolved theme. Raises UnsupportedStructureError when a theme part exists but will not
+        parse.
+        """
         try:
             theme_part = self._master.part.part_related_by(RT.THEME)
         except KeyError:

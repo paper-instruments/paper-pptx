@@ -61,6 +61,7 @@ class _ComposeTransaction(PackageTransaction):
     """Package transaction rooted at the destination presentation."""
 
     def __init__(self, dest_prs):
+        """Open a transaction over the destination package so a failed import rolls back."""
         super().__init__(dest_prs.part.package, dest_prs)
 
 
@@ -130,6 +131,7 @@ class ImportReport:
     run_shifts: tuple
 
     def to_dict(self) -> dict:
+        """Return the import report as a JSON-ready dict stamped with its schema and version."""
         return {
             "schema": SCHEMA_NAME,
             "version": SCHEMA_VERSION,
@@ -222,6 +224,10 @@ def append_deck(
 def _validate_arguments(
     dest_prs, source_prs, slide, mode, position, notes, section, target_layout
 ) -> "Slide":
+    """Check the import arguments and return the resolved source slide.
+
+    Runs before any part is copied, so a bad call cannot leave the destination half-imported.
+    """
     from pptx.presentation import Presentation as _Presentation
     from pptx.slide import Slide as _Slide
     from pptx.slide import SlideLayout as _SlideLayout
@@ -508,12 +514,20 @@ def _resolved_run_values(shape) -> list:
 
 @dataclass
 class _LayoutBinding:
+    """The destination layout an imported slide binds to, and how that layout was chosen."""
     layout: "Optional[SlideLayout]"  # -- None only for keep_appearance (pre-transplant)
     # -- name-match | type-match | explicit | blank-fallback | first-fallback | transplant
     method: str
 
 
 def _resolve_layout_binding(dest_prs, source_slide, mode, target_layout) -> _LayoutBinding:
+    """Choose the destination layout for an imported slide, or refuse.
+
+    `keep_appearance` short-circuits to a source-chain transplant. Otherwise: explicit
+    `target_layout`, then a layout-name match, then a layout-type match. With no match, `bake` falls
+    back to a blank layout and then the first layout, while `adopt_theme` raises
+    UnsupportedStructureError telling the caller to pass `target_layout`.
+    """
     if mode == "keep_appearance":
         return _LayoutBinding(None, "transplant")
     if target_layout is not None:
@@ -545,6 +559,7 @@ def _resolve_layout_binding(dest_prs, source_slide, mode, target_layout) -> _Lay
 def _perform_import(
     dest_prs, source_slide, plan, mode, binding, prep, position, notes, section
 ) -> ImportReport:
+    """Copy the source slide into the destination and report what changed."""
     from pptx.parts.slide import SlidePart
     from pptx.rebind import _resolution_state, _shifts_between
 
@@ -715,11 +730,20 @@ class _ImportSession(_CopySession):
     """
 
     def __init__(self, dest_package, source_package):
+        """Plan a fresh identity for every `a16:creationId` in the whole source package.
+
+        Any part may end up copied, so the plan spans the entire source deck. Refuses with
+        RelationshipPolicyError when the source contains duplicate creation ids, even in parts this
+        import will not touch. `created_parts` logs what the import adds.
+        """
         super().__init__(dest_package, tuple(source_package.iter_parts()))
         self.created_parts = []
 
 
 def _dedupe_cache(package) -> dict:
+    """Per-package fingerprint cache, so a repeated import reuses a transplanted master rather than
+    copying it again.
+    """
     cache = getattr(package, "_paper_compose_fingerprints", None)
     if cache is None:
         cache = {}
@@ -826,6 +850,7 @@ def _import_support_part(dest_package, part, allocated, reused):
 
 
 def _is_xml_payload(part) -> bool:
+    """True when `part` holds XML, judged by content type or by an `.xml` part name."""
     content_type = part.content_type.lower()
     return (
         content_type.endswith("+xml")
@@ -884,6 +909,10 @@ def _import_diagram_part(dest_package, dgm_part, allocated, reused):
 
 
 def _import_leaf_into(dest_package, part, allocated):
+    """Copy one part's payload into the destination under a fresh part name, identities remapped.
+
+    Relationships are not copied: the caller rebuilds them and rewrites `r:` references.
+    """
     partname = _allocate_partname(dest_package, _partname_template(str(part.partname)), allocated)
     if isinstance(part, XmlPart):
         copied = type(part)(partname, part.content_type, dest_package, copy.deepcopy(part._element))
@@ -933,6 +962,12 @@ def _transplant_layout_chain(dest_prs, source_layout, allocated, reused):
 
 
 def _transplant_master(dest_prs, source_master, allocated, reused):
+    """Copy a source master, its theme and media but NOT its layouts, into the destination.
+
+    Layouts enroll on demand through `_transplant_layout_chain`, which is what lets several slides
+    from one source deck share a single transplanted master. Returns an identical master already in
+    the destination instead of copying it twice.
+    """
     dest_package = dest_prs.part.package
     cache = _dedupe_cache(dest_package)
     master_part = source_master.part
@@ -996,6 +1031,7 @@ def _next_layout_or_master_id(dest_prs) -> int:
 
 
 def _find_section(presentation_elm, name: str):
+    """The `p14:section` named `name`, or None when the deck has no section by that name."""
     for section in presentation_elm.findall(".//{%s}sectionLst/{%s}section" % (_P14_NS, _P14_NS)):
         if section.get("name") == name:
             return section

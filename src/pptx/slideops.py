@@ -50,6 +50,12 @@ class _CopySession(set):
     """Partname reservations and document-wide identity remaps for one copy."""
 
     def __init__(self, package, source_parts):
+        """Reserve the destination package's identity values and plan a fresh GUID per source id.
+
+        `package` is the destination; `source_parts` are the parts about to be copied. Raises
+        RelationshipPolicyError when two source parts share an `a16:creationId`, since one id cannot
+        be remapped two ways.
+        """
         super().__init__()
         self._reserved = _document_identity_values(package)
         self._a16_mapping = {}
@@ -71,6 +77,11 @@ class _CopySession(set):
                 self._a16_mapping[key] = self._fresh_guid()
 
     def remap(self, source_part, copied_part) -> None:
+        """Rewrite identity attributes in `copied_part` so it shares no id with its source.
+
+        Only effective for parts whose source was passed to `__init__`; creation ids outside that
+        plan survive unchanged. `a:fld` ids are always re-minted. A no-op for non-XML parts.
+        """
         root = _xml_root(copied_part)
         if root is None:
             return
@@ -96,6 +107,7 @@ class _CopySession(set):
                 element.set("id", self._fresh_guid())
 
     def _fresh_guid(self) -> str:
+        """A GUID no part of the destination package already uses."""
         while True:
             value = "{%s}" % str(uuid.uuid4()).upper()
             if value.lower() not in self._reserved:
@@ -104,12 +116,19 @@ class _CopySession(set):
 
 
 def _replace_identity_attribute(element, name: str, mapping: dict) -> None:
+    """Rewrite one identity attribute through `mapping`, matching case-insensitively."""
     value = element.get(name)
     if value is not None and value.lower() in mapping:
         element.set(name, mapping[value.lower()])
 
 
 def _xml_root(part):
+    """Root element of `part`, or None for non-XML content or a blob that will not parse.
+
+    Returns the LIVE element for an XmlPart, so mutations apply directly. For any other part it
+    returns a detached reparse of `part.blob`, and mutations are lost unless the caller writes it
+    back.
+    """
     if isinstance(part, XmlPart):
         return part._element
     content_type = part.content_type.partition(";")[0].strip().lower()
@@ -124,6 +143,10 @@ def _xml_root(part):
 
 
 def _document_identity_values(package) -> set:
+    """Lowercased `a16:creationId` and `a:fld` ids in use across `package`, for GUID minting.
+
+    Deliberately narrow: only the two GUID-shaped attributes a copy has to avoid colliding with.
+    """
     values = set()
     for part in package.iter_parts():
         root = _xml_root(part)
@@ -294,6 +317,12 @@ def _validated_plan(source_part, policy) -> "List[Tuple[str, str, object]]":
 
 
 def _validate_chart_rels(chart_part) -> None:
+    """Refuse a chart clone unless every internal relationship is a leaf workbook or style child.
+
+    Only the embedded workbook, chartStyle, and chartColorStyle are allowed, and each must itself
+    have no internal relationships. Anything else, including an image, raises
+    RelationshipPolicyError. External relationships are always allowed.
+    """
     for rId in chart_part.rels:
         rel = chart_part.rels[rId]
         if rel.is_external:
@@ -312,6 +341,12 @@ def _validate_chart_rels(chart_part) -> None:
 
 
 def _validate_notes_rels(notes_part) -> None:
+    """Refuse a notes clone unless every internal relationship targets the notes master or its
+    slide.
+
+    So a notes slide holding a picture raises RelationshipPolicyError. External relationships are
+    always allowed.
+    """
     for rId in notes_part.rels:
         rel = notes_part.rels[rId]
         if not rel.is_external:
@@ -404,5 +439,6 @@ def _rewrite_r_references(root, rId_mapping: "Dict[str, str]") -> None:
 
 
 def _rId_sort_key(rId: str):
+    """Sort key ordering `rId7` before `rId10`, with non-numeric ids last."""
     match = re.fullmatch(r"rId([0-9]+)", rId)
     return (0, int(match.group(1))) if match else (1, rId)

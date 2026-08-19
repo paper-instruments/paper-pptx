@@ -265,6 +265,10 @@ def xml_equivalent(a: Union[bytes, str], b: Union[bytes, str]) -> bool:
 
 
 def _c14n_bytes(data: Union[bytes, str]) -> bytes:
+    """Canonical XML form of `data`, so two parts compare on meaning rather than serialization.
+
+    This is what lets `patch_save` call a reformatted but semantically identical part unchanged.
+    """
     from xml.etree import ElementTree as _ElementTree
 
     out = _io.StringIO()
@@ -307,6 +311,7 @@ def _drop_structural_whitespace(data: Union[bytes, str]) -> str:
 
 
 def _is_xml_member(name: str) -> bool:
+    """True for member names compared as XML rather than as raw bytes."""
     return name.endswith(".xml") or name.endswith(".rels")
 
 
@@ -354,6 +359,7 @@ class PartDelta:
     detail: str  #: human-readable note on the difference
 
     def to_dict(self) -> dict:
+        """Return this part's change as a JSON-ready dict."""
         return {
             "partname": self.partname,
             "kind": self.kind,
@@ -374,9 +380,11 @@ class PackageDiff:
 
     @property
     def is_empty(self) -> bool:
+        """True when no part changed. Check it to recognize a no-op save."""
         return not self.deltas
 
     def to_dict(self) -> dict:
+        """Return the package diff as a JSON-ready dict under the `paper-package-diff` schema."""
         return {
             "schema": "paper-package-diff",
             "version": 1,
@@ -384,6 +392,7 @@ class PackageDiff:
         }
 
     def __repr__(self) -> str:
+        """Delta count, for logs and interactive use."""
         return "PackageDiff(%d deltas)" % len(self.deltas)
 
 
@@ -446,34 +455,39 @@ def _save_cannot_emit(name: str) -> bool:
 def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     """Save `document` to `out_path`, restoring original bytes for unchanged XML parts.
 
-    Compare-based narrow save: `document` (a |Presentation|) is serialized
-    normally, then every XML member that is semantically identical to its counterpart in
-    `original_path` is written with the ORIGINAL bytes, so unrelated parts never churn.
-    Returns the residual |PackageDiff| between `original_path` and `out_path`.
+    Compare-based narrow save: `document` (a |Presentation|) is serialized normally, then every XML
+    member that is semantically identical to its counterpart in `original_path` is written with the
+    ORIGINAL bytes, so unrelated parts never churn. Returns the residual |PackageDiff| between
+    `original_path` and `out_path`.
 
     Writes are deterministic — entry order is `[Content_Types].xml`, `_rels/.rels`, then all
-    remaining members sorted; every entry timestamp is fixed to 1980-01-01 — and atomic: the
-    package is built in a temp file in `out_path`'s directory and moved into place with
-    `os.replace`, so a mid-write failure leaves any existing `out_path` untouched. When
-    nothing changed at all, `out_path` is written as an exact byte copy of `original_path`
-    (the no-op round trip is byte-identical).
+    remaining members sorted; every entry timestamp is fixed to 1980-01-01 — and atomic: the package
+    is built in a temp file in `out_path`'s directory and moved into place with `os.replace`, so a
+    mid-write failure leaves any existing `out_path` untouched. When nothing changed at all,
+    `out_path` is written as an exact byte copy of `original_path`.
 
-    "Nothing changed" is decided over the members that can be parts: none added, none
-    removed, each semantically identical to its counterpart. A ZIP folder record such as
-    `ppt/` is not a part, so `save()` structurally cannot emit one and its absence from the
-    serialized candidate never evidences a change. Such a record therefore survives a no-op
-    round trip — the byte copy reproduces it — and is dropped by an actual edit, which
-    rebuilds the package from the members `save()` emitted.
+    That byte copy requires the original's `.rels` parts to already list relationships in the order
+    `save()` emits them, which holds for a package paper-pptx wrote and not for a PowerPoint-
+    authored deck: PowerPoint orders them differently, `.rels` compare order-sensitively, and the
+    re-serialized order counts as a change. On such a deck a no-op round trip is narrow but not
+    byte-identical.
 
-    Not interchangeable with :meth:`.Presentation.save`, which is also atomic on a path:
-    atomicity is how the bytes land, narrowness is which bytes get written. `save()`
-    re-serializes every part, so even an unchanged part gets new bytes; `patch_save`
-    restores the original bytes for every part that is semantically identical.
+    "Nothing changed" is decided over the members that can be parts: none added, none removed, each
+    semantically identical to its counterpart. A ZIP folder record such as `ppt/` is not a part, so
+    `save()` structurally cannot emit one and its absence from the serialized candidate never
+    evidences a change. Such a record therefore survives a no-op round trip — the byte copy
+    reproduces it — and is dropped by an actual edit, which rebuilds the package from the members
+    `save()` emitted.
+
+    Not interchangeable with :meth:`.Presentation.save`, which is also atomic on a path: atomicity
+    is how the bytes land, narrowness is which bytes get written. `save()` re-serializes every part,
+    so even an unchanged part gets new bytes; `patch_save` restores the original bytes for every
+    part that is semantically identical.
 
     Symlinked destinations are resolved, so the file a link names is the file replaced.
 
-    Raises |UnsupportedStructureError| when `original_path` is not a readable zip package
-    (before anything is written) and |ValueError| when `document` cannot save itself.
+    Raises |UnsupportedStructureError| when `original_path` is not a readable zip package (before
+    anything is written) and |ValueError| when `document` cannot save itself.
     """
     if not hasattr(document, "save"):
         raise ValueError(
@@ -516,11 +530,17 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
 
 
 def _member_write_order(names: "Sequence[str]") -> "Sequence[str]":
+    """Order members for writing: content types first, then `_rels/.rels`, then the rest sorted.
+
+    Fixed order and fixed timestamps together are what make a no-op round trip byte-identical.
+    """
     head = [n for n in (_CONTENT_TYPES, "_rels/.rels") if n in names]
     return head + sorted(n for n in names if n not in head)
 
 
 def _atomic_write_zip(member_map: dict, out_path: str) -> None:
+    """Write `member_map` as a ZIP to `out_path`, with fixed entry order and fixed timestamps."""
+
     def write(handle):
         with _zipfile.ZipFile(handle, "w") as zipf:
             for name in _member_write_order(list(member_map)):
@@ -532,6 +552,7 @@ def _atomic_write_zip(member_map: dict, out_path: str) -> None:
 
 
 def _atomic_write_bytes(data: bytes, out_path: str) -> None:
+    """Write `data` to `out_path` through a temp file and an atomic replace."""
     _atomic_write(lambda handle: handle.write(data), out_path)
 
 
@@ -564,11 +585,13 @@ def _atomic_write(write, out_path: str) -> None:
 
 
 def _read_file_bytes(path: str) -> bytes:
+    """Read `path` as bytes."""
     with open(str(path), "rb") as handle:
         return handle.read()
 
 
 def _read_zip_map(path: str) -> dict:
+    """Read the package at `path` into a name-to-bytes map, refusing a file that will not open."""
     try:
         data = _read_file_bytes(path)
     except OSError as e:
@@ -577,6 +600,10 @@ def _read_zip_map(path: str) -> dict:
 
 
 def _read_zip_map_from_bytes(data: bytes, label: str) -> dict:
+    """Read package bytes into a name-to-bytes map, refusing duplicate member names.
+
+    `label` names the source in refusal messages.
+    """
     try:
         with _zipfile.ZipFile(_io.BytesIO(data)) as zipf:
             names = zipf.namelist()

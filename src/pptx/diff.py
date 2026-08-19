@@ -62,6 +62,7 @@ class BulletShift:
     after: dict
 
     def to_dict(self) -> dict:
+        """Return this bullet change as a JSON-ready dict, before and after values included."""
         return {
             "part": self.part,
             "shape_id": self.shape_id,
@@ -74,21 +75,25 @@ class BulletShift:
 
 @dataclass(frozen=True)
 class SlideRef:
+    """Identifies a slide by id, position, and title."""
     slide_id: int
     position: int
     title: Optional[str]
 
     def to_dict(self) -> dict:
+        """Return this slide reference as a JSON-ready dict."""
         return {"slide_id": self.slide_id, "position": self.position, "title": self.title}
 
 
 @dataclass(frozen=True)
 class MovedSlide:
+    """A slide that kept its identity and changed position."""
     slide_id: int
     from_position: int
     to_position: int
 
     def to_dict(self) -> dict:
+        """Return this move as a JSON-ready dict."""
         return {
             "slide_id": self.slide_id,
             "from_position": self.from_position,
@@ -114,6 +119,7 @@ class SlideChange:
 
     @property
     def is_empty(self) -> bool:
+        """True when nothing on this slide changed. Check it before adding the slide to a report."""
         return not (
             self.shapes_added
             or self.shapes_removed
@@ -127,6 +133,8 @@ class SlideChange:
         )
 
     def to_dict(self) -> dict:
+        """Return this slide's changes as a JSON-ready dict, omitting the categories that are empty.
+        """
         payload: dict = {"slide_id": self.slide_id}
         if self.shapes_added:
             payload["shapes_added"] = list(self.shapes_added)
@@ -162,6 +170,7 @@ class DeckDiff:
 
     @property
     def is_empty(self) -> bool:
+        """True when the two decks match. Check it to skip reporting a no-op edit."""
         return not (
             self.slides_added
             or self.slides_removed
@@ -171,6 +180,7 @@ class DeckDiff:
         )
 
     def to_dict(self) -> dict:
+        """Return the whole diff as a JSON-ready dict stamped with its schema and version."""
         return {
             "schema": SCHEMA_NAME,
             "version": SCHEMA_VERSION,
@@ -431,6 +441,7 @@ def _longest_common_subsequence(sequence_a: "List[int]", sequence_b: "List[int]"
 
 
 def _title_of(slide) -> "Optional[str]":
+    """Title text of `slide`, or None when it has no title placeholder or the title is blank."""
     title = slide.shapes.title
     if title is None or not title.has_text_frame:
         return None
@@ -462,10 +473,22 @@ def _shape_keys(slide) -> dict:
 
 
 def _shape_key_text(key) -> str:
+    """Render a shape key for a report.
+
+    The shape name, or `kind#ordinal` when the name is missing or shared with another shape on the
+    same slide.
+    """
     return key[1] if key[0] == "name" else "%s#%d" % (key[1], key[2])
 
 
 def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
+    """Compare one id-matched slide pair, gated by `detail`.
+
+    Always: top-level shape add and remove, geometry, image replacement. `"text"` adds chart data,
+    text blocks and notes. `"full"` adds per-run effective-value shifts and bullet shifts. Shapes
+    match at the top level only, so a shape moved into a group reads as one removal plus one
+    addition.
+    """
     shapes_a = _shape_keys(slide_a)
     shapes_b = _shape_keys(slide_b)
     shapes_added = tuple(_shape_key_text(key) for key in sorted(set(shapes_b) - set(shapes_a)))
@@ -528,6 +551,12 @@ def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
 
 
 def _image_hash(shape) -> "Optional[str]":
+    """Short content hash of a picture's image bytes.
+
+    None when `shape` is not a picture, so non-pictures never enter the image comparison. An image
+    reference that will not load hashes as the sentinel "unreadable" rather than raising mid-diff:
+    two unreadable sides compare equal, but unreadable against readable reports as a replacement.
+    """
     from pptx.shapes.picture import Picture
 
     if not isinstance(shape, Picture):
@@ -614,6 +643,12 @@ def _diff_chart(key, chart_a, chart_b) -> "List[dict]":
 
 
 def _chart_data(chart):
+    """Return `(categories, series)` for `chart`, comparable by value across decks.
+
+    `categories` comes from `plots[0]`; `series` spans every plot as `(plot_index, series_index,
+    name, values)`. Raises IndexError on a chart with no plots, which is the signal `_diff_chart`
+    uses to compare chart XML opaquely instead.
+    """
     categories = [str(category) for category in chart.plots[0].categories]
     series = []
     for plot_index, plot in enumerate(chart.plots):
@@ -640,6 +675,11 @@ def _text_blocks_by_stable_key(slide) -> dict:
 
 
 def _diff_text(slide_a, slide_b) -> "List[dict]":
+    """Text and field-marker changes between two slides, matched on stable block keys.
+
+    A block reports when its literal text changed or its field markers did, so an entry whose before
+    and after strings are equal means only the fields moved or changed type.
+    """
     blocks_a = _text_blocks_by_stable_key(slide_a)
     blocks_b = _text_blocks_by_stable_key(slide_b)
     changes = []
@@ -700,12 +740,14 @@ def _iter_text_shapes(shapes):
 def _bullet_state(slide) -> dict:
     """(comparable bullet values, payload) per paragraph, keyed (shape_id, paragraph text).
 
-    Content-keyed for the same reason `pptx.rebind._resolution_state(align_by_content=True)`
-    is: a paragraph inserted above shifts every later index, and index keys would then pair
-    unrelated paragraphs and report bullet changes that never happened. Paragraphs whose text
-    repeats within their shape carry no unique identity and are skipped rather than guessed at.
+    Content-keyed for the same reason `pptx.rebind._resolution_state(align_by_content=True)` is: a
+    paragraph inserted above shifts every later index, and index keys would then pair unrelated
+    paragraphs and report bullet changes that never happened. Paragraphs that are empty, or whose
+    text repeats within their shape, carry no unique identity and are skipped rather than guessed
+    at.
 
-    Paragraphs the resolver refuses -- table cells, which are not `p:sp` -- are skipped too. A
+    Only `p:sp` text frames are walked, so table and chart text never reaches the resolver. A
+    paragraph the resolver does refuse (an out-of-schema `lvl`, a non-slide part) is skipped too: a
     refusal here is a scope boundary, not a diff failure.
     """
     from pptx.errors import UnsupportedStructureError
@@ -742,6 +784,10 @@ def _bullet_state(slide) -> dict:
 
 
 def _bullet_shifts_between(before_state, after_state) -> "Tuple[BulletShift, ...]":
+    """Bullet changes for paragraphs keyed in both states, skipping those whose values match.
+
+    `paragraph_index` on each shift is the before-side index.
+    """
     shifts = []
     for key in sorted(set(before_state) & set(after_state), key=lambda k: (k[0], k[1])):
         before_values, text, partname, before_payload, index = before_state[key]
@@ -761,6 +807,7 @@ def _bullet_shifts_between(before_state, after_state) -> "Tuple[BulletShift, ...
 
 
 def _notes_text(slide) -> "Optional[str]":
+    """Notes text of `slide`, or None when it carries no notes slide."""
     if not slide.has_notes_slide:
         return None
     return slide.read_notes_text()

@@ -82,6 +82,7 @@ class _StreamSnapshot:
     """
 
     def __init__(self, stream: IO[bytes], position: int | None, content: bytes | None):
+        """Hold a stream's position and prior bytes, so a failed publish can put them back."""
         self._stream = stream
         self._position = position
         self._content = content
@@ -119,6 +120,7 @@ class _StreamSnapshot:
 
     @property
     def can_roll_back(self) -> bool:
+        """True when the snapshot captured content and can restore it."""
         return self._content is not None
 
     def discard_tail(self) -> None:
@@ -253,30 +255,35 @@ class OpcPackage(_RelatableMixin):
     def save(self, pkg_file: str | IO[bytes]) -> None:
         """Save this package to `pkg_file`.
 
-        `file` can be either a path to a file (a string) or a file-like object.
+        `pkg_file` can be a filesystem path (`str` or `os.PathLike`) or a file-like object open
+        for writing bytes.
 
-        A path destination is written atomically: the package is serialized into a
-        temporary file in the destination's directory and moved into place with
-        `os.replace()`, so a failure part-way through leaves any existing file untouched.
-        Symlinks are resolved, so the file a link names is the file that is written.
+        A path destination is written atomically: the package is serialized into a temporary
+        file in the destination's directory and moved into place with `os.replace()`, so a
+        failure part-way through leaves any existing file untouched. Symlinks are resolved, so
+        the file a link names is the file that is written.
 
         A stream destination is serialized into a private staging buffer and then written
-        straight through, so no bytes reach the stream unless the whole package serialized.
-        A failure *during* that copy leaves a partial package with no rollback; a caller
-        writing to a pipe cannot expect otherwise. Only `write` is required of the stream.
-        The package is written at the stream's current position. A stream positioned at
-        the start is truncated to the package, so no tail of a previous document survives;
-        past that, bytes beyond the package are the caller's and are left alone.
+        straight through, so no bytes reach the stream unless the whole package serialized. Only
+        `write` is required of the stream. The package is written at the stream's current
+        position; past that, bytes beyond the package are the caller's and are left alone.
 
-        Atomic path writes are a deliberate departure from the v0 rule that `save()`
-        behavior is unchanged from upstream (`CONVENTIONS.md` "Explicitly NOT changed in
-        v0"; `PLAN-paper-pptx.md` Prohibitions), accepted because upstream serialized
-        directly into the destination, so a mid-write failure on the ordinary
-        `prs.save(same_path)` pattern destroyed the deck being edited, irrecoverably.
+        What a failure *during* that copy costs depends on what the destination supports. One
+        that can be read, rewound and truncated has its prior contents and cursor restored, and
+        if that restore itself fails the original error is replaced by a `RuntimeError` carrying
+        it as `__cause__`. A write-only or unseekable sink keeps whatever partial package landed;
+        a caller writing to a pipe cannot expect otherwise. The same capability decides
+        truncation: a readable stream positioned at the start is truncated to the package, so no
+        tail of a previous document survives, while a write-only stream keeps that tail.
 
-        The costs of replacing rather than overwriting: owner, group, ACLs, extended
-        attributes and hard links do not survive (mode bits are carried over), and the
-        destination's *directory* must be writable, not just the file.
+        Atomic path writes are a deliberate departure from the v0 rule that `save()` behavior is
+        unchanged from upstream, accepted because upstream serialized directly into the
+        destination, so a mid-write failure on the ordinary `prs.save(same_path)` pattern
+        destroyed the deck being edited, irrecoverably.
+
+        The costs of replacing rather than overwriting: owner, group, ACLs, extended attributes
+        and hard links do not survive (mode bits are carried over), and the destination's
+        *directory* must be writable, not just the file.
         """
         parts = tuple(self.iter_parts())
         if isinstance(pkg_file, (str, os.PathLike)):
@@ -431,8 +438,12 @@ class _PackageLoader:
     def _xml_rels(self) -> dict[PackURI, CT_Relationships]:
         """dict {partname: xml_rels} for package and all package parts.
 
-        This is used as the basis for other loading operations such as loading parts and
-        populating their relationships.
+        This is used as the basis for other loading operations such as loading parts and populating
+        their relationships.
+
+        Raises UnsupportedStructureError for a .rels part that declares one id twice, or that
+        targets a part the package does not contain. Neither has a single correct reading, and
+        PowerPoint refuses both.
         """
         xml_rels: dict[PackURI, CT_Relationships] = {}
         visited_partnames: Set[PackURI] = set()

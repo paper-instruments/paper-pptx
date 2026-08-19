@@ -145,6 +145,13 @@ def preflight_zip(source: object) -> None:
 
 
 def _preflight_zip_stream(stream: BinaryIO) -> None:
+    """Validate the archive footer and central directory before `zipfile` parses them.
+
+    Runs first, so an ambiguous archive refuses before any part is read. Requires one unambiguous
+    central-directory region: a single end record accounting for the end of the file, no multi-disk
+    structure, counts and offsets that agree, and a first byte that starts a member record. Bytes
+    appended after the end record and bytes prepended before the archive both refuse.
+    """
     try:
         original_position = stream.tell()
         stream.seek(0, os.SEEK_END)
@@ -229,6 +236,11 @@ def _preflight_zip_stream(stream: BinaryIO) -> None:
 
 
 def _find_end_record(stream: BinaryIO, archive_size: int) -> Tuple[int, Tuple[int, ...]]:
+    """Locate the end-of-central-directory record that accounts for the end of the file.
+
+    Refuses when no record does, or when more than one does. Either way the member list has more
+    than one reading, and PowerPoint refuses the package in that state too.
+    """
     tail_size = min(archive_size, _END_RECORD.size + _MAX_END_COMMENT_BYTES)
     stream.seek(archive_size - tail_size, os.SEEK_SET)
     tail = stream.read(tail_size)
@@ -270,6 +282,12 @@ def _read_zip64_end_record(
     end_offset: int,
     legacy_fields: Tuple[int, ...],
 ) -> Tuple[int, int, int, int, int]:
+    """Read the ZIP64 locator and end record, returning counts, central size and offset, and the
+    record's own offset.
+
+    Refuses a missing, truncated, or misshaped locator or record, ZIP64 multi-disk structure, and
+    any ZIP64 field that disagrees with a non-sentinel legacy value.
+    """
     locator_offset = end_offset - _ZIP64_LOCATOR.size
     if locator_offset < 0:
         raise PackageLimitError("ZIP64 package is missing its locator")
@@ -333,6 +351,7 @@ def _validate_zip64_legacy_value(
     sentinel: int,
     label: str,
 ) -> None:
+    """Refuse when a ZIP64 field and its legacy counterpart disagree about the same quantity."""
     if legacy != sentinel and legacy != actual:
         raise PackageLimitError(f"ZIP64 {label} disagrees with the legacy end record")
 
@@ -343,6 +362,11 @@ def _scan_central_directory(
     central_size: int,
     expected_count: int,
 ) -> None:
+    """Walk every central-directory record, refusing a directory the region cannot hold one way.
+
+    Refuses a truncated or unsigned record, a record naming a nonzero disk, records that overrun the
+    declared region, and a member count that disagrees with the end record.
+    """
     cursor = central_offset
     central_end = central_offset + central_size
     actual_count = 0
@@ -374,12 +398,15 @@ def _scan_central_directory(
 class GuardedZipReader:
     """Validate and stream every member of an already-open ``ZipFile``.
 
-    Construction fully validates the archive and caches every member's bytes.
-    This makes ordinary ``Document()`` opens and package-kernel reads share the
-    same validation, including for members not reachable from OPC relationships.
+    Construction fully validates the archive and caches every member's bytes. This makes an ordinary
+    ``Presentation()`` open share the same validation, including for members not reachable from OPC
+    relationships.
     """
 
     def __init__(self, zip_file: ZipFile):
+        """Wrap `zip_file`, splitting its records into all members and the subset that can be OPC
+        parts.
+        """
         self._zip_file = zip_file
         # -- every central-directory record, directory entries included: the physical-layout
         # -- checks derive each member's boundary from the next record's offset, so they need
@@ -405,6 +432,14 @@ class GuardedZipReader:
         return dict(self._parts), list(self.order)
 
     def _validate_metadata(self) -> None:
+        """Refuse member records the archive cannot read one way, or cannot support.
+
+        Covers noncanonical part names (through `_validate_member_name`), duplicate and case-
+        colliding names, names whose stored bytes differ from the canonical form, invalid or shared
+        local-header offsets, encryption, patched-data encoding, compression outside the two the OPC
+        ZIP mapping allows, non-regular filesystem entry types, negative sizes, and stored members
+        whose two sizes disagree.
+        """
         seen_names: set[str] = set()
         seen_equivalent_names: set[str] = set()
         seen_offsets: set[int] = set()
@@ -463,6 +498,13 @@ class GuardedZipReader:
                 )
 
     def _read_all_members(self) -> Dict[str, bytes]:
+        """Read every part, validating physical layout as it goes.
+
+        Each member's boundary comes from the next record's offset, so a gap or an overlap refuses
+        instead of returning whatever bytes sit there. `[Content_Types].xml` is read first so the
+        member list can be checked against it; an archive carrying no such member skips that check
+        and fails in the OPC layer instead.
+        """
         if not self._infos:
             return {}
         stream = self._zip_file.fp
@@ -525,6 +567,12 @@ class GuardedZipReader:
         return parts
 
     def _validate_content_types(self, content_types: bytes) -> None:
+        """Refuse members that `[Content_Types].xml` gives no type, by Override or by Default
+        extension.
+
+        PowerPoint refuses such a package whatever the part is for, so accepting it here would hand
+        back a deck that will not open.
+        """
         defaults, overrides = _parse_content_types(content_types)
 
         # -- OPC gives every part a content type, by an Override naming the part or a
@@ -552,6 +600,7 @@ class GuardedZipReader:
             )
 
     def _validate_local_header(self, info: ZipInfo, boundary: int) -> int:
+        """Check one member's local header against its central-directory record and its boundary."""
         stream = self._zip_file.fp
         if stream is None:
             raise PackageLimitError("ZIP package stream is closed")
@@ -621,6 +670,9 @@ class GuardedZipReader:
         return data_start
 
     def _validate_data_descriptor(self, info: ZipInfo, data_end: int, boundary: int) -> None:
+        """Check a member's trailing data descriptor, refusing bytes between members that nothing
+        declares.
+        """
         stream = self._zip_file.fp
         if stream is None:
             raise PackageLimitError("ZIP package stream is closed")
@@ -659,6 +711,11 @@ class GuardedZipReader:
             )
 
     def _inflate_member(self, info: ZipInfo, data_start: int) -> bytes:
+        """Inflate one member from its raw bytes, checking CRC and declared size.
+
+        Reads the compressed bytes directly rather than through `ZipFile.read`, so a size header
+        that lies cannot pass unnoticed.
+        """
         stream = self._zip_file.fp
         if stream is None:
             raise PackageLimitError("ZIP package stream is closed")
@@ -744,6 +801,11 @@ def _member_extension(name: str) -> str:
 
 
 def _parse_content_types(data: bytes) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Parse `[Content_Types].xml` into its Default and Override maps.
+
+    Refuses a malformed document, a DTD, an unexpected root element, an invalid or ambiguous Default
+    or Override declaration, and any other child element.
+    """
     try:
         root = etree.fromstring(data, _CONTENT_TYPES_PARSER)
     except etree.XMLSyntaxError as exc:
@@ -831,6 +893,12 @@ def _is_directory_entry(info: ZipInfo) -> bool:
 
 
 def _validate_member_name(name: str) -> None:
+    """Refuse a member name that cannot denote one unambiguous OPC part.
+
+    Covers empty names, names that are not NFC-normalized, leading or trailing slashes, backslashes,
+    URI query or fragment characters, control characters, `.` and `..` path segments, drive-
+    qualified paths, and percent escapes that are malformed or unsafe.
+    """
     if not name:
         raise PackageLimitError("ZIP contains an empty member name")
     if name != unicodedata.normalize("NFC", name):
