@@ -71,7 +71,7 @@ Confirm the install:
 
 ```bash
 paper-pptx-doctor
-# paper-pptx-doctor: OK (paper-pptx 0.1.3)
+# paper-pptx-doctor: OK (paper-pptx 0.2.0)
 ```
 
 The doctor verifies that `paper-pptx` metadata is present, `python-pptx` is
@@ -417,7 +417,7 @@ corruption prevention:
   `import pptx` fails loudly when both `python-pptx` and `paper-pptx` metadata
   are installed, because a mixed site-packages can silently run a blend of the
   two libraries. `pptx.__version__` stays `"1.0.2"` (the upstream API surface),
-  and `pptx.__paper_version__` (`"0.1.3"`) identifies the fork release — so
+  and `pptx.__paper_version__` (`"0.2.0"`) identifies the fork release — so
   callers can distinguish "which upstream surface" from "which paper release".
 
 ## The safety contract
@@ -587,7 +587,7 @@ If you reference paper-pptx in research or writing:
   title   = {paper-pptx: an agent-first structure editor for PowerPoint files},
   author  = {{Paper Instruments, Inc.}},
   year    = {2026},
-  version = {0.1.3},
+  version = {0.2.0},
   url     = {https://github.com/paper-instruments/paper-pptx}
 }
 ```
