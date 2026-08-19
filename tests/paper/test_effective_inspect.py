@@ -17,7 +17,7 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.errors import UnsupportedStructureError
-from pptx.inspect import content_hash, effective_font, inspect_text
+from pptx.inspect import content_hash, effective_font, effective_paragraph_format, inspect_text
 from pptx.util import Emu
 
 from . import corpus
@@ -536,7 +536,6 @@ def test_bold_italic_underline_resolve_with_schema_defaults():
 
 def test_effective_paragraph_format_resolves_alignment_and_spacing():
     from pptx.enum.text import PP_ALIGN
-    from pptx.inspect import effective_paragraph_format
 
     prs = _open(BRANDED)
     paragraph = prs.slides[0].placeholders[1].text_frame.paragraphs[0]
@@ -555,7 +554,265 @@ def test_effective_paragraph_format_resolves_alignment_and_spacing():
 
     payload = fmt.to_dict()
     assert payload["schema"] == "paper-effective-paragraph-format"
-    assert payload["version"] == 1
+    assert payload["version"] == 2  # -- v2 added the `bullet` field
+
+
+# ----------------------------------------------------------- inherited bullet resolution
+
+
+def _bullet(paragraph):
+    return effective_paragraph_format(paragraph).bullet
+
+
+def _graft_lst_style_bullet(shape, lvl_tag, bullet_tag, **attrs):
+    """Add `a:lstStyle/<lvl_tag>/<bullet_tag>` to `shape`'s `a:txBody`, in memory only.
+
+    `get_or_add_lstStyle` places `a:lstStyle` at its schema position in `CT_TextBody`
+    (after `a:bodyPr`, before the first `a:p`); appending it would invalidate the fragment.
+    """
+    lst_style = shape.text_frame._txBody.get_or_add_lstStyle()
+    level_properties = etree.SubElement(lst_style, "{%s}%s" % (_A, lvl_tag))
+    bullet = etree.SubElement(level_properties, "{%s}%s" % (_A, bullet_tag))
+    for name, value in attrs.items():
+        bullet.set(name, value)
+    return bullet
+
+
+def _plain_textbox(prs):
+    """A non-placeholder shape: its chain takes the `presentation defaultTextStyle` branch."""
+    box = prs.slides[0].shapes.add_textbox(0, 0, Emu(914400 * 4), Emu(914400))
+    box.text_frame.paragraphs[0].add_run().text = "no bullet anywhere"
+    return box
+
+
+def test_bullet_resolves_the_inherited_character_bullet_from_the_master():
+    """The regression this feature exists for: `BulletFormat.type` reads |None| here."""
+    paragraph = _open(BRANDED).slides[0].placeholders[1].text_frame.paragraphs[0]
+    assert paragraph.bullet.type is None  # -- local state says nothing
+
+    bullet = _bullet(paragraph)
+
+    assert bullet.type == "character"
+    assert bullet.char == "•"
+    assert bullet.resolved is True
+    assert bullet.number_scheme is None
+    assert bullet.start_at is None
+    assert _supplied_levels(bullet) == ["master txStyles bodyStyle lvl1"]
+
+
+def test_bullet_resolves_per_indent_level_not_always_level_one():
+    """The lvl=1 paragraph must pick up bodyStyle lvl2's en dash, not lvl1's bullet."""
+    paragraph = _open(BRANDED).slides[0].placeholders[1].text_frame.paragraphs[1]
+
+    bullet = _bullet(paragraph)
+
+    assert bullet.type == "character"
+    assert bullet.char == "–"
+    assert _supplied_levels(bullet) == ["master txStyles bodyStyle lvl2"]
+
+
+def test_bullet_reports_master_bunone_as_a_positive_terminal():
+    """`buNone` is an answer, not an absence: the master supplies it, not the fallback."""
+    paragraph = _open(BRANDED).slides[0].shapes.title.text_frame.paragraphs[0]
+
+    bullet = _bullet(paragraph)
+
+    assert bullet.type == "none"
+    assert bullet.resolved is True
+    assert bullet.char is None
+    # -- a resolver that walked past the buNone would also say "none", but would land on the
+    # -- synthetic "rendering default" step instead; only the supplying rung tells them apart
+    assert _supplied_levels(bullet) == ["master txStyles titleStyle lvl1"]
+
+
+def test_bullet_resolves_a_local_numbered_override_at_the_first_rung():
+    paragraph = _open(BRANDED).slides[0].placeholders[1].text_frame.paragraphs[0]
+    paragraph.bullet.set_numbered("arabicPeriod", start_at=3)
+
+    bullet = _bullet(paragraph)
+
+    assert bullet.type == "numbered"
+    assert bullet.number_scheme == "arabicPeriod"
+    assert bullet.start_at == 3
+    assert bullet.char is None
+    assert _supplied_levels(bullet) == ["paragraph pPr"]
+
+
+def test_bullet_resolves_to_none_when_the_whole_chain_is_exhausted():
+    """Exhaustion resolves — there is no ECMA default bullet, so provenance says so."""
+    prs = _open(BRANDED)
+    paragraph = _plain_textbox(prs).text_frame.paragraphs[0]
+
+    bullet = _bullet(paragraph)
+
+    assert bullet.type == "none"
+    assert bullet.resolved is True
+    assert _supplied_levels(bullet) == ["rendering default"]
+    assert bullet.provenance[-1].part is None
+    assert bullet.provenance[-1].supplied is True
+
+
+def test_bullet_shape_lst_style_bunone_shadows_the_master_buchar():
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", "buNone")
+
+    bullet = _bullet(body.text_frame.paragraphs[0])
+
+    assert bullet.type == "none"
+    assert bullet.resolved is True
+    assert _supplied_levels(bullet) == ["shape lstStyle lvl1"]
+
+
+def test_bullet_sees_an_inherited_bublip_outside_the_choice_group():
+    """`a:buBlip` is not an `eg_bullet` member; reading only the descriptor would walk past."""
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    buBlip = _graft_lst_style_bullet(body, "lvl2pPr", "buBlip")
+    etree.SubElement(buBlip, "{%s}blip" % _A)
+
+    bullet = _bullet(body.text_frame.paragraphs[1])  # -- the lvl=1 paragraph
+
+    assert bullet.type == "picture"
+    assert bullet.resolved is True
+    assert bullet.char is None
+    assert bullet.number_scheme is None
+    assert bullet.start_at is None
+    assert _supplied_levels(bullet) == ["shape lstStyle lvl2"]
+
+
+@pytest.mark.parametrize(
+    ("bullet_tag", "attrs"),
+    [
+        ("buChar", {}),  # -- schema-required @char missing
+        ("buAutoNum", {}),  # -- schema-required @type missing
+        ("buAutoNum", {"type": "arabicPeriod", "startAt": "many"}),  # -- @startAt not an int
+    ],
+)
+def test_bullet_reports_a_malformed_member_as_unresolved(bullet_tag, attrs):
+    """Honest over plausible: no guessed value, and no walking on to the master's bullet.
+
+    Reading these through the generated `RequiredAttribute` descriptors would raise
+    `InvalidXmlError` instead, turning the honesty rule into a crash on malformed input.
+    """
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", bullet_tag, **attrs)
+
+    bullet = _bullet(body.text_frame.paragraphs[0])
+
+    assert bullet.resolved is False
+    assert bullet.type is None
+    assert (bullet.char, bullet.number_scheme, bullet.start_at) == (None, None, None)
+    assert _supplied_levels(bullet) == []
+    # -- provenance is intact up to and including the offending rung ...
+    offender = bullet.provenance[-1]
+    assert offender.supplied is False
+    assert bullet_tag in offender.detail
+    # -- ... and the walk stopped there rather than reporting the master's bullet
+    assert [step.level for step in bullet.provenance] == ["paragraph pPr", "shape lstStyle lvl1"]
+
+
+def test_bullet_resolves_an_inherited_numbered_bullet_and_defaults_start_at_to_one():
+    """`@startAt` is optional on `a:buAutoNum`; absent means the sequence starts at 1."""
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+    _graft_lst_style_bullet(body, "lvl1pPr", "buAutoNum", type="romanUcParenR")
+
+    bullet = _bullet(body.text_frame.paragraphs[0])
+
+    assert bullet.type == "numbered"
+    assert bullet.number_scheme == "romanUcParenR"
+    assert bullet.start_at == 1
+    assert bullet.char is None
+    assert _supplied_levels(bullet) == ["shape lstStyle lvl1"]
+
+
+def test_bullet_provenance_lists_every_consulted_rung_in_walk_order():
+    prs = _open(BRANDED)
+    placeholder_bullet = _bullet(prs.slides[0].placeholders[1].text_frame.paragraphs[1])
+    assert [step.level for step in placeholder_bullet.provenance] == [
+        "paragraph pPr",
+        "shape lstStyle lvl2",
+        "layout placeholder lstStyle lvl2",
+        "master placeholder lstStyle lvl2",
+        "master txStyles bodyStyle lvl2",
+    ]
+    assert _supplied_levels(placeholder_bullet) == ["master txStyles bodyStyle lvl2"]
+    # -- a silent rung says which silence it is: rung absent, or rung present with no bullet
+    assert [step.detail for step in placeholder_bullet.provenance[:-1]] == [
+        "no bullet here",  # -- this paragraph does have an a:pPr; it carries only lvl="1"
+        "level not present",
+        "level not present",
+        "level not present",
+    ]
+
+    textbox_bullet = _bullet(_plain_textbox(prs).text_frame.paragraphs[0])
+    assert [step.level for step in textbox_bullet.provenance] == [
+        "paragraph pPr",
+        "shape lstStyle lvl1",
+        "presentation defaultTextStyle lvl1",
+        "rendering default",
+    ]
+    assert _supplied_levels(textbox_bullet) == ["rendering default"]
+
+
+def test_bullet_resolution_never_mutates_the_package():
+    """A `get_or_add_*` read would materialize an empty `a:pPr` and change the saved bytes."""
+    prs = _open(BRANDED)
+    paragraphs = [
+        paragraph
+        for shape in prs.slides[0].shapes  # -- title (buNone path) and body (buChar path)
+        if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs
+    ]
+    before = snapshot_parts(prs)
+
+    resolved = [_bullet(paragraph) for paragraph in paragraphs]
+
+    assert [bullet.type for bullet in resolved] == ["none", "character", "character"]
+    assert snapshot_parts(prs) == before
+
+
+def test_bullet_payload_serializes_in_the_documented_shape():
+    prs = _open(BRANDED)
+    body = prs.slides[0].placeholders[1]
+
+    payload = effective_paragraph_format(body.text_frame.paragraphs[0]).to_dict()
+    assert payload["schema"] == "paper-effective-paragraph-format"
+    assert payload["version"] == 2
+    bullet = payload["bullet"]
+    assert sorted(bullet) == ["char", "number_scheme", "provenance", "resolved", "start_at", "type"]
+    assert bullet["type"] == "character"
+    assert bullet["char"] == "•"
+    assert bullet["number_scheme"] is None
+    assert bullet["start_at"] is None
+    assert bullet["resolved"] is True
+    assert bullet["provenance"][-1] == {
+        "level": "master txStyles bodyStyle lvl1",
+        "part": "/ppt/slideMasters/slideMaster1.xml",
+        "detail": 'buChar char="•"',
+        "supplied": True,
+    }
+
+    body.text_frame.paragraphs[0].bullet.set_numbered("arabicPeriod", start_at=3)
+    numbered = effective_paragraph_format(body.text_frame.paragraphs[0]).to_dict()["bullet"]
+    assert numbered["type"] == "numbered"
+    assert numbered["char"] is None  # -- char is populated for character bullets only
+    assert numbered["number_scheme"] == "arabicPeriod"
+    assert numbered["start_at"] == 3
+
+    title = prs.slides[0].shapes.title
+    none_bullet = effective_paragraph_format(title.text_frame.paragraphs[0]).to_dict()["bullet"]
+    assert none_bullet["type"] == "none"
+    assert (none_bullet["char"], none_bullet["number_scheme"], none_bullet["start_at"]) == (
+        None,
+        None,
+        None,
+    )
+
+
+# ------------------------------------------------------------------ shape-format resolution
 
 
 def test_effective_shape_format_resolves_explicit_fill_through_clrmap():

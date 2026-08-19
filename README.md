@@ -161,6 +161,18 @@ for step in font.size.provenance:
         print("supplied by", step.level)   # e.g. "master txStyles titleStyle lvl1"
 ```
 
+`effective_paragraph_format()` resolves the paragraph's bullet the same way:
+which bullet actually renders, walked through the same chain, reported with
+the same provenance. On a branded template that is the common case — the
+master supplies the `•` and the paragraph's own markup says nothing. Two
+answers that look like absences are resolved answers: an explicit `a:buNone`
+at any rung is the positive statement "no bullet renders here", not a miss,
+and a chain carrying no bullet at any rung also resolves to no bullet rather
+than reporting unresolved. This is the read half of **Real bullets, not glyph
+hacks** below — that API writes genuine bullet markup onto a paragraph, this
+one reports the bullet the deck renders whether or not the paragraph sets
+one.
+
 **Visibility-complete text inspection.** Iterating top-level shapes misses text
 inside nested groups and table cells, and `shape.text` flattens slide-number
 fields and line breaks into plain characters. `pptx.inspect.inspect_text()`
@@ -489,6 +501,16 @@ path of this package. Known gaps, honestly:
 - **Deck diff assumes lineage.** `diff_decks` matches slides by permanent ID,
   which serves decks derived from a common ancestor (v4 saved from v3);
   matching independently-authored decks is out of scope today.
+- **Bullet typeface and size are not resolved.**
+  `effective_paragraph_format()` reports which bullet renders, but not the
+  typeface it renders in or the size it renders at: `a:buFont` and `a:buSzPct`
+  sit outside the bullet choice group and inherit on their own chains, so each
+  needs its own walk. Strictly additive when it lands.
+- **The deck diff does not report bullets.** `diff_decks` compares text and
+  field markers, not paragraph formatting, so a list changing from bulleted to
+  numbered — or a template losing its bullets across a rebind or compose —
+  produces no diff entry. That would be a new diff dimension rather than a new
+  field on an existing one.
 
 Deliberate non-goals: no rendering or layout-geometry computation (appearance
 verification belongs to a harness, not this library), no SmartArt authoring
