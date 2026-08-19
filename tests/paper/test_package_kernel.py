@@ -34,6 +34,28 @@ def _slide1_xml(relpath):
     return zip_member_map(corpus.fixture_path(relpath).read_bytes())["ppt/slides/slide1.xml"]
 
 
+def _deck_with_extra_members(relpath, target, extras):
+    """Write corpus fixture `relpath` to `target` with `extras` (name -> bytes) appended.
+
+    Kept out of the corpus deliberately: no fixture carries these shapes today and adding
+    one would change what every other suite sees.
+    """
+    with zipfile.ZipFile(corpus.fixture_path(relpath)) as incoming:
+        with zipfile.ZipFile(str(target), "w") as outgoing:
+            for info in incoming.infolist():
+                outgoing.writestr(info, incoming.read(info.filename))
+            for name, data in extras.items():
+                outgoing.writestr(name, data)
+    return target
+
+
+def _folder_record_deck(target):
+    """MINIMAL plus three ZIP folder records, one of them nested under another."""
+    return _deck_with_extra_members(
+        MINIMAL, target, {"docProps/": b"", "ppt/": b"", "ppt/slides/": b""}
+    )
+
+
 # -------------------------------------------------------------------------- xml_equivalent
 
 
@@ -132,6 +154,70 @@ def test_noop_round_trip_is_byte_identical(relpath, tmp_path):
     diff = patch_save(_fixture(relpath), Presentation(_fixture(relpath)), str(out))
     assert diff.is_empty
     assert out.read_bytes() == corpus.fixture_path(relpath).read_bytes()
+
+
+def test_noop_round_trip_is_byte_identical_on_a_deck_carrying_folder_records(tmp_path):
+    """A ZIP folder record is not a part, so `save()` structurally cannot emit one.
+
+    Its absence from the candidate save is therefore never evidence that the document
+    changed, and the documented no-op guarantee has to hold for these decks too --
+    "unzip, edit, rezip" pipelines emit folder records by default.
+    """
+    source = _folder_record_deck(tmp_path / "folders.pptx")
+    out = tmp_path / "folders_noop.pptx"
+
+    diff = patch_save(str(source), Presentation(str(source)), str(out))
+
+    assert diff.is_empty
+    assert out.read_bytes() == source.read_bytes()
+    assert len(Presentation(str(out)).slides) == 1  # -- equal bytes AND a readable deck
+    assert "ppt/" in zip_member_map(out.read_bytes())
+
+
+def test_edited_patch_save_changes_one_part_and_still_reports_dropped_folder_records(
+    tmp_path,
+):
+    """An actual edit rewrites, which drops the folder records -- as `save()` and
+    PowerPoint's own Save As both do. The residual must keep saying so: exactly one part
+    CHANGED, and the three records honestly reported as removed rather than hidden."""
+    source = _folder_record_deck(tmp_path / "folders.pptx")
+    presentation = Presentation(str(source))
+    presentation.slides[0].shapes.title.text_frame.paragraphs[0].runs[0].text = "Edited title"
+    out = tmp_path / "folders_edit.pptx"
+
+    diff = patch_save(str(source), presentation, str(out))
+
+    assert [d.partname for d in diff.deltas if d.change == "changed"] == ["/ppt/slides/slide1.xml"]
+    assert [d.partname for d in diff.deltas if d.change == "removed"] == [
+        "/docProps/",
+        "/ppt/",
+        "/ppt/slides/",
+    ]
+    assert not [d for d in diff.deltas if d.change == "added"]
+    members = zip_member_map(out.read_bytes())
+    assert not [name for name in members if name.endswith("/")]
+    assert Presentation(str(out)).slides[0].shapes.title.text == "Edited title"
+
+
+def test_noop_patch_save_still_drops_and_reports_an_orphan_part(tmp_path):
+    """The boundary the folder-record forgiveness must never widen to cover.
+
+    An unreferenced part with a declared content type is real content: `save()` drops it
+    (as PowerPoint does), so a no-op `patch_save` must rewrite rather than byte-copy, and
+    must report the removal. `.jpeg` is a declared Default in MINIMAL, so the part has a
+    content type and the deck is not refused at open for lacking one.
+    """
+    source = _deck_with_extra_members(
+        MINIMAL, tmp_path / "orphan.pptx", {"ppt/media/orphan.jpeg": b"\xff\xd8\xffnot a part"}
+    )
+    out = tmp_path / "orphan_noop.pptx"
+
+    diff = patch_save(str(source), Presentation(str(source)), str(out))
+
+    assert [(d.partname, d.change) for d in diff.deltas] == [("/ppt/media/orphan.jpeg", "removed")]
+    assert out.read_bytes() != source.read_bytes()
+    assert "ppt/media/orphan.jpeg" not in zip_member_map(out.read_bytes())
+    assert len(Presentation(str(out)).slides) == 1
 
 
 def test_noop_on_a_libreoffice_file_restores_every_part_but_content_types(tmp_path):

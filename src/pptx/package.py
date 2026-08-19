@@ -426,6 +426,23 @@ def _diff_maps(map_a: dict, map_b: dict, label_a: str, label_b: str) -> PackageD
     return PackageDiff(tuple(deltas))
 
 
+def _save_cannot_emit(name: str) -> bool:
+    """True when `save()` structurally cannot emit the zip member called `name`.
+
+    `save()` rebuilds from the OPC part graph, so a ZIP folder record -- not a part, carrying
+    no bytes -- can never appear in its output. Its absence from a candidate is therefore
+    never evidence that the document changed; every other absent member is real content
+    leaving the package and still counts as one.
+
+    The trailing slash is the whole test, because the member maps are keyed by name and no
+    `ZipInfo` survives to consult. `_zipguard._is_directory_entry` asks `ZipInfo.is_dir()`,
+    which on Windows also matches a backslash-suffixed name; this one does not. That
+    divergence is safe in the only direction it goes: a name missed here defeats
+    `unchanged` and the package is rewritten as today, never the reverse.
+    """
+    return name.endswith("/")
+
+
 def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     """Save `document` to `out_path`, restoring original bytes for unchanged XML parts.
 
@@ -440,6 +457,13 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     `os.replace`, so a mid-write failure leaves any existing `out_path` untouched. When
     nothing changed at all, `out_path` is written as an exact byte copy of `original_path`
     (the no-op round trip is byte-identical).
+
+    "Nothing changed" is decided over the members that can be parts: none added, none
+    removed, each semantically identical to its counterpart. A ZIP folder record such as
+    `ppt/` is not a part, so `save()` structurally cannot emit one and its absence from the
+    serialized candidate never evidences a change. Such a record therefore survives a no-op
+    round trip — the byte copy reproduces it — and is dropped by an actual edit, which
+    rebuilds the package from the members `save()` emitted.
 
     Not interchangeable with :meth:`.Presentation.save`, which is also atomic on a path:
     atomicity is how the bytes land, narrowness is which bytes get written. `save()`
@@ -476,8 +500,12 @@ def patch_save(original_path: str, document, out_path: str) -> PackageDiff:
     # -- (in-place narrow save), in which case a post-write diff would always be empty
     residual = _diff_maps(original_map, out_map, str(original_path), str(out_path))
 
-    unchanged = set(out_map) == set(original_map) and all(
-        out_map[name] == original_map[name] for name in out_map
+    # -- forgiving the one absence `save()` could not have avoided is what lets a genuine
+    # -- no-op reach the byte-copy path below; anything else dropped is a real change
+    unchanged = (
+        set(out_map) <= set(original_map)
+        and all(_save_cannot_emit(name) for name in set(original_map) - set(out_map))
+        and all(out_map[name] == original_map[name] for name in out_map)
     )
     if unchanged:
         _atomic_write_bytes(_read_file_bytes(original_path), out_path)
