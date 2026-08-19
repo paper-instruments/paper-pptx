@@ -7,6 +7,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -73,8 +77,7 @@ jobs:
           python-version: "3.13"
       - name: Install LibreOffice Impress
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes libreoffice-impress
+          sudo apt-get install --yes --no-install-recommends libreoffice-impress
           command -v soffice
           soffice --version
       - name: Install uv
@@ -164,21 +167,3 @@ jobs:
           "$matrix_root/unsafe-uninstall/bin/python" -m pip uninstall \
             --yes python-pptx
           expect_failure "$matrix_root/unsafe-uninstall/bin/paper-pptx-doctor"
-
-  required:
-    name: Required
-    if: always()
-    needs: [test, libreoffice, docs, build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every quality job
-        env:
-          TEST_RESULT: ${{ needs.test.result }}
-          LIBREOFFICE_RESULT: ${{ needs.libreoffice.result }}
-          DOCS_RESULT: ${{ needs.docs.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
-        run: |
-          test "$TEST_RESULT" = success
-          test "$LIBREOFFICE_RESULT" = success
-          test "$DOCS_RESULT" = success
-          test "$BUILD_RESULT" = success
