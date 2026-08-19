@@ -29,7 +29,7 @@ class PaperRefusal(Exception):
 
 
 class PackageLimitError(PaperRefusal):
-    """The package archive is too large, ambiguous, or unsafe to expand."""
+    """The package archive is ambiguous or unsafe to expand."""
 
 
 class AmbiguousTargetError(PaperRefusal):

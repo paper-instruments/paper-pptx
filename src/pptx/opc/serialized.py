@@ -7,7 +7,7 @@ import posixpath
 import zipfile
 from typing import IO, TYPE_CHECKING, Any, Container, Sequence
 
-from pptx._zipguard import GuardedZipReader, enforce_compressed_size, preflight_zip
+from pptx._zipguard import GuardedZipReader, preflight_zip
 from pptx.exc import PackageNotFoundError
 from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.oxml import CT_Types, serialize_part_xml
@@ -145,8 +145,6 @@ class _PhysPkgReader(Container[PackURI]):
         if os.path.isdir(path):
             return _DirPkgReader(path)
 
-        if os.path.isfile(path):
-            enforce_compressed_size(path)
         if zipfile.is_zipfile(path):
             return _ZipPkgReader(path)
 
@@ -205,7 +203,6 @@ class _ZipPkgReader(_PhysPkgReader):
     @lazyproperty
     def _blobs(self) -> dict[PackURI, bytes]:
         """dict mapping partname to package part binaries."""
-        enforce_compressed_size(self._pkg_file)
         preflight_zip(self._pkg_file)
         with zipfile.ZipFile(self._pkg_file, "r") as z:
             guarded = GuardedZipReader(z)
