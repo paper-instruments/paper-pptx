@@ -107,7 +107,8 @@ class PresentationPart(XmlPart):
         """Save this presentation package to `path_or_stream`.
 
         `path_or_stream` can be either a path to a filesystem location (a string) or a
-        file-like object.
+        file-like object. A pass-through; :meth:`pptx.opc.package.OpcPackage.save` carries
+        the write contract.
         """
         self.package.save(path_or_stream)
 
