@@ -140,15 +140,23 @@ def _build_qbr_deck(tmp_path):
         fresh = refind(prs, closing_title_anchor)
         replace_text_at(prs, fresh, "Next steps", "Next steps & owners")
 
-    # -- exit gate: the deck is about to leave the pipeline. Speaker
-    # -- notes are the talk track and stay; metadata, unused layouts, and any
-    # -- unreferenced media go. The report's budget is the scrub's own evidence.
-    scrub_report = prs.scrub(
-        comments=True, metadata=True, unused_layouts=True, unreachable_media=True
-    )
-    assert scrub_report.notes_slides_removed == ()
-    assert len(scrub_report.unused_layouts_removed) == 9
-    assert scrub_report.metadata_fields_cleared != ()
+    # -- exit gate: the deck is about to leave the pipeline. Speaker notes are the talk
+    # -- track and stay; review comments, authorship, and unused layouts go. Upstream
+    # -- primitives only - a part leaves the package by becoming unreachable.
+    for slide in prs.slides:
+        for rId, rel in list(slide.part.rels.items()):
+            if not rel.is_external and rel.reltype.endswith("/comments"):
+                slide.part.drop_rel(rId)
+    core = prs.core_properties
+    core.author = ""
+    core.last_modified_by = ""
+    layouts_before = sum(len(master.slide_layouts) for master in prs.slide_masters)
+    for master in prs.slide_masters:
+        for layout in list(master.slide_layouts):
+            if not layout.used_by_slides:
+                master.slide_layouts.remove(layout)
+    layouts_after = sum(len(master.slide_layouts) for master in prs.slide_masters)
+    assert layouts_before - layouts_after == 9
 
     # -- narrow save: only genuinely-changed parts differ from the template
     out_path = tmp_path / "qbr.pptx"
@@ -197,9 +205,18 @@ def test_walkthrough_end_to_end(tmp_path):
         assert field_tokens == expected, "slide %d fields: %r" % (ordinal, field_tokens)
         assert any(b.text == "Q4 QBR" for b in blocks)
 
-    # -- the scrub held: notes survive, personal metadata does not
+    # -- the exit gate held: notes survive, personal metadata does not, and every
+    # -- layout still in the delivered package is one a slide actually uses
     assert reopened.core_properties.author == ""
     assert reopened.core_properties.last_modified_by == ""
+    surviving_layouts = {
+        str(master.slide_layouts[idx].part.partname)
+        for master in reopened.slide_masters
+        for idx in range(len(master.slide_layouts))
+    }
+    assert surviving_layouts == {
+        str(slide.slide_layout.part.partname) for slide in reopened.slides
+    }
 
     # -- the brand asset swapped formats and was copied to the title slide (shared part)
     closing_pic = reopened.slides[-1].shapes.picture_by_name("gauntlet_img_2")
