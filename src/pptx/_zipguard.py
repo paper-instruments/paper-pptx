@@ -381,14 +381,20 @@ class GuardedZipReader:
 
     def __init__(self, zip_file: ZipFile):
         self._zip_file = zip_file
+        # -- every central-directory record, directory entries included: the physical-layout
+        # -- checks derive each member's boundary from the next record's offset, so they need
+        # -- the complete picture or a skipped record reads as an unexplained gap.
         self._infos = tuple(zip_file.infolist())
+        # -- the subset that can be an OPC part. A directory record carries no content and no
+        # -- part name can denote one, so it is ignored rather than treated as invalid input.
+        self._part_infos = tuple(i for i in self._infos if not _is_directory_entry(i))
         self._validate_metadata()
         self._parts = self._read_all_members()
 
     @property
     def order(self) -> Tuple[str, ...]:
         """Member names in central-directory order."""
-        return tuple(info.filename for info in self._infos)
+        return tuple(info.filename for info in self._part_infos)
 
     def read(self, name: str) -> bytes:
         """Return validated bytes for member `name`."""
@@ -408,7 +414,12 @@ class GuardedZipReader:
                 raise PackageLimitError(
                     f"ZIP member name {name!r} contains a noncanonical NUL suffix"
                 )
-            _validate_member_name(name)
+            # -- a directory record is not an OPC part, so the part-name rules below do not
+            # -- apply to it. It is still a physical record: the duplicate-name, offset,
+            # -- encryption and compression checks that follow cover it like any other.
+            directory_entry = _is_directory_entry(info)
+            if not directory_entry:
+                _validate_member_name(name)
 
             if name in seen_names:
                 raise PackageLimitError(f"ZIP contains duplicate member name {name!r}")
@@ -434,8 +445,8 @@ class GuardedZipReader:
                 raise PackageLimitError(
                     f"ZIP member {name!r} uses unsupported compression method {info.compress_type}"
                 )
-            if info.is_dir() or info.external_attr & 0x10:
-                raise PackageLimitError(f"ZIP member {name!r} is a directory entry")
+            if directory_entry:
+                continue
 
             unix_mode = (info.external_attr >> 16) & 0xFFFF
             file_type = stat.S_IFMT(unix_mode)
@@ -483,7 +494,7 @@ class GuardedZipReader:
         parts: Dict[str, bytes] = {}
         try:
             content_types_info = next(
-                (info for info in self._infos if info.filename == _CONTENT_TYPES_NAME),
+                (info for info in self._part_infos if info.filename == _CONTENT_TYPES_NAME),
                 None,
             )
             if content_types_info is not None:
@@ -495,11 +506,18 @@ class GuardedZipReader:
                 parts[content_types_info.filename] = content_types
                 self._validate_content_types(content_types)
 
-            for info in self._infos:
+            for info in self._part_infos:
                 if info is content_types_info:
                     continue
                 data_start = self._validate_local_header(info, boundaries[info.header_offset])
                 parts[info.filename] = self._inflate_member(info, data_start)
+
+            # -- a directory record yields no part, but its local header is still validated
+            # -- so the region it occupies cannot conceal undeclared bytes.
+            for info in self._infos:
+                if not _is_directory_entry(info):
+                    continue
+                self._validate_local_header(info, boundaries[info.header_offset])
         finally:
             if original_position is not None:
                 with suppress(AttributeError, OSError, TypeError, ValueError):
@@ -514,9 +532,13 @@ class GuardedZipReader:
         # -- PowerPoint refuses such a package whatever the part is for -- a slide, an image
         # -- it draws, or a thumbnail it never reads. Keys are normalized exactly as
         # -- `_parse_content_types` stored them.
+        #
+        # -- Iterate the part records, not every archive record: a directory record has no
+        # -- extension and no Override, so it resolves to no content type and would be
+        # -- refused here, even though PowerPoint opens packages that contain them.
         undeclared = sorted(
             info.filename
-            for info in self._infos
+            for info in self._part_infos
             if info.filename != _CONTENT_TYPES_NAME
             and ("/" + info.filename).casefold() not in overrides
             and _member_extension(info.filename) not in defaults
@@ -783,6 +805,29 @@ def _parse_content_types(data: bytes) -> Tuple[Dict[str, str], Dict[str, str]]:
             "[Content_Types].xml contains an unsupported declaration"
         )
     return defaults, overrides
+
+
+def _is_directory_entry(info: ZipInfo) -> bool:
+    """True for a ZIP directory record, which is never an OPC part.
+
+    A directory record carries no content and no part name can denote one, so a reader
+    ignores it rather than treating the package as invalid. Producers that emit them by
+    default include the ``zip`` CLI, ``shutil.make_archive`` and Java's
+    ``ZipOutputStream`` -- every "unzip, edit, rezip" pipeline passes through one.
+
+    The trailing slash is the whole test. A record carrying only the MS-DOS directory
+    attribute, with no slash, is deliberately NOT treated as a directory: such a name
+    denotes a file, and a package holding both a file ``ppt`` and members under ``ppt/``
+    contradicts itself. PowerPoint refuses that file, so admitting it would help nobody.
+
+    The empty-name guard keeps this callable before ``_validate_metadata`` runs: on Python
+    3.9 and 3.10 ``ZipInfo.is_dir`` reads ``filename[-1]`` and raises ``IndexError`` on an
+    empty name, which would escape as an untyped crash before the empty-name refusal fires.
+    An empty name is never a directory record, so returning False here defers it to
+    ``_validate_member_name``, which reports it as the ``PackageLimitError`` it is. On 3.11+
+    ``is_dir`` already returns False for an empty name, so this only aligns 3.9/3.10.
+    """
+    return bool(info.filename) and info.is_dir()
 
 
 def _validate_member_name(name: str) -> None:
