@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, distribution
 
-__paper_version__ = "0.1.2"
+__paper_version__ = "0.1.3"
 
 
 def assert_distribution_identity() -> None:

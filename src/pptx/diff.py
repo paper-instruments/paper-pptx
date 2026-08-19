@@ -288,7 +288,9 @@ def _source_package_map(source, prs, label: str) -> dict:
 
     if isinstance(source, _PresentationProxy):
         buffer = io.BytesIO()
-        prs.save(buffer)
+        # -- serialize through the package, not `Presentation.save`: this is a read for
+        # -- comparison, not a publish, so an open `batch()` block must not refuse it
+        prs.part.package.save(buffer)
         return _read_zip_map_from_bytes(buffer.getvalue(), "%s normalized input" % label)
     if isinstance(source, (str, bytes, os.PathLike)):
         return _read_zip_map(os.fspath(source))
