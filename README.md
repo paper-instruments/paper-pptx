@@ -15,13 +15,13 @@
 
 **An import-compatible, agent-first structure editor for PowerPoint files, designed to prevent silent corruption when editing existing decks.**
 
-`paper-pptx` is a drop-in hard fork of [python-pptx](https://github.com/scanny/python-pptx) `v1.0.2` for safely inspecting, editing, composing, and verifying existing PowerPoint (`.pptx`) presentations. It keeps python-pptx's package layer, XML mapping, and object model. It adds the rendered values a deck actually shows, edits that survive PowerPoint's run fragmentation, and refusals in place of guesses.
+`paper-pptx` is a drop-in hard fork of [python-pptx](https://github.com/scanny/python-pptx) `v1.0.2` for safely inspecting, editing, composing, and verifying existing PowerPoint (`.pptx`) presentations. It keeps python-pptx's package layer, XML mapping, and object model. It adds the rendered values a deck shows, edits that survive PowerPoint's run fragmentation, and refusals in place of guesses.
 
 ```python
-from pptx import Presentation   # the import name is unchanged — see "Drop-in by design"
+from pptx import Presentation   # the import name is unchanged (see "Drop-in by design")
 ```
 
-The fork exists to prevent **silent corruption**: a deck that opens fine and is quietly wrong. Automated systems cannot eyeball a slide, so every added operation returns its outcome as typed, machine-readable data, and an operation that cannot proceed safely raises a typed refusal and leaves the presentation byte-for-byte unchanged rather than guessing.
+The fork exists to prevent **silent corruption**: a deck that opens without error but is wrong. Automated systems cannot eyeball a slide, so every added operation returns its outcome as typed, machine-readable data, and an operation that cannot proceed safely raises a typed refusal and leaves the presentation byte-for-byte unchanged rather than guessing.
 
 ---
 
@@ -53,10 +53,10 @@ print(len(delta.slide_changes), "slides changed")
 
 ## What paper-pptx adds
 
-### Perceive: read what the deck actually renders
+### Perceive: read what the deck renders
 
 - **`pptx.inspect` effective values, with provenance.** `effective_font()`, `effective_paragraph_format()`, and `effective_shape_format()` resolve size, typeface, color, alignment, line spacing, and bullets through the run, paragraph, placeholder, layout, master, and theme chain, and report which rung supplied each value. Bullet typeface and size resolve on their own chains, because the schema inherits them separately from the glyph. Unresolved is reported as unresolved rather than guessed.
-- **Visibility-complete text inspection.** `inspect_text()` reaches nested groups and table cells, which iterating top-level shapes misses, and returns content-hash anchors that survive an edit. Regions it cannot survey are reported as blind blocks rather than silently skipped.
+- **Visibility-complete text inspection.** `inspect_text()` reaches nested groups and table cells, which iterating top-level shapes misses, and returns content-hash anchors that survive an edit. Regions it cannot survey are reported as blind blocks rather than skipped.
 - **A deterministic deck manifest.** `inspect_deck()` emits a versioned, JSON-friendly structural manifest: slides, shapes, z-order, geometry, and placeholder identity.
 
 ### Edit: change one deck without flattening it
@@ -64,8 +64,8 @@ print(len(delta.slide_changes), "slides changed")
 - **Anchored, formatting-preserving replacement.** `pptx.edit.replace_text` and `replace_text_at` rewrite text while leaving untouched runs byte-identical. The stock `shape.text = ...` flattens every run's formatting in the paragraph.
 - **Relationship-safe slide lifecycle.** `slides.clone/delete/move/reorder` maintain sections, custom shows, and relationships. Upstream has no public equivalent, and the folk XML recipes strand both.
 - **Real bullets.** `paragraph.bullet` authors genuine `a:buChar` and `a:buAutoNum` state, including bullet typeface and size, instead of typing `-` or `•` into the text.
-- **Autofit made explicit.** `text_frame.normalize_autofit()` freezes PowerPoint's invisible `normAutofit` scale percentages so an edit does not silently resize text.
-- **Notes without side effects.** `slide.read_notes_text()` never creates a notes part; merely reading `slide.notes_slide` upstream does.
+- **Autofit made explicit.** `text_frame.normalize_autofit()` freezes PowerPoint's invisible `normAutofit` scale percentages so an edit does not resize text without warning.
+- **Notes without side effects.** `slide.read_notes_text()` never creates a notes part; reading `slide.notes_slide` upstream does.
 - **Typed, group-aware lookup.** `shape_by_name()`, `picture_by_name()`, `table_by_name()`, and `chart_by_name()` recurse into groups and refuse a duplicate rather than returning the first match.
 - **Surgery that keeps the package consistent.** `SlideShapes.delete/move/add_copy`, table row and column insert and delete, `Picture.replace_image()`, and `Chart.replace_data_safe()` maintain relationships and owned parts.
 - **Batched validation.** `with prs.batch():` validates once at block exit instead of once per mutating call, and discards every edit in the block if that check fails.
@@ -73,7 +73,7 @@ print(len(delta.slide_changes), "slides changed")
 ### Compose: assemble decks across files
 
 - **Cross-deck import with explicit fidelity modes.** `Presentation.import_slide()` and `append_deck()` make the inheritance trade-off a required argument: `adopt_theme`, `keep_appearance`, or `bake`. Each returns an `ImportReport` naming every part added, reused, and dropped.
-- **Layout rebind with a shift report.** `Slide.rebind_layout()` moves a slide under explicit placeholder and orphan policies and reports every run whose resolved font changed. Placeholder geometry and text direction are inherited from the layout too and sit outside that comparison.
+- **Layout rebind with a shift report.** `Slide.rebind_layout()` moves a slide under explicit placeholder and orphan policies and reports every run whose resolved font changed. Placeholder geometry and text direction are inherited from the layout and sit outside that comparison.
 - **Real fields, not static text.** `apply_footers()` writes genuine `a:fld` slide-number and date fields, so PowerPoint refreshes them.
 
 ### Verify: prove what changed
@@ -93,11 +93,11 @@ The public API is a superset of upstream's, but a few narrow behaviors changed o
 
 ## Safety contract
 
-Every added operation either does exactly what it claims or refuses atomically. Mutating operations run inside a package transaction: whatever the operation touched is restored if it refuses, and the deck-wide check runs before anything commits. Some operations, including `apply_footers()`, `append_deck()`, `import_slide()` and slide clone, additionally validate in full before touching anything.
+Every added operation either does exactly what it claims or refuses atomically. Mutating operations run inside a package transaction: whatever the operation touched is restored if it refuses, and the deck-wide check runs before anything commits. Some operations, including `apply_footers()`, `append_deck()`, `import_slide()` and slide clone, also validate in full before touching anything.
 
 A refusal raises a typed error from the hierarchy rooted at `pptx.errors.PaperRefusal` and leaves the presentation byte-for-byte unchanged in memory and on disk. The subclasses say what went wrong: `PackageLimitError`, `TargetNotFoundError`, `StaleAnchorError`, `AmbiguousTargetError`, `UnsupportedStructureError`, `RelationshipPolicyError`, and `BoundaryViolationError`. Programmer mistakes remain plain `ValueError` or `TypeError`, so callers can catch `PaperRefusal` separately.
 
-A refused edit is a success mode; a quietly wrong file is the worst outcome this library can produce. Held proxies survive a refusal, and a stale handle raises `TargetNotFoundError` instead of silently editing a neighbor. Each documented refusal condition has a test asserting both that the typed refusal is raised and that output bytes equal input bytes.
+A refused edit is a success mode; the worst outcome this library can produce is a file that opens without error but is wrong. Held proxies survive a refusal, and a stale handle raises `TargetNotFoundError` instead of editing a neighbor. Each documented refusal condition has a test asserting both that the typed refusal is raised and that output bytes equal input bytes.
 
 ## API surface map
 
@@ -164,7 +164,7 @@ Deliberate non-goals: no rendering or layout-geometry computation, no SmartArt a
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](https://github.com/paper-instruments/paper-pptx/blob/main/CONTRIBUTING.md) for the engineering discipline this fork runs on. The short version: the upstream suite must remain green; persistence changes need saved-and-reopened assertions and exact package-delta checks; guarded refusals must be atomic and leave bytes unchanged; and a refusal message must name what was found, why it is unsafe, and what to do about it.
+Contributions are welcome. See [CONTRIBUTING.md](https://github.com/paper-instruments/paper-pptx/blob/main/CONTRIBUTING.md) for the engineering discipline this fork runs on. The short version: the upstream suite must remain green; persistence changes need saved-and-reopened assertions and exact package-delta checks; guarded refusals must be atomic and leave bytes unchanged; and a refusal message must name what was found, why it is unsafe, and what to do about it.
 
 ## Community
 
