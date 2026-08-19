@@ -374,11 +374,15 @@ corruption prevention:
 
 - **Guarded package intake.** Opening a `.pptx` now rejects ambiguous or unsafe
   ZIP archives — duplicate or case-colliding member names, path traversal,
-  encrypted or exotically-compressed members, lying size headers — with a typed
-  `PackageLimitError` *before* any editable object exists. A permissive reader
-  "successfully" opens an ambiguous archive and then faithfully edits the wrong
-  interpretation of it. Some odd-but-consumer-readable files that upstream
-  accepted are now refused.
+  encrypted or exotically-compressed members, lying size headers, an archive that
+  does not span its file exactly, and any member that resolves to no content type
+  — with a typed `PackageLimitError` *before* any editable object exists. A
+  permissive reader "successfully" opens an ambiguous archive and then faithfully
+  edits the wrong interpretation of it. Some odd-but-consumer-readable files that
+  upstream accepted are now refused; each such refusal was checked by opening the
+  file in PowerPoint first, and matches what PowerPoint does. A part that nothing
+  references is *not* refused — PowerPoint opens that package and drops the part
+  on its next save, and so does `save()`.
 - **Atomic save.** `save()` keeps its signature, but saving to a path now
   writes a sibling temporary file and atomically replaces the destination only
   after serialization succeeds, preserving the existing file's permission bits;

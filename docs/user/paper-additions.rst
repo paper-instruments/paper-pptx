@@ -41,8 +41,13 @@ The refusals form a small hierarchy rooted at |PaperRefusal| (see :ref:`errors_a
         ...                                 # document is untouched; handle or report exc
 
 Normal package intake uses the same refusal boundary. It rejects ambiguous or unsafe ZIP
-members before parsing XML. A path-based ``save()`` writes beside the destination and replaces
-it atomically only after serialization succeeds; stream saves retain normal stream semantics.
+members before parsing XML, and refuses a package in which any member resolves to no content
+type — no ``Default`` for its extension and no ``Override`` for its name in
+``[Content_Types].xml`` — because PowerPoint refuses that package too. A part that nothing
+references is accepted: PowerPoint opens such a package and drops the part on its next save,
+which is also what ``save()`` does. A path-based ``save()`` writes beside the destination and
+replaces it atomically only after serialization succeeds; stream saves retain normal stream
+semantics.
 
 Validation runs per mutating call by default. :meth:`~pptx.presentation.Presentation.batch`
 trades that granularity for speed: inside the block the whole-deck check runs once, at exit,

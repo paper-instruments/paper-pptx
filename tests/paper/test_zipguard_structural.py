@@ -262,7 +262,11 @@ def test_the_unmutated_archive_builder_output_is_accepted(tmp_path):
     """Guard the guard: each refusal above must come from its mutation, not from `_zip_bytes`."""
     target = tmp_path / "honest.pptx"
     target.write_bytes(
-        _zip_bytes(_member("[Content_Types].xml", _content_types()), _member("a.xml"))
+        _zip_bytes(
+            # -- an honest archive declares a content type for every part it carries
+            _member("[Content_Types].xml", _content_types(_OVERRIDE)),
+            _member("a.xml"),
+        )
     )
 
     _zipguard.preflight_zip(str(target))
@@ -283,13 +287,14 @@ def test_normal_open_refuses_structurally_ambiguous_archive(tmp_path, build, fra
 
 
 def test_zipguard_structural_refusal_population_is_pinned():
-    """`_zipguard.py` has 83 `raise PackageLimitError` sites, every one structural.
+    """`_zipguard.py` has 84 `raise PackageLimitError` sites, every one structural.
 
-    The twelve policy sites that enforced the six numeric resource ceilings are gone, and
-    one site was added for a package carrying bytes in front of its first member, a shape
-    PowerPoint refuses. Any movement from 83 means a structural or ambiguity refusal was
-    added or dropped, so a mismatch here is a prompt to check which.
+    The twelve policy sites that enforced the six numeric resource ceilings are gone. Two
+    sites were added, each for a shape PowerPoint refuses: a package carrying bytes in
+    front of its first member, and a package whose members do not all resolve to a
+    declared content type. Any movement from 84 means a structural or ambiguity refusal
+    was added or dropped, so a mismatch here is a prompt to check which.
     """
     source = Path(_zipguard.__file__).read_text(encoding="utf-8")
 
-    assert source.count("raise PackageLimitError") == 83
+    assert source.count("raise PackageLimitError") == 84
