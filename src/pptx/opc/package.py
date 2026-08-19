@@ -455,16 +455,25 @@ class _PackageLoader:
                     rId: {rel.target_ref for rel in rels.relationship_lst if rel.rId == rId}
                     for rId in duplicate_rIds
                 }
-                detail = (
-                    "they name different targets, so the id has no single meaning"
-                    if any(len(refs) > 1 for refs in targets.values())
-                    else "they name the same target, so one declaration is redundant"
-                )
+                # -- the remedy has to match the diagnosis. Redundant declarations name the
+                # -- same target, so removing either restores a single meaning. Conflicting
+                # -- declarations name different targets, so there is no disposable "extra":
+                # -- the caller has to decide which target was intended and remove the other.
+                if any(len(refs) > 1 for refs in targets.values()):
+                    detail = "they name different targets, so the id has no single meaning"
+                    remedy = (
+                        "Decide which target is correct and remove the other declaration from"
+                        " that .rels part, or re-save the deck from PowerPoint"
+                    )
+                else:
+                    detail = "they name the same target, so one declaration is redundant"
+                    remedy = (
+                        "Remove the extra declaration from that .rels part, or re-save the deck"
+                        " from PowerPoint"
+                    )
                 raise UnsupportedStructureError(
-                    "relationship part for %s contains duplicate ids: %s; %s. Remove the"
-                    " extra declaration from that .rels part, or re-save the deck from"
-                    " PowerPoint"
-                    % (source_partname, ", ".join(duplicate_rIds), detail)
+                    "relationship part for %s contains duplicate ids: %s; %s. %s"
+                    % (source_partname, ", ".join(duplicate_rIds), detail, remedy)
                 )
 
             # --- recursion stops when there are no unvisited partnames in rels ---

@@ -166,13 +166,19 @@ def test_duplicate_relationship_id_message_distinguishes_redundant_from_conflict
     """
     redundant = tmp_path / "redundant.pptx"
     _rewrite_package(_minimal_path(), redundant, _duplicate_first_rel(retarget=False))
-    with pytest.raises(UnsupportedStructureError, match="one declaration is redundant"):
+    with pytest.raises(UnsupportedStructureError, match="one declaration is redundant") as excinfo:
         Presentation(redundant)
+    # -- the two declarations are identical, so removing either restores a single meaning
+    assert "Remove the extra declaration" in str(excinfo.value)
 
     conflicting = tmp_path / "conflicting.pptx"
     _rewrite_package(_minimal_path(), conflicting, _duplicate_first_rel(retarget=True))
-    with pytest.raises(UnsupportedStructureError, match="no single meaning"):
+    with pytest.raises(UnsupportedStructureError, match="no single meaning") as excinfo:
         Presentation(conflicting)
+    # -- with different targets there is no disposable "extra"; the caller must choose which
+    # -- target was intended, so the remedy must not tell them to drop "the extra" one
+    assert "remove the other declaration" in str(excinfo.value)
+    assert "Remove the extra declaration" not in str(excinfo.value)
 
 
 def test_relationship_refusals_name_a_remedy(tmp_path):
