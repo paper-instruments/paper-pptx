@@ -8,4 +8,4 @@ Questions about inherited python-pptx behavior can still use the upstream projec
 The **paper-pptx issue tracker** is on GitHub at `paper-pptx issues`_.
 
 .. _`paper-pptx issues`:
-   https://github.com/The-LLM-Data-Company/paper-pptx/issues
+   https://github.com/paper-instruments/paper-pptx/issues

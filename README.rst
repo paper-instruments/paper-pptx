@@ -1,5 +1,6 @@
-*paper-pptx* is Paper Instruments' agent-first, strict-superset hard fork of *python-pptx*
-``v1.0.2`` for safely **inspecting, editing, and composing** existing PowerPoint (.pptx) files.
+*paper-pptx* is Paper Instruments' agent-first hard fork of *python-pptx* ``v1.0.2`` for safely
+**inspecting, editing, and composing** existing PowerPoint (.pptx) files. Its public Python API
+is a superset of upstream's; package intake and save publication are deliberately stricter.
 The distribution is renamed; the import name stays ``pptx``. ``from pptx import Presentation``
 and every other existing call keep working unchanged.
 

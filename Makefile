@@ -8,11 +8,9 @@ help:
 	@echo "  build        generate both sdist and wheel suitable for upload to PyPI"
 	@echo "  clean        delete intermediate work product and start fresh"
 	@echo "  cleandocs    delete cached HTML documentation and start fresh"
-	@echo "  coverage     run nosetests with coverage"
+	@echo "  coverage     run pytest with coverage"
 	@echo "  docs         build HTML documentation using Sphinx (incremental)"
 	@echo "  opendocs     open local HTML documentation in browser"
-	@echo "  test-upload  upload distribution to TestPyPI"
-	@echo "  upload       upload distribution tarball to PyPI"
 
 .PHONY: accept
 accept:
@@ -45,11 +43,3 @@ docs:
 .PHONY: opendocs
 opendocs:
 	open docs/.build/html/index.html
-
-.PHONY: test-upload
-test-upload: build
-	twine upload --repository testpypi dist/*
-
-.PHONY: upload
-upload: clean build
-	twine upload dist/*

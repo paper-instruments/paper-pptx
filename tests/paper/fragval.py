@@ -2,7 +2,7 @@
 
 Validates exactly the fragments paper code writes — never whole documents, which drown in
 upstream noise. Fragments are checked against the ECMA-376 transitional schemas shipped in
-`spec/ISO-IEC-29500-4/xsd/` (the edition whose namespaces match real-world files), via a tiny
+`tests/paper/xsd/` (the ISO/IEC 29500-4 edition whose namespaces match real-world files), via a tiny
 generated wrapper schema that promotes the fragment's complex type to a global root element.
 """
 
@@ -13,9 +13,7 @@ from typing import Dict
 
 from lxml import etree
 
-_SPEC_XSD_DIR = (
-    Path(__file__).resolve().parents[2] / "spec" / "ISO-IEC-29500-4" / "xsd"
-)
+_SPEC_XSD_DIR = Path(__file__).resolve().parent / "xsd"
 _A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 _WRAPPER_TEMPLATE = """\

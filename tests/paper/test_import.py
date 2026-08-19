@@ -203,7 +203,7 @@ def test_bake_drops_furniture_placeholders():
 
 
 def test_source_is_never_mutated_and_imported_chart_is_independent():
-    """Edit the imported chart; the source presentation stays byte-identical."""
+    """Edit the imported chart; every member of the source package stays byte-identical."""
     dest = _open(ALPHA)
     source = _open(BETA)
     source_before = save_to_bytes(source)
@@ -212,7 +212,9 @@ def test_source_is_never_mutated_and_imported_chart_is_independent():
     chart = dest.slides[3].shapes.chart_by_name("beta_chart")
     chart.replace_data_safe(["North", "South"], [("FY26", (99.0, 1.0))])
 
-    assert save_to_bytes(source) == source_before
+    # -- member-by-member, never whole-file bytes: `save()` stamps wall-clock time into zip
+    # -- entry headers, so two saves straddling a 2-second boundary differ in the header alone
+    assert zip_member_map(save_to_bytes(source)) == zip_member_map(source_before)
     reopened_source = Presentation(io.BytesIO(save_to_bytes(source)))
     source_chart = reopened_source.slides[2].shapes.chart_by_name("beta_chart")
     values = [pt for series in source_chart.plots[0].series for pt in series.values]
