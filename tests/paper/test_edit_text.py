@@ -259,19 +259,13 @@ def test_multiple_matches_in_one_paragraph_are_all_replaced_and_counted():
     assert box.text_frame.paragraphs[0].text == "baNANA"
 
 
-def _add_deep_group(slide, depth=17):
-    group = slide.shapes.add_group_shape()
-    for _ in range(depth):
-        group = group.shapes.add_group_shape()
-    box = group.shapes.add_textbox(0, 0, 914400, 914400)
-    box.text_frame.paragraphs[0].add_run().text = "unreachable target"
-
-
 def test_traversal_refusal_fires_before_any_write():
-    """Regression (review, two dimensions): the depth guard on a LATER slide used to fire
-    after earlier blocks were already rewritten — a refusal must leave zero edits behind."""
+    """Regression (review, two dimensions): a traversal refusal sourced from a LATER slide
+    used to fire after earlier blocks were already rewritten — a refusal must leave zero
+    edits behind. `mc:AlternateContent` is the refusal source; it is raised from the same
+    plan-building position the retired group-depth guard occupied."""
     prs = Presentation(str(corpus.fixture_path("self_generated/gauntlet.pptx")))
-    _add_deep_group(prs.slides[3])  # -- refusal source is on the LAST slide
+    _wrap_first_textbox_in_alternate_content(prs, slide_index=3)  # -- LAST slide
 
     def operation(p):
         replace_text(p, "Gauntlet", "REWRITTEN")  # -- would match on earlier slides
@@ -279,7 +273,7 @@ def test_traversal_refusal_fires_before_any_write():
     from .contract import assert_refusal_atomic
 
     raised = assert_refusal_atomic(prs, operation, UnsupportedStructureError)
-    assert "nested" in str(raised)
+    assert "AlternateContent" in str(raised)
 
 
 def test_broken_slide_relationship_graph_refuses_typed_before_any_write():
@@ -298,11 +292,11 @@ _MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 _P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 
 
-def _wrap_first_textbox_in_alternate_content(prs):
+def _wrap_first_textbox_in_alternate_content(prs, slide_index=0):
     """Wrap a new textbox's p:sp in mc:AlternateContent (Choice + Fallback branches)."""
     import copy as copy_module
 
-    slide = prs.slides[0]
+    slide = prs.slides[slide_index]
     box = slide.shapes.add_textbox(0, 0, 914400, 914400)
     box.text_frame.paragraphs[0].add_run().text = "mc content"
     sp = box._element
