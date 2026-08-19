@@ -819,8 +819,15 @@ def _is_directory_entry(info: ZipInfo) -> bool:
     attribute, with no slash, is deliberately NOT treated as a directory: such a name
     denotes a file, and a package holding both a file ``ppt`` and members under ``ppt/``
     contradicts itself. PowerPoint refuses that file, so admitting it would help nobody.
+
+    The empty-name guard keeps this callable before ``_validate_metadata`` runs: on Python
+    3.9 and 3.10 ``ZipInfo.is_dir`` reads ``filename[-1]`` and raises ``IndexError`` on an
+    empty name, which would escape as an untyped crash before the empty-name refusal fires.
+    An empty name is never a directory record, so returning False here defers it to
+    ``_validate_member_name``, which reports it as the ``PackageLimitError`` it is. On 3.11+
+    ``is_dir`` already returns False for an empty name, so this only aligns 3.9/3.10.
     """
-    return info.is_dir()
+    return bool(info.filename) and info.is_dir()
 
 
 def _validate_member_name(name: str) -> None:

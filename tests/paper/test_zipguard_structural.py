@@ -185,6 +185,14 @@ _CASES = [
         id="metadata-nul-suffix-name",
     ),
     pytest.param(
+        # -- an empty member name. `_is_directory_entry` runs before `_validate_metadata`,
+        # -- and on Python 3.9/3.10 `ZipInfo.is_dir` reads `filename[-1]`, so an unguarded
+        # -- call raised IndexError there instead of this typed refusal.
+        lambda: _zip_bytes(_member("")),
+        "empty member name",
+        id="metadata-empty-member-name",
+    ),
+    pytest.param(
         lambda: _zip_bytes(_member("a.xml", flags=_FLAG_UTF8 | 0x0001)),
         "is encrypted",
         id="metadata-encrypted-member",
