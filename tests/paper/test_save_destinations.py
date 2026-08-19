@@ -190,6 +190,62 @@ def test_rollback_restores_a_destination_that_supports_it():
     assert destination.tell() == 11
 
 
+def test_a_truncate_failure_is_reported_not_swallowed():
+    """A failed tail-discard must not read as a successful save.
+
+    Writing a shorter package over a longer, truncatable stream drops the old tail via
+    `truncate()`. If that truncate fails and the failure is swallowed, `save()` returns
+    success while the destination still carries the previous document's tail -- a package
+    PowerPoint reads as corrupt. The failure has to surface instead.
+    """
+
+    class TruncateFails(io.BytesIO):
+        def truncate(self, size=None):
+            raise OSError("forced truncate failure")
+
+    destination = TruncateFails(b"X" * 400_000)
+    destination.seek(0)
+
+    with pytest.raises(Exception) as excinfo:
+        _deck().save(destination)
+    # -- either the truncate error itself or the rollback's wrapper is acceptable; what is
+    # -- not acceptable is a silent success, which this pytest.raises pins.
+    assert "truncate" in str(excinfo.value) or "could not be restored" in str(excinfo.value)
+
+
+def test_a_short_restore_write_is_reported_as_a_failed_rollback():
+    """Rollback must not itself damage the destination via a short write.
+
+    When publishing fails and the captured original is written back, a short restore write
+    followed by `truncate()` would shrink the destination to the partial length. That has
+    to be reported as a failed restore, not silently accepted.
+    """
+
+    class ShortRestore(io.BytesIO):
+        def __init__(self, initial):
+            super().__init__(initial)
+            self._fail_publish = True
+            self._short_restore = True
+
+        def write(self, data):
+            if self._fail_publish:
+                self._fail_publish = False
+                super().write(data[:512])
+                raise OSError("forced destination write failure")
+            if self._short_restore:
+                self._short_restore = False
+                # -- accept only part of the restore write, then report the short count
+                super().write(data[: len(data) // 2])
+                return len(data) // 2
+            return super().write(data)
+
+    destination = ShortRestore(b"AN EARLIER DOCUMENT" * 4096)
+    destination.seek(7)
+
+    with pytest.raises(RuntimeError, match="could not be restored"):
+        _deck().save(destination)
+
+
 def test_a_serialization_failure_writes_nothing_to_the_stream(monkeypatch):
     """Staging's guarantee: a partial package never reaches a sink that cannot take it back."""
 

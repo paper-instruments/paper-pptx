@@ -137,8 +137,13 @@ class _StreamSnapshot:
         # -- container's own trailing bytes would be silent data loss.
         if self._position:
             return
-        with suppress(AttributeError, OSError, TypeError, ValueError):
-            self._stream.truncate()
+        # -- a truncate failure here is not cosmetic: it leaves the tail of the previous,
+        # -- larger document in place, which reads as a corrupt package rather than a
+        # -- failure -- the exact hazard this method exists to close. Let it propagate so
+        # -- the caller's rollback runs and a loud error surfaces instead of a silent
+        # -- success. The probe already confirmed `truncate` is callable before
+        # -- `can_roll_back` is set, so this only ever fires on a genuine truncate failure.
+        self._stream.truncate()
 
     def restore(self) -> None:
         """Put the captured contents and cursor back. A no-op when nothing was captured."""
@@ -146,7 +151,14 @@ class _StreamSnapshot:
             return
         try:
             self._stream.seek(0, os.SEEK_SET)
-            self._stream.write(self._content)
+            written = self._stream.write(self._content)
+            # -- a short restore write followed by truncate would shrink the destination to
+            # -- the partial length, so rollback would damage the very bytes it is putting
+            # -- back. Treat it as a failed restore, matching the write path's short-write
+            # -- check. Streams whose write() returns None (the common file-like case) are
+            # -- unaffected.
+            if written is not None and written != len(self._content):
+                raise OSError("destination stream performed a short restore write")
             self._stream.truncate()
             self._stream.seek(self._position, os.SEEK_SET)
         except BaseException as restore_error:
