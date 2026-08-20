@@ -95,19 +95,6 @@ A refusal raises a typed error from the hierarchy rooted at `pptx.errors.PaperRe
 
 A refused edit is a success mode; the worst outcome this library can produce is a file that opens without error but is wrong. Held proxies survive a refusal, and a stale handle raises `TargetNotFoundError` instead of editing a neighbor. Each documented refusal condition has a test asserting both that the typed refusal is raised and that output bytes equal input bytes.
 
-## API surface map
-
-| Module | What it does |
-|---|---|
-| `pptx.inspect` | Effective values with provenance, text inspection with content-hash anchors, deck manifest |
-| `pptx.edit` | Deck-wide and anchored text replacement that preserves run formatting |
-| `pptx.diff` | Semantic deck-to-deck diff (`diff_decks`) |
-| `pptx.compose` | Cross-deck slide import and deck append (via `Presentation.import_slide` / `append_deck`) |
-| `pptx.rebind` | Layout rebinding with shift reports (via `Slide.rebind_layout`) |
-| `pptx.hf` | Real slide-number, date, and footer fields (via `apply_footers`) |
-| `pptx.package` | Semantic package diff and byte-minimal `patch_save` |
-| `pptx.errors` | The `PaperRefusal` typed-refusal hierarchy |
-
 ## Drop-in by design
 
 Only the distribution and repository are renamed. The importable package stays `pptx`. This is the same distribution/import split as Pillow (`pip install pillow`, `import PIL`), and it preserves existing code, snippets, and model priors.
