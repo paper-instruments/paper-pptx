@@ -154,6 +154,10 @@ Contributions are welcome. See [CONTRIBUTING.md](https://github.com/paper-instru
 - **Bugs and feature requests**: [GitHub Issues](https://github.com/paper-instruments/paper-pptx/issues)
 - **Questions and ideas**: [GitHub Discussions](https://github.com/paper-instruments/paper-pptx/discussions)
 
+## Acknowledgments
+
+paper-pptx exists because [python-pptx](https://github.com/scanny/python-pptx) is excellent. Steve Canny and the python-pptx contributors built the lossless package layer, the disciplined XML mapping, and a decade of absorbed edge cases that make safe deck editing possible at all. This fork stands on that work and keeps their API intact.
+
 ## Citation
 
 If you reference paper-pptx in research or writing:
@@ -167,9 +171,7 @@ If you reference paper-pptx in research or writing:
 }
 ```
 
-## Acknowledgments
-
-paper-pptx exists because [python-pptx](https://github.com/scanny/python-pptx) is excellent. Steve Canny and the python-pptx contributors built the lossless package layer, the disciplined XML mapping, and a decade of absorbed edge cases that make safe deck editing possible at all. This fork stands on that work and keeps their API intact.
+Cite it as a fork of *python-pptx* by Steve Canny and contributors.
 
 ## License
 
