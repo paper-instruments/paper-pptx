@@ -69,6 +69,7 @@ print(len(delta.slide_changes), "slides changed")
 - **Typed, group-aware lookup.** `shape_by_name()`, `picture_by_name()`, `table_by_name()`, and `chart_by_name()` recurse into groups and refuse a duplicate rather than returning the first match.
 - **Surgery that keeps the package consistent.** `SlideShapes.delete/move/add_copy`, table row and column insert and delete, `Picture.replace_image()`, and `Chart.replace_data_safe()` maintain relationships and owned parts.
 - **Batched validation.** `with prs.batch():` validates once at block exit instead of once per mutating call, and discards every edit in the block if that check fails.
+- **`SlideLayouts.remove()` hardening.** Same signature, stricter semantics: stale or foreign proxies and unsafe states refuse atomically instead of partially mutating.
 
 ### Compose: assemble decks across files
 
@@ -81,15 +82,10 @@ print(len(delta.slide_changes), "slides changed")
 - **A semantic deck diff.** `pptx.diff.diff_decks()` matches slides by permanent slide ID, so a reorder reports as a move rather than a delete plus an add. `detail="text"` adds chart data, text, and notes; `detail="full"` adds per-run and bullet shifts.
 - **Byte-minimal saves and a package oracle.** `pptx.package.patch_save()` writes semantically unchanged parts back with their original bytes, so a one-line edit diffs as a few parts rather than all of them, and `diff_package()` reports exactly which parts differ.
 
-## What is deliberately not additive
+### Package intake and save
 
-The public API is a superset of upstream's, but a few narrow behaviors changed on purpose. Each trades edge-case permissiveness for corruption prevention.
-
-- **Guarded package intake.** Opening a `.pptx` rejects ambiguous or unsafe ZIP archives: duplicate or case-colliding member names, path traversal, encrypted or exotically-compressed members, lying size headers, an archive that does not span its file exactly, and any member that resolves to no content type. A part that nothing references is *not* refused; PowerPoint opens that package and drops the part on its next save, and so does `save()`.
+- **Guarded package intake.** Opening a `.pptx` rejects ambiguous or unsafe ZIP archives: duplicate or case-colliding member names, path traversal, encrypted or exotically-compressed members, lying size headers, an archive that does not span its file exactly, and any member that resolves to no content type. A part that nothing references is kept; PowerPoint opens that package and drops the part on its next save, and so does `save()`.
 - **Atomic save.** Saving to a path writes a sibling temporary file and replaces the destination only after serialization succeeds, preserving the existing file's permission bits and resolving symlinks. Stream saves stage the whole package first, so a serialization failure emits nothing, and restore the destination on failure when it can be read and rewound; a write-only sink keeps whatever landed.
-- **`SlideLayouts.remove()` hardening.** Same signature, stricter semantics: stale or foreign proxies and unsafe states refuse atomically instead of partially mutating.
-- **Python 3.9+ floor.** Upstream `v1.0.2` supported Python 3.8.
-- **Distribution identity.** The distribution is renamed `paper-pptx`, and `import pptx` refuses when both distributions are installed.
 
 ## Safety contract
 
@@ -124,7 +120,7 @@ Every documented upstream API behaves as upstream documents it: `from pptx impor
 
 ## Installation
 
-Requires Python 3.9+.
+Requires Python 3.9+. Upstream `v1.0.2` supported Python 3.8.
 
 ```bash
 python -m pip uninstall -y python-pptx paper-pptx
