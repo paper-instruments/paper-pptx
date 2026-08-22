@@ -268,10 +268,16 @@ def test_walkthrough_self_consistency_against_deck_diff(tmp_path):
         "after": "Walk through Q4 revenue; flag the Alpha renewal.",
     }
     # -- the decorative picture delete on the chart slide
-    assert "gauntlet_img_1" in changes[chart_slide_id].shapes_removed
+    assert any(
+        ref.shape_id == 4 and ref.name == "gauntlet_img_1"
+        for ref in changes[chart_slide_id].shapes_removed
+    )
     # -- the closing slide's image swap reads as replacement, not move/resize
     closing_id = 259  # -- gauntlet slide 4
-    assert "gauntlet_img_2" in changes[closing_id].images_replaced
+    assert any(
+        ref.shape_id == 4 and ref.name == "gauntlet_img_2"
+        for ref in changes[closing_id].images_replaced
+    )
 
 
 @pytest.mark.lo_smoke
@@ -331,5 +337,4 @@ def _bytes_of(prs):
     buf = io.BytesIO()
     prs.save(buf)
     return buf.getvalue()
-
 

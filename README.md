@@ -79,7 +79,7 @@ print(len(delta.slide_changes), "slides changed")
 
 ### Verify: prove what changed
 
-- **A semantic deck diff.** `pptx.diff.diff_decks()` matches slides by permanent slide ID, so a reorder reports as a move rather than a delete plus an add. `detail="text"` adds chart data, text, and notes; `detail="full"` adds per-run and bullet shifts.
+- **A semantic deck diff.** `pptx.diff.diff_decks()` matches slides by permanent slide ID and top-level shapes within them by slide-wide shape ID, so slide or shape z-order does not manufacture add/remove or facet changes. Schema v4 shape facets carry `{"shape_id": ..., "name": ...}` references. `detail="text"` adds chart data, text, and notes; `detail="full"` adds per-run and bullet shifts.
 - **Byte-minimal saves and a package oracle.** `pptx.package.patch_save()` writes semantically unchanged parts back with their original bytes, so a one-line edit diffs as a few parts rather than all of them, and `diff_package()` reports exactly which parts differ.
 
 ### Package intake and save
@@ -134,7 +134,7 @@ Converting a documented typed refusal into a correct operation is the sanctioned
 - **Table-cell effective values refuse** until the table-style resolution walk is built.
 - **Chart data replacement supports single-plot category charts.** XY, bubble, stock, surface, radar, 3-D, and multi-plot combos refuse.
 - **Bullet color is not resolved**, and bullet diffing needs `detail="full"` and skips table cells.
-- **`diff_decks` assumes lineage**, matching slides by permanent ID. It is not a visual diff.
+- **`diff_decks` assumes lineage**, matching slides by permanent ID and top-level shapes by slide-wide shape ID. It is not a visual diff; group-boundary moves remain add/remove, and deleted IDs reused by new same-kind shapes cannot be distinguished without a persistent identifier general PPTX files do not carry.
 - **Fixture provenance.** The test corpus is generated and LibreOffice round-tripped, not authored by PowerPoint.
 
 Deliberate non-goals: no rendering or layout-geometry computation, no SmartArt authoring (opaque preservation only), and no animation or transition authoring.

@@ -16,7 +16,7 @@ import pytest
 from lxml import etree
 
 from pptx import Presentation
-from pptx.diff import diff_decks
+from pptx.diff import ShapeRef, diff_decks
 from pptx.errors import UnsupportedStructureError
 from pptx.oxml.ns import qn
 
@@ -93,17 +93,23 @@ def test_lineage_pair_reports_the_exact_edit_list():
     }
     assert changes[258].chart_data_changes == (
         {
-            "chart": "lineage_chart",
+            "chart": ShapeRef(shape_id=3, name="lineage_chart"),
             "series": "FY",
             "category": "South",
             "before": 20.0,
             "after": 25.0,
         },
     )
-    assert changes[259].images_replaced == ("lineage_pic",)
+    assert changes[259].images_replaced == (ShapeRef(shape_id=2, name="lineage_pic"),)
     assert changes[259].geometry_changes == (
-        {"shape": "lineage_box", "facet": "left", "before": 3657600, "after": 4572000},
+        {
+            "shape": ShapeRef(shape_id=3, name="lineage_box"),
+            "facet": "left",
+            "before": 3657600,
+            "after": 4572000,
+        },
     )
+    assert report.to_dict()["version"] == 4
 
 
 def test_diff_matches_frozen_golden():
@@ -455,8 +461,7 @@ def test_id_matching_contract_on_rebuilt_and_re_idd_decks():
     assert [ref.slide_id for ref in report2.slides_removed] == [256]
 
 
-def test_unnamed_shape_fallback_keys_are_deterministic():
-    """Shapes with empty or duplicated names key as `<kind>#<ordinal>` (declared)."""
+def test_duplicate_named_shape_additions_use_stable_references():
     prs_a = Presentation(_path("self_generated/minimal_clean.pptx"))
     slide = prs_a.slides[0]
     box_one = slide.shapes.add_textbox(0, 0, 914400, 914400)
@@ -472,10 +477,17 @@ def test_unnamed_shape_fallback_keys_are_deterministic():
         prs_a.save(str(out))
         report = diff_decks(_path("self_generated/minimal_clean.pptx"), str(out))
     change = report.slide_changes[0]
-    assert set(change.shapes_added) == {"sp#2", "sp#3"}  # -- synthetic keys, stable
+    assert change.shapes_added == (
+        ShapeRef(shape_id=4, name="Duplicate"),
+        ShapeRef(shape_id=5, name="Duplicate"),
+    )
+    assert change.to_dict()["shapes_added"] == [
+        {"shape_id": 4, "name": "Duplicate"},
+        {"shape_id": 5, "name": "Duplicate"},
+    ]
 
 
-def test_user_shape_name_cannot_collide_with_a_fallback_key():
+def test_user_shape_name_is_display_only_in_geometry_reference():
     base = Presentation(_path("self_generated/minimal_clean.pptx"))
     slide = base.slides[0]
     named = slide.shapes.add_textbox(0, 0, 914400, 914400)
@@ -494,7 +506,171 @@ def test_user_shape_name_cannot_collide_with_a_fallback_key():
         for change in report.slide_changes
         for delta in change.geometry_changes
     ]
-    assert any(delta["shape"] == "sp#1" for delta in geometry)
+    assert any(delta["shape"] == ShapeRef(shape_id=4, name="sp#1") for delta in geometry)
+
+
+def _serialized(prs) -> bytes:
+    stream = io.BytesIO()
+    prs.save(stream)
+    return stream.getvalue()
+
+
+def test_duplicate_name_z_order_change_has_no_specialized_shape_facets():
+    before = Presentation(_path("self_generated/minimal_clean.pptx"))
+    slide = before.slides[0]
+    first = slide.shapes.add_textbox(0, 0, 914400, 914400)
+    second = slide.shapes.add_textbox(1828800, 0, 914400, 914400)
+    first.name = second.name = "Duplicate"
+    first.text = "First"
+    second.text = "Second"
+    before_bytes = _serialized(before)
+
+    after = Presentation(io.BytesIO(before_bytes))
+    after_slide = after.slides[0]
+    after_slide.shapes.move(after_slide.shapes[-2], len(after_slide.shapes) - 1)
+    report = diff_decks(io.BytesIO(before_bytes), after, detail="full")
+
+    assert report.slide_changes == ()
+    assert "/ppt/slides/slide1.xml" in {
+        change.partname for change in report.package_changes
+    }
+
+
+def test_empty_and_renamed_shape_names_do_not_change_identity():
+    before = Presentation(_path("self_generated/minimal_clean.pptx"))
+    box = before.slides[0].shapes.add_textbox(0, 0, 914400, 914400)
+    box.name = ""
+    before_bytes = _serialized(before)
+
+    after = Presentation(io.BytesIO(before_bytes))
+    after.slides[0].shapes[-1].name = "Current display name"
+    report = diff_decks(io.BytesIO(before_bytes), after)
+
+    assert report.slide_changes == ()
+    assert report.package_changes
+
+
+def test_matched_geometry_uses_after_side_name_and_stable_id():
+    before = Presentation(_path("self_generated/minimal_clean.pptx"))
+    box = before.slides[0].shapes.add_textbox(0, 0, 914400, 914400)
+    box.name = "Before name"
+    shape_id = box.shape_id
+    before_bytes = _serialized(before)
+
+    after = Presentation(io.BytesIO(before_bytes))
+    changed = after.slides[0].shapes[-1]
+    changed.name = "After name"
+    changed.left += 100
+    report = diff_decks(io.BytesIO(before_bytes), after)
+    change = report.slide_changes[0]
+
+    assert change.shapes_added == ()
+    assert change.shapes_removed == ()
+    assert change.geometry_changes == (
+        {
+            "shape": ShapeRef(shape_id=shape_id, name="After name"),
+            "facet": "left",
+            "before": 0,
+            "after": 100,
+        },
+    )
+    assert change.to_dict()["geometry_changes"][0]["shape"] == {
+        "shape_id": shape_id,
+        "name": "After name",
+    }
+
+
+def test_addition_and_removal_use_their_own_side_names():
+    before = Presentation(_path("self_generated/minimal_clean.pptx"))
+    before_bytes = _serialized(before)
+    removed = before.slides[0].shapes.title
+
+    after = Presentation(io.BytesIO(before_bytes))
+    after.slides[0].shapes.delete(after.slides[0].shapes.title)
+    added = after.slides[0].shapes.add_textbox(0, 0, 914400, 914400)
+    added.name = "After only"
+    report = diff_decks(before, after)
+    change = report.slide_changes[0]
+
+    assert change.shapes_removed == (
+        ShapeRef(shape_id=removed.shape_id, name=removed.name),
+    )
+    assert change.shapes_added == (
+        ShapeRef(shape_id=added.shape_id, name="After only"),
+    )
+
+
+def test_incompatible_shape_kind_reuse_is_removal_plus_addition():
+    from PIL import Image as PILImage
+
+    before = Presentation()
+    slide = before.slides.add_slide(before.slide_layouts[6])
+    box = slide.shapes.add_textbox(0, 0, 914400, 914400)
+    box.name = "Reused"
+    shape_id = box.shape_id
+    before_bytes = _serialized(before)
+
+    after = Presentation(io.BytesIO(before_bytes))
+    after_slide = after.slides[0]
+    after_slide.shapes.delete(after_slide.shapes[0])
+    image = io.BytesIO()
+    PILImage.new("RGB", (2, 2), (10, 20, 30)).save(image, format="PNG")
+    picture = after_slide.shapes.add_picture(io.BytesIO(image.getvalue()), 0, 0)
+    picture.name = "Reused"
+    assert picture.shape_id == shape_id
+
+    report = diff_decks(io.BytesIO(before_bytes), after, detail="text")
+    change = report.slide_changes[0]
+    expected = (ShapeRef(shape_id=shape_id, name="Reused"),)
+    assert change.shapes_removed == expected
+    assert change.shapes_added == expected
+    assert change.geometry_changes == ()
+    assert change.images_replaced == ()
+    assert change.chart_data_changes == ()
+
+
+def test_duplicate_shape_ids_refuse_with_deterministic_candidate_details():
+    before = Presentation(_path("self_generated/minimal_clean.pptx"))
+    after = Presentation(_path("self_generated/minimal_clean.pptx"))
+    first = after.slides[0].shapes.add_textbox(0, 0, 914400, 914400)
+    group = after.slides[0].shapes.add_group_shape()
+    second = group.shapes.add_textbox(914400, 0, 914400, 914400)
+    first.name = "First duplicate"
+    second.name = "Second duplicate"
+    second._element._nvXxPr.cNvPr.set("id", str(first.shape_id))
+
+    messages = []
+    for _ in range(2):
+        with pytest.raises(UnsupportedStructureError) as exc_info:
+            diff_decks(before, after)
+        messages.append(str(exc_info.value))
+    assert messages[0] == messages[1]
+    assert messages[0] == (
+        "diff_decks refused: after side of slide 256 has duplicate shape IDs "
+        "(id 4: 2 candidates [sp name='First duplicate', sp name='Second duplicate']); "
+        "shape IDs must be unique across the slide"
+    )
+
+
+def test_moving_leaf_into_group_remains_a_top_level_removal():
+    before = Presentation()
+    slide = before.slides.add_slide(before.slide_layouts[6])
+    leaf = slide.shapes.add_textbox(0, 0, 914400, 914400)
+    leaf.name = "Leaf"
+    group = slide.shapes.add_group_shape()
+    before_bytes = _serialized(before)
+
+    after = Presentation(io.BytesIO(before_bytes))
+    after_slide = after.slides[0]
+    after_leaf = next(shape for shape in after_slide.shapes if shape.shape_id == leaf.shape_id)
+    after_group = next(shape for shape in after_slide.shapes if shape.shape_id == group.shape_id)
+    after_group._element.append(after_leaf._element)
+
+    report = diff_decks(io.BytesIO(before_bytes), after)
+    change = report.slide_changes[0]
+    assert change.shapes_removed == (ShapeRef(shape_id=leaf.shape_id, name="Leaf"),)
+    assert change.shapes_added == ()
+    assert change.geometry_changes == ()
 
 
 # ------------------------------------------------------------- regressions
@@ -614,7 +790,7 @@ def test_shape_removal_does_not_misattribute_later_blocks():
     slide.shapes.delete(title)
     diff = diff_decks(_path("self_generated/gauntlet.pptx"), prs_b, detail="full")
     change = next(c for c in diff.slide_changes)
-    assert "Title 1" in change.shapes_removed
+    assert ShapeRef(shape_id=2, name="Title 1") in change.shapes_removed
     # -- the title's block reads as removed (after=None); the body blocks are untouched
     for delta in change.text_changes:
         assert delta["after"] is None, delta

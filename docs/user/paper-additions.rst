@@ -306,6 +306,20 @@ Verify what changed
 reorder is reported as a move rather than delete-plus-add), and within matched slides the shape,
 chart-data, image, and notes deltas. At ``detail="full"``, it also reports per-run
 effective-value shifts.
+Within each lineage-matched slide, top-level shapes match by slide-wide shape ID and compatible
+structural kind; display names and z-order are not identity. Duplicate, empty, or renamed names
+therefore do not create fictional shape changes. Moving a leaf across a group boundary retains the
+top-level interpretation: into a group is a removal and out of a group is an addition.
+
+Deck-diff schema version 4 represents shape additions, removals, image replacements, and the
+``shape``/``chart`` values of geometry and chart changes as
+``{"shape_id": ..., "name": ...}``. Version-3 consumers that compared string labels should compare
+the nested ``shape_id`` instead and use ``name`` only for display. Additions use the after-side
+name, removals the before-side name, and matched facets the after/current name. A rename or z-order
+change alone remains visible in ``package_changes``. Shape IDs are a lineage identity, not visual
+matching: independently authored decks are out of scope, and deleting a shape then reusing its ID
+for a new same-kind shape cannot be detected without a persistent identifier general PPTX files do
+not carry.
 Callers can use the result to check a session's changes. Release job evaluations compare the
 operation report with ``diff_decks(input, output)`` for every import/rebind/refresh job and
 require them to agree.

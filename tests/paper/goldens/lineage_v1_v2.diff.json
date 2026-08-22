@@ -1,6 +1,6 @@
 {
   "schema": "paper-deck-diff",
-  "version": 3,
+  "version": 4,
   "detail": "text",
   "slides_added": [
     {
@@ -47,7 +47,10 @@
       "slide_id": 258,
       "chart_data_changes": [
         {
-          "chart": "lineage_chart",
+          "chart": {
+            "shape_id": 3,
+            "name": "lineage_chart"
+          },
           "series": "FY",
           "category": "South",
           "before": 20.0,
@@ -59,14 +62,20 @@
       "slide_id": 259,
       "geometry_changes": [
         {
-          "shape": "lineage_box",
+          "shape": {
+            "shape_id": 3,
+            "name": "lineage_box"
+          },
           "facet": "left",
           "before": 3657600,
           "after": 4572000
         }
       ],
       "images_replaced": [
-        "lineage_pic"
+        {
+          "shape_id": 2,
+          "name": "lineage_pic"
+        }
       ]
     }
   ],
