@@ -157,15 +157,17 @@ class Presentation(PartElementProxy):
         default, the caller chooses consciously:
 
         - `"adopt_theme"`: content transplants and rebinds to a destination layout
-          (auto by layout name, then layout type; `target_layout` overrides; orphan
-          placeholders bake from their source-resolved look). The slide takes the house
-          style; every run whose resolved values changed is in `run_shifts`.
+          (auto only on a unique exact layout name, then a unique exact non-custom layout
+          type; `target_layout` overrides; orphan placeholders bake from their
+          source-resolved look). The slide takes the house style; every run whose
+          resolved values changed is in `run_shifts`.
         - `"keep_appearance"`: the source layout+master+theme chain transplants,
           fingerprint-deduplicated (ten slides from one source share one master).
         - `"bake"`: resolvable effective values become explicit local properties,
           furniture placeholders (dt/ftr/sldNum) drop, remaining placeholders become
-          free shapes, and the slide attaches to a destination layout. Stable look
-          without importing masters.
+          free shapes, and the slide attaches to a destination layout selected by the
+          same unique name/type tiers, then a unique blank-layout fallback. It never
+          falls back to the first layout. Stable look without importing masters.
 
         The source presentation is never mutated. Media always copies (never shared
         across packages); charts deep-copy with workbooks; SmartArt carries opaquely;
@@ -174,6 +176,9 @@ class Presentation(PartElementProxy):
         `notes` copies the speaker-notes part re-linked to this deck's notes master.
         `section` names an existing destination section to enroll in; None enrolls
         adjacent to the insertion point when this deck has sections.
+        Multiple candidates at any automatic layout tier raise |AmbiguousTargetError|
+        before any write and list the layouts; pass an enrolled destination
+        `target_layout` to resolve that choice explicitly.
         """
         from pptx.compose import import_slide
 

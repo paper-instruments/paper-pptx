@@ -15,6 +15,7 @@ import pytest
 
 from pptx import Presentation
 from pptx.errors import (
+    AmbiguousTargetError,
     PaperRefusal,
     RelationshipPolicyError,
     TargetNotFoundError,
@@ -50,6 +51,7 @@ def test_import_refuses_a_source_relationship_target_owned_by_another_package():
 
     assert zip_member_map(save_to_bytes(dest)) == before
 
+
 ALPHA = "self_generated/template_alpha.pptx"
 BETA = "self_generated/template_beta.pptx"
 LO_ALPHA = "libreoffice_export/lo_template_alpha.pptx"
@@ -67,6 +69,29 @@ def _assert_clean(saved_bytes):
     assert missing_relationship_references(zip_map) == []
     assert dangling_section_slide_ids(zip_map) == []
     assert duplicate_section_slide_ids(zip_map) == []
+
+
+def _assert_layout_candidates_reported(error, candidates):
+    message = str(error)
+    assert "target_layout" in message
+    for layout in candidates:
+        identity = "name=%r, type=%r, part=%s, master=%s" % (
+            layout.name,
+            layout._element.get("type"),
+            layout.part.partname,
+            layout.slide_master.part.partname,
+        )
+        assert identity in message
+
+
+def _assert_explicit_layout_survives_reopen(dest, source, slide_idx, mode, target_layout):
+    target_partname = str(target_layout.part.partname)
+    report = dest.import_slide(source, slide_idx, mode=mode, target_layout=target_layout)
+    assert report.layout_binding_method == "explicit"
+    reopened = save_reopen(dest)
+    imported = reopened.slides[-1]
+    assert str(imported.slide_layout.part.partname) == target_partname
+    return imported
 
 
 # --------------------------------------------------------------------------- mode contracts
@@ -144,6 +169,8 @@ def test_adopt_theme_falls_back_to_type_match_for_renamed_layout():
     report = dest.import_slide(_open(BETA), 2, mode="adopt_theme")
     assert report.layout_binding_method == "type-match"
     assert report.layout_binding == "/ppt/slideLayouts/slideLayout6.xml"
+    reopened = save_reopen(dest)
+    assert reopened.slides[-1].slide_layout.name == "Title Only"
 
 
 def test_adopt_theme_unmatched_layout_refuses_and_explicit_target_recovers():
@@ -182,6 +209,147 @@ def test_bake_freezes_look_without_importing_masters():
     run = title.text_frame.paragraphs[0].runs[0]
     assert run.font.name == "Courier New"  # -- beta's look, made local
     assert run.font.size is not None
+
+
+def test_bake_uses_unique_blank_only_after_name_and_type_are_absent():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    source_layout = source.slides[2].slide_layout
+    source_layout.name = None
+    source_layout._element.attrib.pop("type", None)
+
+    report = dest.import_slide(source, 2, mode="bake")
+
+    assert report.layout_binding_method == "blank-fallback"
+    reopened = save_reopen(dest)
+    assert reopened.slides[-1].slide_layout.name == "Blank"
+    assert reopened.slides[-1].shapes.chart_by_name("beta_chart") is not None
+
+
+# ----------------------------------------------------------- unique layout selection
+
+
+def test_duplicate_layout_name_on_one_master_refuses_and_explicit_target_recovers():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    first = dest.slide_layouts[0]
+    duplicate = dest.slide_layouts[1]
+    duplicate.name = first.name
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(source, 0, mode="adopt_theme"),
+        AmbiguousTargetError,
+    )
+
+    _assert_layout_candidates_reported(error, (first, duplicate))
+    imported = _assert_explicit_layout_survives_reopen(dest, source, 0, "adopt_theme", first)
+    assert imported.shapes.title.text_frame.text == "Beta Overview"
+
+
+def test_duplicate_layout_name_across_masters_refuses_atomically():
+    dest = _open(ALPHA)
+    dest.import_slide(_open(BETA), 2, mode="keep_appearance")
+    source = _open(BETA)
+    first = dest.slide_masters[0].slide_layouts[0]
+    duplicate = dest.slide_masters[1].slide_layouts[0]
+    duplicate.name = first.name
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(source, 0, mode="adopt_theme"),
+        AmbiguousTargetError,
+    )
+
+    _assert_layout_candidates_reported(error, (first, duplicate))
+
+
+def test_duplicate_layout_type_refuses_before_unique_blank_and_explicit_target_recovers():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    target = dest.slide_layouts[5]
+    duplicate = dest.slide_layouts[4]
+    duplicate._element.set("type", target._element.get("type"))
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(source, 2, mode="bake"),
+        AmbiguousTargetError,
+    )
+
+    _assert_layout_candidates_reported(error, (target, duplicate))
+    imported = _assert_explicit_layout_survives_reopen(dest, source, 2, "bake", target)
+    assert imported.shapes.chart_by_name("beta_chart") is not None
+
+
+def test_duplicate_blank_layout_refuses_and_explicit_target_recovers():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    source_layout = source.slides[2].slide_layout
+    source_layout.name = None
+    source_layout._element.attrib.pop("type", None)
+    target = dest.slide_layouts[6]
+    duplicate = dest.slide_layouts[5]
+    duplicate._element.set("type", "blank")
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(source, 2, mode="bake"),
+        AmbiguousTargetError,
+    )
+
+    _assert_layout_candidates_reported(error, (target, duplicate))
+    imported = _assert_explicit_layout_survives_reopen(dest, source, 2, "bake", target)
+    assert imported.shapes.chart_by_name("beta_chart") is not None
+
+
+def test_layout_ambiguity_diagnostic_is_independent_of_collection_order():
+    def ambiguous_error(reorder):
+        dest = _open(ALPHA)
+        source = _open(BETA)
+        dest.slide_layouts[1].name = dest.slide_layouts[0].name
+        if reorder:
+            id_list = dest.slide_masters[0].slide_layouts._sldLayoutIdLst
+            first_entry = id_list.sldLayoutId_lst[0]
+            id_list.remove(first_entry)
+            id_list.append(first_entry)
+        return str(
+            assert_refusal_atomic(
+                dest,
+                lambda prs: prs.import_slide(source, 0, mode="adopt_theme"),
+                AmbiguousTargetError,
+            )
+        )
+
+    assert ambiguous_error(reorder=False) == ambiguous_error(reorder=True)
+
+
+def test_keep_appearance_ignores_ambiguous_destination_layouts():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    dest.slide_layouts[1].name = dest.slide_layouts[0].name
+
+    report = dest.import_slide(source, 0, mode="keep_appearance")
+
+    assert report.layout_binding_method == "transplant"
+    reopened = save_reopen(dest)
+    assert reopened.slides[-1].shapes.title.text_frame.text == "Beta Overview"
+
+
+def test_bake_with_no_enrolled_destination_layout_refuses_typed_not_index_error():
+    dest = Presentation()
+    for layout in list(dest.slide_layouts):
+        dest.slide_layouts.remove(layout)
+    source = Presentation()
+    source.slides.add_slide(source.slide_layouts[0])
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(source, 0, mode="bake"),
+        UnsupportedStructureError,
+    )
+
+    assert "target_layout" in str(error)
 
 
 def test_bake_drops_furniture_placeholders():
@@ -359,6 +527,24 @@ def test_append_deck_validates_whole_source_before_first_write():
     before = save_to_bytes(dest)
     with pytest.raises(RelationshipPolicyError):
         dest.append_deck(source, mode="keep_appearance")
+    assert_changed_parts(before, save_to_bytes(dest))  # -- empty budget
+
+
+def test_append_deck_later_layout_ambiguity_refuses_before_any_slide_is_added():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    dest.slide_layouts[2].name = dest.slide_layouts[1].name
+    before = save_to_bytes(dest)
+    slide_count = len(dest.slides)
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.append_deck(source, mode="adopt_theme"),
+        AmbiguousTargetError,
+    )
+
+    _assert_layout_candidates_reported(error, (dest.slide_layouts[1], dest.slide_layouts[2]))
+    assert len(dest.slides) == slide_count
     assert_changed_parts(before, save_to_bytes(dest))  # -- empty budget
 
 

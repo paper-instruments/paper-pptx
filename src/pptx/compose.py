@@ -34,7 +34,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from pptx._transaction import PackageTransaction
-from pptx.errors import RelationshipPolicyError, TargetNotFoundError, UnsupportedStructureError
+from pptx.errors import (
+    AmbiguousTargetError,
+    RelationshipPolicyError,
+    TargetNotFoundError,
+    UnsupportedStructureError,
+)
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import XmlPart
 from pptx.oxml import parse_xml
@@ -99,7 +104,8 @@ class ImportReport:
     * ``position`` -- 0-based index the new slide was inserted at.
     * ``layout_binding`` -- partname of the destination layout the slide is bound to.
     * ``layout_binding_method`` -- how that layout was chosen ("name-match",
-      "type-match", "explicit", "transplant", "blank-fallback", "first-fallback").
+      "type-match", "explicit", "transplant", or "blank-fallback"). Automatic
+      methods always identify a unique candidate at their matching tier.
     * ``parts_added`` -- partnames added to the destination package by this import.
     * ``parts_reused`` -- partnames of existing destination parts reused via
       content-hash deduplication (keep_appearance).
@@ -515,8 +521,9 @@ def _resolved_run_values(shape) -> list:
 @dataclass
 class _LayoutBinding:
     """The destination layout an imported slide binds to, and how that layout was chosen."""
+
     layout: "Optional[SlideLayout]"  # -- None only for keep_appearance (pre-transplant)
-    # -- name-match | type-match | explicit | blank-fallback | first-fallback | transplant
+    # -- name-match | type-match | explicit | blank-fallback | transplant
     method: str
 
 
@@ -524,9 +531,10 @@ def _resolve_layout_binding(dest_prs, source_slide, mode, target_layout) -> _Lay
     """Choose the destination layout for an imported slide, or refuse.
 
     `keep_appearance` short-circuits to a source-chain transplant. Otherwise: explicit
-    `target_layout`, then a layout-name match, then a layout-type match. With no match, `bake` falls
-    back to a blank layout and then the first layout, while `adopt_theme` raises
-    UnsupportedStructureError telling the caller to pass `target_layout`.
+    `target_layout`, then a unique layout-name match, then a unique layout-type match. With no
+    match, `bake` falls back only to a unique blank layout, while `adopt_theme` raises
+    UnsupportedStructureError telling the caller to pass `target_layout`. Ambiguity at any tier
+    refuses rather than weakening the match.
     """
     if mode == "keep_appearance":
         return _LayoutBinding(None, "transplant")
@@ -534,25 +542,66 @@ def _resolve_layout_binding(dest_prs, source_slide, mode, target_layout) -> _Lay
         return _LayoutBinding(target_layout, "explicit")
     source_layout = source_slide.slide_layout
     dest_layouts = [layout for master in dest_prs.slide_masters for layout in master.slide_layouts]
+
+    def unique_candidate(candidates, method, tier):
+        if len(candidates) == 1:
+            return _LayoutBinding(candidates[0], method)
+        if len(candidates) > 1:
+            identities = sorted(
+                [
+                    (
+                        layout.name,
+                        layout._element.get("type"),
+                        str(layout.part.partname),
+                        str(layout.slide_master.part.partname),
+                    )
+                    for layout in candidates
+                ],
+                key=lambda identity: (identity[3], identity[2], identity[0], identity[1] or ""),
+            )
+            details = "; ".join(
+                "name=%r, type=%r, part=%s, master=%s" % identity for identity in identities
+            )
+            raise AmbiguousTargetError(
+                "destination layout %s match is ambiguous; candidates: %s; pass "
+                "target_layout= explicitly" % (tier, details)
+            )
+        return None
+
     source_name = source_layout.name
     if source_name:
-        for layout in dest_layouts:
-            if layout.name == source_name:
-                return _LayoutBinding(layout, "name-match")
+        binding = unique_candidate(
+            [layout for layout in dest_layouts if layout.name == source_name],
+            "name-match",
+            "name",
+        )
+        if binding is not None:
+            return binding
     source_type = source_layout._element.get("type")
     if source_type and source_type != "cust":
-        for layout in dest_layouts:
-            if layout._element.get("type") == source_type:
-                return _LayoutBinding(layout, "type-match")
+        binding = unique_candidate(
+            [layout for layout in dest_layouts if layout._element.get("type") == source_type],
+            "type-match",
+            "type",
+        )
+        if binding is not None:
+            return binding
     if mode == "bake":
-        for layout in dest_layouts:
-            if layout._element.get("type") == "blank":
-                return _LayoutBinding(layout, "blank-fallback")
-        return _LayoutBinding(dest_layouts[0], "first-fallback")
+        binding = unique_candidate(
+            [layout for layout in dest_layouts if layout._element.get("type") == "blank"],
+            "blank-fallback",
+            "blank",
+        )
+        if binding is not None:
+            return binding
     raise UnsupportedStructureError(
-        "no destination layout matches source layout %r by name or type; pass "
+        "no destination layout uniquely matches source layout %r by name or type%s; pass "
         "target_layout= explicitly (or use keep_appearance to transplant the source "
-        "layout chain)" % (source_name or str(source_layout.part.partname))
+        "layout chain)"
+        % (
+            source_name or str(source_layout.part.partname),
+            " or blank fallback" if mode == "bake" else "",
+        )
     )
 
 
