@@ -571,7 +571,7 @@ def _sorted_content_types(data: bytes) -> bytes:
     """Return `data` with the `[Content_Types].xml` children in a canonical sort order."""
     from lxml import etree as _etree
 
-    root = _etree.fromstring(data)
+    root = _parse_package_xml(data).getroot()
     children = sorted(
         root,
         key=lambda e: (

@@ -422,6 +422,22 @@ def test_content_type_malformed_or_dtd_input_raises_valueerror(malformed):
         )
 
 
+@pytest.mark.parametrize("dtd_side", ["original", "candidate"])
+def test_content_type_fallback_rejects_dtd_when_package_member_sets_differ(dtd_side):
+    original, serialized, members, candidate = _content_type_pair()
+    dtd = b'<!DOCTYPE Types><Types xmlns="%s"/>' % _CT_NS.encode()
+    candidate["ppt/added.xml"] = b"<added/>"
+    if dtd_side == "original":
+        original = members["[Content_Types].xml"] = dtd
+    else:
+        serialized = candidate["[Content_Types].xml"] = dtd
+
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        package_module._members_semantically_equal(
+            "[Content_Types].xml", original, serialized, members, candidate
+        )
+
+
 # --------------------------------------------------------------------------- diff_package
 
 
@@ -468,6 +484,24 @@ def test_diff_reports_added_removed_and_binary_changes(tmp_path):
     # -- the app.xml tweak only adds structural whitespace: semantically equivalent
     assert "/docProps/app.xml" not in by_part
     assert len(diff.deltas) == 2
+
+
+def test_diff_rejects_dtd_content_types_when_package_members_differ(tmp_path):
+    original = zip_member_map(corpus.fixture_path(MINIMAL).read_bytes())
+    modified = dict(original)
+    modified["ppt/added.xml"] = b"<added/>"
+    modified["[Content_Types].xml"] = (
+        b'<!DOCTYPE Types><Types xmlns="%s"/>' % _CT_NS.encode()
+    )
+
+    original_path, modified_path = tmp_path / "a.pptx", tmp_path / "b.pptx"
+    for path, members in ((original_path, original), (modified_path, modified)):
+        with zipfile.ZipFile(str(path), "w") as zipf:
+            for name, data in members.items():
+                zipf.writestr(name, data)
+
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        diff_package(str(original_path), str(modified_path))
 
 
 def test_diff_to_dict_carries_pinned_schema_and_is_deterministic():
