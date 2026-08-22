@@ -65,6 +65,26 @@ Resolved values and provenance
 Text inspection payloads
 ------------------------
 
+``paper-text-inspection`` version 3 gives every block a current version-2 |BlockAnchor|. Its
+``locator`` identifies a text shape by slide-unique shape ID and paragraph index within that
+shape. Grouped leaves use the leaf shape ID directly; group names and order are display context,
+not identity. Table cells add the graphic-frame shape ID, zero-based row and column, and paragraph
+index within that cell. The part name supplies the notes-slide identity for notes anchors emitted
+by the editing APIs.
+
+The retained ``block_index`` is a diagnostic part-wide traversal ordinal only. Current writes
+resolve the locator first and never use that ordinal as identity. ``content_hash`` on a current
+anchor is a full SHA-256 fingerprint over NFC-normalized literal content plus ordered, positioned
+field-type markers. Meaningful whitespace and hard line breaks remain content; cached field
+display values do not. The public :func:`content_hash` helper is unchanged: it returns the legacy
+eight-character NFC SHA-256 prefix and never trims whitespace.
+
+Existing three-argument ``BlockAnchor(part, block_index, content_hash)`` construction creates a
+legacy anchor. It carries no structural locator; editing can accept it only when that short hash
+matches exactly one block in the named part.
+
+.. autofunction:: content_hash
+
 .. autoclass:: BlockAnchor()
    :members:
    :undoc-members:

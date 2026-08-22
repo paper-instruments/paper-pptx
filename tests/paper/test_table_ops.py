@@ -799,10 +799,73 @@ def test_anchored_replace_reaches_table_cells_including_merge_origin():
     cell_block = next(
         b for b in blocks.blocks if b.container == "table-cell" and b.text == "r1c2"
     )
+    assert cell_block.anchor.locator == {
+        "kind": "table-cell",
+        "shape_id": cell_block.shape_id,
+        "row": 1,
+        "column": 2,
+        "paragraph_index": 0,
+    }
     result = replace_text_at(reopened, cell_block.anchor, "r1c2", "R1C2 EDITED")
     assert result.replacements == 1
     final = save_reopen(reopened)
     assert _merged_table(final).cell(1, 2).text_frame.text == "R1C2 EDITED"
+
+
+@pytest.mark.parametrize(
+    "locator_change",
+    [
+        {"row": 99},
+        {"column": 99},
+        {"paragraph_index": 99},
+        {"kind": "shape"},
+    ],
+)
+def test_table_anchor_refuses_changed_coordinates_or_container_atomically(locator_change):
+    from pptx.edit import replace_text_at
+    from pptx.errors import PaperRefusal
+    from pptx.inspect import BlockAnchor, inspect_text
+
+    from .contract import assert_refusal_atomic
+
+    prs = _open(MERGED)
+    block = next(
+        b for b in inspect_text(prs.slides[0]).blocks
+        if b.container == "table-cell" and b.text == "r1c2"
+    )
+    locator = dict(block.anchor.locator)
+    locator.update(locator_change)
+    anchor = BlockAnchor(
+        block.anchor.part,
+        block.anchor.block_index,
+        block.anchor.content_hash,
+        block.anchor.version,
+        locator,
+    )
+
+    assert_refusal_atomic(
+        prs,
+        lambda p: replace_text_at(p, anchor, "r1c2", "changed"),
+        PaperRefusal,
+    )
+
+
+def test_table_anchor_uses_paragraph_index_within_its_exact_cell():
+    from pptx.edit import replace_text_at
+    from pptx.inspect import inspect_text
+
+    prs = _open(MERGED)
+    cell = _merged_table(prs).cell(1, 2)
+    cell.text_frame.add_paragraph().text = "second paragraph"
+    block = next(
+        b for b in inspect_text(prs.slides[0]).blocks if b.text == "second paragraph"
+    )
+    assert block.anchor.locator["paragraph_index"] == 1
+
+    replace_text_at(prs, block.anchor, "second", "SECOND")
+
+    final = save_reopen(prs)
+    assert _merged_table(final).cell(1, 2).text_frame.paragraphs[1].text == "SECOND paragraph"
 
 
 def test_column_surgery_refuses_a_ragged_table_before_mutation():

@@ -127,11 +127,11 @@ def test_field_paragraph_passes_the_fragment_oracle():
     assert not errors, "\n".join(errors)
 
 
-def test_inspect_reports_fields_without_hashing_their_volatile_text():
+def test_inspect_fingerprint_includes_field_marker_but_not_volatile_display_text():
     prs = _open(MINIMAL)
     paragraph = _footer_box(prs).text_frame.paragraphs[0]
     paragraph.add_run().text = "Page "
-    text_only_hash = next(
+    literal_only_fingerprint = next(
         b.anchor.content_hash
         for b in inspect_text(prs.slides[0]).blocks
         if b.shape_name == "footer_box"
@@ -143,8 +143,47 @@ def test_inspect_reports_fields_without_hashing_their_volatile_text():
     )
     assert block.fields == ("slidenum",)
     assert block.text == "Page "  # -- field display text excluded from text...
-    assert block.anchor.content_hash == text_only_hash  # -- ...so the anchor is hash-stable
+    assert block.anchor.content_hash != literal_only_fingerprint
+    field_fingerprint = block.anchor.content_hash
+    field = paragraph._p.find("{%s}fld" % _A)
+    field.find("{%s}t" % _A).text = "999"  # -- cached display is volatile
+    refreshed = next(
+        b for b in inspect_text(prs.slides[0]).blocks if b.shape_name == "footer_box"
+    )
+    assert refreshed.anchor.content_hash == field_fingerprint
     assert block.to_dict()["fields"] == ["slidenum"]
+
+
+def test_inspect_fingerprint_changes_with_field_type_and_marker_position():
+    prs = _open(MINIMAL)
+    paragraph = _footer_box(prs).text_frame.paragraphs[0]
+    paragraph.add_run().text = "Page "
+    paragraph.add_slide_number_field()
+    paragraph.add_run().text = " total"
+    original = next(
+        b.anchor.content_hash
+        for b in inspect_text(prs.slides[0]).blocks
+        if b.shape_name == "footer_box"
+    )
+
+    field = paragraph._p.find("{%s}fld" % _A)
+    field.set("type", "datetime3")
+    changed_type = next(
+        b.anchor.content_hash
+        for b in inspect_text(prs.slides[0]).blocks
+        if b.shape_name == "footer_box"
+    )
+    assert changed_type != original
+
+    field.set("type", "slidenum")
+    paragraph._p.remove(field)
+    paragraph._p.insert(0, field)
+    changed_position = next(
+        b.anchor.content_hash
+        for b in inspect_text(prs.slides[0]).blocks
+        if b.shape_name == "footer_box"
+    )
+    assert changed_position != original
 
 
 def test_normalize_autofit_still_covers_created_fields():

@@ -171,6 +171,31 @@ def build_minimal_clean() -> Path:
     return _save(prs, "minimal_clean.pptx")
 
 
+def build_anchor_duplicate_text() -> Path:
+    """LS-01 regression: two separately identified shapes with identical literal text."""
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _add_named_textbox(
+        slide,
+        "anchor_A",
+        Inches(1),
+        Inches(1),
+        Inches(3),
+        Inches(1),
+        "same text",
+    )
+    _add_named_textbox(
+        slide,
+        "anchor_B",
+        Inches(5),
+        Inches(1),
+        Inches(3),
+        Inches(1),
+        "same text",
+    )
+    return _save(prs, "anchor_duplicate_text.pptx")
+
+
 def build_branded_template() -> Path:
     """Feature: placeholder text inheriting size/font through layout/master/theme.
 
@@ -1196,6 +1221,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     builders = [
         build_minimal_clean,
+        build_anchor_duplicate_text,
         build_branded_template,
         build_clrmap_remap,
         build_chart_notes,

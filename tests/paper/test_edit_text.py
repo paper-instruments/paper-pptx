@@ -20,7 +20,7 @@ from pptx.errors import (
     TargetNotFoundError,
     UnsupportedStructureError,
 )
-from pptx.inspect import BlockAnchor, inspect_text
+from pptx.inspect import BlockAnchor, content_hash, inspect_text
 from pptx.util import Emu
 
 from . import corpus
@@ -29,6 +29,7 @@ from .lo import lo_load_smoke
 
 MINIMAL = "self_generated/minimal_clean.pptx"
 BRANDED = "self_generated/branded_template.pptx"
+ANCHOR_DUPLICATE = "self_generated/anchor_duplicate_text.pptx"
 _A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 
@@ -215,9 +216,11 @@ def test_result_payload_carries_pinned_schema():
     prs = _open(MINIMAL)
     payload = replace_text(prs, "Minimal", "Basic").to_dict()
     assert payload["schema"] == "paper-replace-result"
-    assert payload["version"] == 1
+    assert payload["version"] == 2
     assert payload["replacements"] == 1
     assert payload["blocks"][0]["part"] == "/ppt/slides/slide1.xml"
+    assert payload["blocks"][0]["version"] == 2
+    assert payload["blocks"][0]["locator"]["kind"] == "shape"
 
 
 @pytest.mark.parametrize(
@@ -442,6 +445,164 @@ def test_replace_text_at_edits_exactly_the_anchored_block():
     assert follow_up.replacements == 1
 
 
+def test_current_anchor_survives_duplicate_text_shape_reorder_after_reopen():
+    prs = _open(ANCHOR_DUPLICATE)
+    slide = prs.slides[0]
+    anchor_a = next(
+        block.anchor for block in inspect_text(slide).blocks if block.shape_name == "anchor_A"
+    )
+    slide.shapes.move(slide.shapes.shape_by_name("anchor_A"), 1)
+    reordered = _reopen(save_to_bytes(prs))
+
+    result = replace_text_at(reordered, anchor_a, "same text", "changed A")
+
+    reopened = _reopen(save_to_bytes(reordered))
+    assert reopened.slides[0].shapes.shape_by_name("anchor_A").text == "changed A"
+    assert reopened.slides[0].shapes.shape_by_name("anchor_B").text == "same text"
+    assert result.blocks[0].block_index == 1
+
+
+def test_grouped_leaf_anchor_uses_leaf_shape_id_not_repeated_names():
+    prs = _open(MINIMAL)
+    slide = prs.slides[0]
+    groups = []
+    for text in ("target grouped", "other grouped"):
+        group = slide.shapes.add_group_shape()
+        group.name = "repeated group"
+        leaf = group.shapes.add_textbox(0, 0, Emu(914400), Emu(914400))
+        leaf.name = "repeated leaf"
+        leaf.text_frame.paragraphs[0].text = text
+        groups.append(group)
+    target = next(
+        block for block in inspect_text(slide).blocks if block.text == "target grouped"
+    )
+    slide.shapes.move(groups[0], len(slide.shapes) - 1)
+
+    replace_text_at(prs, target.anchor, "target", "TARGET")
+
+    reopened = _reopen(save_to_bytes(prs))
+    texts = [block.text for block in inspect_text(reopened.slides[0]).blocks]
+    assert "TARGET grouped" in texts
+    assert "other grouped" in texts
+
+
+def test_duplicate_fingerprint_in_current_container_refuses_atomically():
+    from .contract import assert_refusal_atomic
+
+    prs = _open(MINIMAL)
+    box = prs.slides[0].shapes.add_textbox(0, 0, Emu(914400), Emu(914400))
+    box.text_frame.paragraphs[0].text = "duplicate"
+    box.text_frame.add_paragraph().text = "duplicate"
+    anchor = next(
+        block.anchor for block in inspect_text(prs.slides[0]).blocks
+        if block.shape_id == box.shape_id
+    )
+
+    raised = assert_refusal_atomic(
+        prs,
+        lambda p: replace_text_at(p, anchor, "duplicate", "changed"),
+        AmbiguousTargetError,
+    )
+    assert "local indices" in str(raised)
+
+
+def test_legacy_anchor_ignores_wrong_ordinal_and_requires_unique_part_hash():
+    prs = _open(BRANDED)
+    legacy = BlockAnchor("/ppt/slides/slide1.xml", 999, content_hash("Body level one"))
+
+    result = replace_text_at(prs, legacy, "level one", "tier one")
+
+    reopened = _reopen(save_to_bytes(prs))
+    assert reopened.slides[0].placeholders[1].text_frame.paragraphs[0].text == "Body tier one"
+    assert result.blocks[0].version == 2
+    assert len(result.blocks[0].content_hash) == 64
+
+
+def test_legacy_duplicate_hash_refuses_atomically():
+    from .contract import assert_refusal_atomic
+
+    prs = _open(ANCHOR_DUPLICATE)
+    legacy = BlockAnchor("/ppt/slides/slide1.xml", 0, content_hash("same text"))
+
+    raised = assert_refusal_atomic(
+        prs,
+        lambda p: replace_text_at(p, legacy, "same", "changed"),
+        AmbiguousTargetError,
+    )
+    assert "indices [0, 1]" in str(raised)
+
+
+def test_duplicate_shape_id_refuses_current_anchor_atomically():
+    from .contract import assert_refusal_atomic
+
+    prs = _open(ANCHOR_DUPLICATE)
+    slide = prs.slides[0]
+    anchor = next(
+        block.anchor for block in inspect_text(slide).blocks if block.shape_name == "anchor_A"
+    )
+    shape_b = slide.shapes.shape_by_name("anchor_B")
+    shape_b._element.find(".//{%s}cNvPr" % _P).set(
+        "id", str(anchor.locator["shape_id"])
+    )
+
+    assert_refusal_atomic(
+        prs,
+        lambda p: replace_text_at(p, anchor, "same", "changed"),
+        AmbiguousTargetError,
+    )
+
+
+def test_incompatible_current_container_kind_refuses_atomically():
+    from .contract import assert_refusal_atomic
+
+    prs = _open(BRANDED)
+    anchor = _body_anchor(prs)
+    malformed = BlockAnchor(
+        anchor.part,
+        anchor.block_index,
+        anchor.content_hash,
+        anchor.version,
+        dict(anchor.locator, kind="table-cell", row=0, column=0),
+    )
+
+    assert_refusal_atomic(
+        prs,
+        lambda p: replace_text_at(p, malformed, "level", "tier"),
+        UnsupportedStructureError,
+    )
+
+
+@pytest.mark.parametrize(
+    ("part", "locator_change", "error"),
+    [
+        ("/ppt/slides/slide99.xml", {}, TargetNotFoundError),
+        (None, {"shape_id": 99999}, TargetNotFoundError),
+        (None, {"shape_id": None}, UnsupportedStructureError),
+        (None, {"paragraph_index": 999}, TargetNotFoundError),
+    ],
+)
+def test_malformed_or_missing_current_locator_refuses_atomically(part, locator_change, error):
+    from .contract import assert_refusal_atomic
+
+    prs = _open(BRANDED)
+    anchor = _body_anchor(prs)
+    locator = dict(anchor.locator)
+    locator.update(locator_change)
+    malformed = BlockAnchor(
+        part or anchor.part,
+        anchor.block_index,
+        anchor.content_hash,
+        anchor.version,
+        locator,
+    )
+
+    assert_refusal_atomic(
+        prs,
+        lambda p: replace_text_at(p, malformed, "level", "tier"),
+        error,
+    )
+
+
 def test_stale_anchor_refuses_and_is_catchable_as_target_not_found():
     prs = _open(BRANDED)
     anchor = _body_anchor(prs)
@@ -494,7 +655,7 @@ def test_unknown_part_and_out_of_range_index_refuse_atomically():
         ),
         TargetNotFoundError,
     )
-    assert "beyond" in str(raised)
+    assert "anchored content is gone" in str(raised)
 
 
 def test_refind_recovers_a_moved_block():
@@ -510,6 +671,20 @@ def test_refind_recovers_a_moved_block():
     assert replace_text_at(prs, fresh, "level one", "tier one").replacements == 1
 
 
+def test_current_refind_recovers_paragraph_insertion_only_within_its_container():
+    prs = _open(BRANDED)
+    anchor = _body_anchor(prs)
+    body_p = prs.slides[0].placeholders[1].text_frame.paragraphs[0]._p
+    inserted = body_p.makeelement(body_p.tag, {})
+    body_p.addprevious(inserted)
+
+    with pytest.raises(StaleAnchorError):
+        replace_text_at(prs, anchor, "level", "tier")
+    fresh = refind(prs, anchor)
+    assert fresh.locator["paragraph_index"] == 1
+    assert replace_text_at(prs, fresh, "level one", "tier one").replacements == 1
+
+
 def test_refind_refuses_when_content_is_gone_or_ambiguous():
     prs = _open(BRANDED)
     anchor = _body_anchor(prs)
@@ -518,11 +693,39 @@ def test_refind_refuses_when_content_is_gone_or_ambiguous():
         refind(prs, anchor)
 
     prs = _open(BRANDED)
-    anchor = _body_anchor(prs)
+    anchor = BlockAnchor(
+        "/ppt/slides/slide1.xml", 0, content_hash("Body level one")
+    )
     box = prs.slides[0].shapes.add_textbox(0, 0, Emu(914400), Emu(914400))
     box.text_frame.paragraphs[0].add_run().text = "Body level one"  # -- now two identical
     with pytest.raises(AmbiguousTargetError):
         refind(prs, anchor)
+
+
+def test_notes_anchor_survives_reopen_and_supports_refind_and_anchored_edit():
+    prs = _open("self_generated/chart_notes.pptx")
+    before = save_to_bytes(prs)
+    result = replace_text(prs, "clone fixture", "QBR", include_notes=True)
+    notes_anchor = result.blocks[0]
+    assert notes_anchor.version == 2
+    assert notes_anchor.locator["kind"] == "shape"
+
+    after_deck_wide = save_to_bytes(prs)
+    assert_changed_parts(
+        before, after_deck_wide, expect_changed=["ppt/notesSlides/notesSlide1.xml"]
+    )
+    reopened = _reopen(after_deck_wide)
+    fresh = refind(reopened, notes_anchor)
+    replace_text_at(reopened, fresh, "QBR", "review")
+
+    after_anchored = save_to_bytes(reopened)
+    assert_changed_parts(
+        after_deck_wide,
+        after_anchored,
+        expect_changed=["ppt/notesSlides/notesSlide1.xml"],
+    )
+    final = _reopen(after_anchored)
+    assert final.slides[0].read_notes_text() == "Speaker notes for the review."
 
 
 # ------------------------------------------------------------------------------- lo_smoke

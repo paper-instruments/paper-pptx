@@ -223,6 +223,24 @@ def test_minimal_clean_ground_truth():
     assert layout.find("{%s}cSld" % _P).get("name") == ground_truth["layout_name"]
 
 
+def test_anchor_duplicate_text_ground_truth():
+    relpath = "self_generated/anchor_duplicate_text.pptx"
+    ground_truth = _ground_truth(relpath)
+    slide = _member_xml(relpath, "ppt/slides/slide1.xml")
+    shapes = slide.findall(".//{%s}sp" % _P)
+
+    assert [shape.find(".//{%s}cNvPr" % _P).get("name") for shape in shapes] == ground_truth[
+        "shape_names"
+    ]
+    assert [int(shape.find(".//{%s}cNvPr" % _P).get("id")) for shape in shapes] == ground_truth[
+        "shape_ids"
+    ]
+    assert [text.text for text in slide.iter("{%s}t" % _A)] == [
+        ground_truth["literal_text"],
+        ground_truth["literal_text"],
+    ]
+
+
 def test_branded_template_ground_truth():
     relpath = "self_generated/branded_template.pptx"
     ground_truth = _ground_truth(relpath)

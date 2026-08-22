@@ -42,6 +42,12 @@ def test_fields_are_reported_in_document_position_without_cached_display_text():
     assert block.fields == ("slidenum",)
     assert [run.field_type for run in block.runs] == [None, "slidenum"]
     assert block.to_dict()["runs"][1]["field_type"] == "slidenum"
+    assert block.anchor.version == 2
+    assert block.anchor.locator == {
+        "kind": "shape",
+        "shape_id": block.shape_id,
+        "paragraph_index": 0,
+    }
 
 
 def test_hard_line_breaks_remain_visible_text_boundaries():
@@ -58,3 +64,21 @@ def test_hard_line_breaks_remain_visible_text_boundaries():
 
     assert block.text == "alpha\vbeta"
     assert [run.text for run in block.runs] == ["alpha", "\v", "beta"]
+
+
+def test_current_fingerprint_normalizes_nfc_but_preserves_whitespace_and_breaks():
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    paragraph = slide.shapes.add_textbox(
+        0, 0, 914400, 914400
+    ).text_frame.paragraphs[0]
+    run = paragraph.add_run()
+    run.text = "café "
+    composed = inspect_text(slide).blocks[0].anchor.content_hash
+
+    run.text = "café "
+    assert inspect_text(slide).blocks[0].anchor.content_hash == composed
+    run.text = "café"
+    assert inspect_text(slide).blocks[0].anchor.content_hash != composed
+    paragraph.add_line_break()
+    assert inspect_text(slide).blocks[0].anchor.content_hash != composed
