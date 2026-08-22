@@ -22,7 +22,7 @@ test**. Changing or adding a fixture means, in one reviewed PR:
 | `office_authored/` | Authored in desktop Microsoft PowerPoint by a human (none yet) |
 | `google_export/` | Exported from Google Slides (none yet) |
 | `libreoffice_export/` | Final bytes written by LibreOffice Impress (here: headless round-trips of self-generated decks; the sidecar `provenance.notes` says exactly that) |
-| `other_producers/` | Any other real-world producer |
+| `other_producers/` | Any other real-world producer (currently byte-for-byte Walnut Exporter packages copied from the MIT-licensed Paper Office eval corpus) |
 | `self_generated/` | Built by `tests/paper/_authoring/build_fixtures.py` with this repo's own code |
 
 Provenance honesty is non-negotiable: a file's bucket and sidecar describe how its bytes were
@@ -35,7 +35,7 @@ files is untested, so producer-authored fixtures remain required release evidenc
 | --- | --- |
 | minimal-clean | `minimal_clean`, `lo_minimal_clean` |
 | feature-isolated | `branded_template` (inherited size/font), `clrmap_remap`, `chart_notes` (clone fixture), `shared_media`, `autofit_none` / `autofit_normal` / `autofit_shape`, `autofit_inherited`, `whitespace_trailing_a`/`_b` (kernel trap pair), `sections`, `tables_in_group`, `nested_groups`, `hf_flags`, `merged_tables` (v0.11 tables), `footers_applied` (v0.11 fields/footers + hidden slide), `template_alpha`/`template_beta` (v0.11 import/rebind corpus), `lineage_v1`/`lineage_v2`/`lineage_reorder` (v0.11 diff ground truth), plus the `lo_*` producer variants |
-| gauntlet | `gauntlet`, `scrub_gauntlet` (a deck carrying every delivery hazard at once: notes, comments, custom props, embedded font, unused-layout media) |
+| gauntlet | `gauntlet`, `scrub_gauntlet` (a deck carrying every delivery hazard at once: notes, comments, custom props, embedded font, unused-layout media), `walnut_chart_notes_absolute_rels`, `walnut_shared_media_absolute_rels` (unmodified producer packages retaining their broader package graphs) |
 | corrupt-by-construction | `corrupt_dangling_sldid` (negative tests only) |
 | large (perf smoke) | `large_smoke` |
 
