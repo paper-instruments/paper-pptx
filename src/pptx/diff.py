@@ -280,6 +280,12 @@ def diff_decks(path_a, path_b, *, detail: str = "structure") -> DeckDiff:
     general PPTX files. Slide ids allocate as max+1, so deleting the highest-id slide and then
     adding a new one RECYCLES the id, and this diff will read that delete-plus-add as one edited
     slide - order add-before-delete when producing lineage decks you intend to diff.
+
+    Paragraphs align by exact inspection fingerprints within their stable leaf-shape or table-
+    frame container. Insertions and deletions do not shift unchanged neighbors into replacements;
+    repeated content that exact context cannot associate is reported as ambiguous. Table grid
+    dimensions are structural changes, speaker notes remain one flat comparison, and table-cell
+    effective formatting and bullets remain outside the supported resolver domain.
     """
     if detail not in _DETAIL_LEVELS:
         raise ValueError(
