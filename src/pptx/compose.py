@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from pptx.slide import Slide, SlideLayout
 
 SCHEMA_NAME = "paper-import-report"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class _ComposeTransaction(PackageTransaction):
@@ -114,7 +114,8 @@ class ImportReport:
       content-hash deduplication (keep_appearance).
     * ``notes_copied`` -- whether the source slide's speaker-notes part was imported.
     * ``comments_dropped`` -- count of comment parts dropped (comments never travel).
-    * ``section`` -- name of the destination section the slide was enrolled in, or None.
+    * ``section`` / ``section_id`` -- name and exact GUID of the destination section the
+      slide was enrolled in, or None when it was not enrolled in a section.
     * ``baked_shapes`` -- names of placeholders converted to free baked shapes.
     * ``dropped_placeholders`` -- names of furniture placeholders (dt/ftr/sldNum)
       removed under "bake".
@@ -136,6 +137,7 @@ class ImportReport:
     notes_copied: bool
     comments_dropped: int
     section: Optional[str]
+    section_id: Optional[str]
     baked_shapes: Tuple[str, ...]
     dropped_placeholders: Tuple[str, ...]
     run_shifts: tuple
@@ -161,6 +163,7 @@ class ImportReport:
             "notes_copied": self.notes_copied,
             "comments_dropped": self.comments_dropped,
             "section": self.section,
+            "section_id": self.section_id,
             "baked_shapes": list(self.baked_shapes),
             "dropped_placeholders": list(self.dropped_placeholders),
             "run_shifts": [shift.to_dict() for shift in self.run_shifts],
@@ -179,11 +182,12 @@ def import_slide(
     position: "Optional[int]" = None,
     notes: bool = True,
     section: "Optional[str]" = None,
+    section_id: "Optional[str]" = None,
     target_layout: "Optional[SlideLayout]" = None,
     placeholder_map="auto",
 ) -> ImportReport:
     """Import one slide from `source_prs` into `dest_prs`; return the |ImportReport|."""
-    source_slide = _validate_arguments(
+    source_slide, resolved_section = _validate_arguments(
         dest_prs,
         source_prs,
         slide,
@@ -191,6 +195,7 @@ def import_slide(
         position,
         notes,
         section,
+        section_id,
         target_layout,
         placeholder_map,
     )
@@ -199,7 +204,15 @@ def import_slide(
     prep = _validate_mode_preparation(source_slide, mode, binding, placeholder_map)
     with _ComposeTransaction(dest_prs):
         return _perform_import(
-            dest_prs, source_slide, plan, mode, binding, prep, position, notes, section
+            dest_prs,
+            source_slide,
+            plan,
+            mode,
+            binding,
+            prep,
+            position,
+            notes,
+            resolved_section,
         )
 
 
@@ -222,8 +235,8 @@ def append_deck(
         raise ValueError("source_prs must be a Presentation, got %r" % (source_prs,))
     staged = []
     for source_slide in materialize_slides(source_prs, "append_deck"):
-        source_slide = _validate_arguments(
-            dest_prs, source_prs, source_slide, mode, None, notes, None, None, "auto"
+        source_slide, _ = _validate_arguments(
+            dest_prs, source_prs, source_slide, mode, None, notes, None, None, None, "auto"
         )
         plan = _validated_transplant_plan(source_slide.part, notes)
         binding = _resolve_layout_binding(dest_prs, source_slide, mode, None)
@@ -252,10 +265,11 @@ def _validate_arguments(
     position,
     notes,
     section,
+    section_id,
     target_layout,
     placeholder_map,
-) -> "Slide":
-    """Check the import arguments and return the resolved source slide.
+) -> "Tuple[Slide, object]":
+    """Check import arguments and return the source slide and resolved explicit section.
 
     Runs before any part is copied, so a bad call cannot leave the destination half-imported.
     """
@@ -306,11 +320,7 @@ def _validate_arguments(
         )
     if not isinstance(notes, bool):
         raise ValueError("notes must be True or False")
-    if section is not None:
-        if not isinstance(section, str):
-            raise ValueError("section must be a str section name or None")
-        if _find_section(dest_prs._element, section) is None:
-            raise TargetNotFoundError("destination has no section named %r" % (section,))
+    resolved_section = _resolve_explicit_section(dest_prs._element, section, section_id)
     if target_layout is not None:
         if mode == "keep_appearance":
             raise ValueError(
@@ -332,7 +342,7 @@ def _validate_arguments(
             "to placeholder reconciliation and baking - import it with "
             "mode='keep_appearance' (opaque transplant) instead"
         )
-    return slide
+    return slide, resolved_section
 
 
 def _validated_transplant_plan(source_part, notes: bool):
@@ -633,7 +643,7 @@ def _resolve_layout_binding(dest_prs, source_slide, mode, target_layout) -> _Lay
 
 
 def _perform_import(
-    dest_prs, source_slide, plan, mode, binding, prep, position, notes, section
+    dest_prs, source_slide, plan, mode, binding, prep, position, notes, resolved_section
 ) -> ImportReport:
     """Copy the source slide into the destination and report what changed."""
     from pptx.parts.slide import SlidePart
@@ -713,7 +723,9 @@ def _perform_import(
         sldIdLst.sldId_lst[final_position].addprevious(sldId)
     new_slide_id = int(sldId.get("id"))
 
-    enrolled_section = _enroll_in_section(dest_prs._element, new_slide_id, final_position, section)
+    enrolled_section = _enroll_in_section(
+        dest_prs._element, new_slide_id, final_position, resolved_section
+    )
 
     # -- report ----------------------------------------------------------------------------
     after_state = _resolution_state(new_slide_part.slide)
@@ -737,7 +749,8 @@ def _perform_import(
         parts_reused=tuple(sorted(set(reused))),
         notes_copied=notes_copied,
         comments_dropped=comments_dropped,
-        section=enrolled_section,
+        section=enrolled_section.get("name") if enrolled_section is not None else None,
+        section_id=enrolled_section.get("id") if enrolled_section is not None else None,
         baked_shapes=tuple(baked_names),
         dropped_placeholders=tuple(dropped_names),
         run_shifts=shifts,
@@ -1110,32 +1123,64 @@ def _next_layout_or_master_id(dest_prs) -> int:
 # ---------------------------------------------------------------------------- sections
 
 
-def _find_section(presentation_elm, name: str):
-    """The `p14:section` named `name`, or None when the deck has no section by that name."""
-    for section in presentation_elm.findall(".//{%s}sectionLst/{%s}section" % (_P14_NS, _P14_NS)):
-        if section.get("name") == name:
-            return section
-    return None
+def _resolve_explicit_section(presentation_elm, name, section_id):
+    """Resolve one exact explicit section selector before import mutation, or refuse."""
+    if name is not None and not isinstance(name, str):
+        raise ValueError("section must be a str section name or None")
+    if section_id is not None and not isinstance(section_id, str):
+        raise ValueError("section_id must be a str section id or None")
+    if name is not None and section_id is not None:
+        raise ValueError("section and section_id are mutually exclusive")
+    if name is None and section_id is None:
+        return None
+
+    sections = presentation_elm.findall(".//{%s}sectionLst/{%s}section" % (_P14_NS, _P14_NS))
+    attribute, value = ("name", name) if name is not None else ("id", section_id)
+    matches = [
+        (order, section)
+        for order, section in enumerate(sections)
+        if section.get(attribute) == value
+    ]
+    if not matches:
+        if name is not None:
+            raise TargetNotFoundError("destination has no section named %r" % (name,))
+        raise TargetNotFoundError("destination has no section with id %r" % (section_id,))
+    if len(matches) > 1:
+        if name is not None:
+            details = "; ".join(
+                "order=%d, id=%r" % (order, section.get("id"))
+                for order, section in matches
+            )
+            raise AmbiguousTargetError(
+                "destination section name %r is ambiguous; candidates: %s; pass section_id= "
+                "explicitly" % (name, details)
+            )
+        details = "; ".join(
+            "order=%d, name=%r, id=%r"
+            % (order, section.get("name"), section.get("id"))
+            for order, section in matches
+        )
+        raise AmbiguousTargetError(
+            "destination section id %r is ambiguous; candidates: %s; pass section= with a "
+            "unique exact name" % (section_id, details)
+        )
+    return matches[0][1]
 
 
-def _enroll_in_section(presentation_elm, new_slide_id, final_position, section_name):
-    """Enroll the imported slide: named section, or adjacent to the insertion point.
-
-    Returns the name of the section actually enrolled in (None when the destination has
-    no sections) so the report can carry the real disposition, not the argument.
-    """
+def _enroll_in_section(presentation_elm, new_slide_id, final_position, explicit_section):
+    """Enroll in the resolved explicit section or by unchanged adjacent placement."""
     sections = presentation_elm.findall(".//{%s}sectionLst/{%s}section" % (_P14_NS, _P14_NS))
     if not sections:
         return None
-    if section_name is not None:
-        section = _find_section(presentation_elm, section_name)
+    if explicit_section is not None:
+        section = explicit_section
         sldIdLst = section.find("{%s}sldIdLst" % _P14_NS)
         if sldIdLst is None:
             sldIdLst = section.makeelement("{%s}sldIdLst" % _P14_NS, {})
             section.insert(0, sldIdLst)
         entry = sldIdLst.makeelement("{%s}sldId" % _P14_NS, {"id": str(new_slide_id)})
         sldIdLst.append(entry)
-        return section_name
+        return section
     # -- adjacent enrollment: after the preceding slide's entry; first section if none
     P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
     deck_sldIds = presentation_elm.findall(".//%ssldIdLst/%ssldId" % (P, P))
@@ -1148,11 +1193,11 @@ def _enroll_in_section(presentation_elm, new_slide_id, final_position, section_n
                 if entry.get("id") == preceding_id:
                     new_entry = entry.makeelement("{%s}sldId" % _P14_NS, {"id": str(new_slide_id)})
                     entry.addnext(new_entry)
-                    return section.get("name")
+                    return section
     first_sldIdLst = sections[0].find("{%s}sldIdLst" % _P14_NS)
     if first_sldIdLst is None:
         first_sldIdLst = sections[0].makeelement("{%s}sldIdLst" % _P14_NS, {})
         sections[0].insert(0, first_sldIdLst)
     entry = first_sldIdLst.makeelement("{%s}sldId" % _P14_NS, {"id": str(new_slide_id)})
     first_sldIdLst.insert(0, entry)
-    return sections[0].get("name")
+    return sections[0]

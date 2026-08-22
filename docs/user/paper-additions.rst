@@ -260,8 +260,19 @@ partial ``placeholder_map`` to :meth:`~pptx.presentation.Presentation.import_sli
 same-type or compatible-family tier is ambiguous; a ``None`` target deliberately bakes that
 source placeholder. Keep-appearance and bake reject the argument because they do not reconcile
 placeholder bindings. :meth:`~pptx.presentation.Presentation.append_deck` remains automatic-only
-and atomically refuses if any staged slide needs an explicit map. ``paper-import-report`` version
-2 always records ``placeholder_map_used``; non-reconciling modes use an empty list.
+and atomically refuses if any staged slide needs an explicit map.
+
+Section targeting is exact and conservative. ``section="Name"`` enrolls only when that destination
+name is unique; duplicate names raise |AmbiguousTargetError| with every candidate GUID and deck
+order. Pass the mutually exclusive ``section_id="{...}"`` selector to choose the intended section
+by its exact stored GUID. Missing exact names or IDs raise |TargetNotFoundError|, and IDs are never
+case-folded or brace-normalized. With neither selector, import keeps its adjacent-section behavior,
+following the slide before the insertion point and otherwise using the first destination section.
+This does not add general section authoring APIs.
+
+``paper-import-report`` version 3 always records the actual enrolled ``section`` and
+``section_id`` (or ``null`` for both). It preserves version 2's ``placeholder_map_used`` shape
+exactly; non-reconciling modes still use an empty list.
 
 **Send-safe delivery.** Stripping speaker notes, review comments, and authorship before a deck
 leaves the building needs no dedicated API: a part leaves the package by becoming unreachable, and
