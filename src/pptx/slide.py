@@ -296,7 +296,9 @@ class Slide(_BaseSlide):
         paper-pptx addition — the template-migration *primitive* (bulk-migration
         workflows are left to the caller). Placeholders reconcile against the
         target layout: auto-matching binds by exact type+idx, then same type, then
-        interchangeable type family (title/ctrTitle; body/object/subTitle); pass
+        interchangeable type family (title/ctrTitle; body/object/subTitle). The two
+        fallback tiers bind only when exactly one unclaimed target exists; ambiguity
+        refuses and requires an explicit map. Pass
         `placeholder_map={source_idx: target_idx | None}` to override any of it (None
         force-orphans a source). Source placeholders with no destination follow
         `orphan_policy`: "refuse" (default; typed, atomic) or "bake" — convert to a free

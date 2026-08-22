@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from pptx.slide import Slide, SlideLayout
 
 SCHEMA_NAME = "paper-import-report"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class _ComposeTransaction(PackageTransaction):
@@ -106,6 +106,9 @@ class ImportReport:
     * ``layout_binding_method`` -- how that layout was chosen ("name-match",
       "type-match", "explicit", "transplant", or "blank-fallback"). Automatic
       methods always identify a unique candidate at their matching tier.
+    * ``placeholder_map_used`` -- the complete resolved ``(source_idx, target_idx)``
+      mapping for adopt-theme reconciliation; ``target_idx`` is ``None`` for an
+      orphan. Empty for keep-appearance and bake.
     * ``parts_added`` -- partnames added to the destination package by this import.
     * ``parts_reused`` -- partnames of existing destination parts reused via
       content-hash deduplication (keep_appearance).
@@ -127,6 +130,7 @@ class ImportReport:
     position: int
     layout_binding: str
     layout_binding_method: str
+    placeholder_map_used: Tuple[Tuple[int, Optional[int]], ...]
     parts_added: Tuple[str, ...]
     parts_reused: Tuple[str, ...]
     notes_copied: bool
@@ -148,6 +152,10 @@ class ImportReport:
             "position": self.position,
             "layout_binding": self.layout_binding,
             "layout_binding_method": self.layout_binding_method,
+            "placeholder_map_used": [
+                {"source_idx": src, "target_idx": tgt}
+                for src, tgt in self.placeholder_map_used
+            ],
             "parts_added": list(self.parts_added),
             "parts_reused": list(self.parts_reused),
             "notes_copied": self.notes_copied,
@@ -172,14 +180,23 @@ def import_slide(
     notes: bool = True,
     section: "Optional[str]" = None,
     target_layout: "Optional[SlideLayout]" = None,
+    placeholder_map="auto",
 ) -> ImportReport:
     """Import one slide from `source_prs` into `dest_prs`; return the |ImportReport|."""
     source_slide = _validate_arguments(
-        dest_prs, source_prs, slide, mode, position, notes, section, target_layout
+        dest_prs,
+        source_prs,
+        slide,
+        mode,
+        position,
+        notes,
+        section,
+        target_layout,
+        placeholder_map,
     )
     plan = _validated_transplant_plan(source_slide.part, notes)
     binding = _resolve_layout_binding(dest_prs, source_slide, mode, target_layout)
-    prep = _validate_mode_preparation(source_slide, mode, binding)
+    prep = _validate_mode_preparation(source_slide, mode, binding, placeholder_map)
     with _ComposeTransaction(dest_prs):
         return _perform_import(
             dest_prs, source_slide, plan, mode, binding, prep, position, notes, section
@@ -206,7 +223,7 @@ def append_deck(
     staged = []
     for source_slide in materialize_slides(source_prs, "append_deck"):
         source_slide = _validate_arguments(
-            dest_prs, source_prs, source_slide, mode, None, notes, None, None
+            dest_prs, source_prs, source_slide, mode, None, notes, None, None, "auto"
         )
         plan = _validated_transplant_plan(source_slide.part, notes)
         binding = _resolve_layout_binding(dest_prs, source_slide, mode, None)
@@ -228,7 +245,15 @@ def append_deck(
 
 
 def _validate_arguments(
-    dest_prs, source_prs, slide, mode, position, notes, section, target_layout
+    dest_prs,
+    source_prs,
+    slide,
+    mode,
+    position,
+    notes,
+    section,
+    target_layout,
+    placeholder_map,
 ) -> "Slide":
     """Check the import arguments and return the resolved source slide.
 
@@ -297,6 +322,8 @@ def _validate_arguments(
         if target_layout.part.package is not dest_prs.part.package:
             raise ValueError("target_layout must belong to the destination presentation")
         _require_layout_enrolled(target_layout, argument="target_layout")
+    if mode != "adopt_theme" and placeholder_map != "auto":
+        raise ValueError("placeholder_map applies only to mode='adopt_theme'")
     if mode in ("adopt_theme", "bake") and any(
         True for _ in slide._element.spTree.iterchildren(_MC_ALTERNATE_CONTENT)
     ):
@@ -360,7 +387,7 @@ def _validate_dgm_rels(dgm_part) -> None:
             )
 
 
-def _validate_mode_preparation(source_slide, mode, binding):
+def _validate_mode_preparation(source_slide, mode, binding, placeholder_map="auto"):
     """Pre-compute everything the mode needs from the SOURCE, refusing before any write."""
     from pptx.rebind import _compute_mapping, _resolution_state
 
@@ -373,7 +400,7 @@ def _validate_mode_preparation(source_slide, mode, binding):
     content_phs = [shape for shape in slide_phs if shape not in hf_phs]
 
     if mode == "adopt_theme":
-        mapping = _compute_mapping(slide_phs, binding.layout, "auto")
+        mapping = _compute_mapping(slide_phs, binding.layout, placeholder_map)
         orphans = [s for s in slide_phs if mapping[s.element.ph_idx] is None]
     else:  # -- bake: every content placeholder converts; furniture drops
         mapping = None
@@ -702,6 +729,10 @@ def _perform_import(
         position=final_position,
         layout_binding=str(dest_layout_part.partname),
         layout_binding_method=binding.method,
+        placeholder_map_used=tuple(
+            (source_idx, target[1] if target else None)
+            for source_idx, target in sorted((prep.get("mapping") or {}).items())
+        ),
         parts_added=parts_added,
         parts_reused=tuple(sorted(set(reused))),
         notes_copied=notes_copied,

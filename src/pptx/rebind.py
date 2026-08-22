@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from pptx.enum.shapes import PP_PLACEHOLDER
-from pptx.errors import UnsupportedStructureError
+from pptx.errors import AmbiguousTargetError, UnsupportedStructureError
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml.ns import qn
 from pptx.util import Emu
@@ -356,9 +356,10 @@ def _compute_mapping(slide_phs, target_layout, placeholder_map):
     for shape in unmatched:
         source_type = shape.element.ph_type
         same_type = [slot for slot in slots if slot[0] == source_type and slot[1] not in claimed]
-        if same_type:
-            mapping[shape.element.ph_idx] = same_type[0]
-            claimed.add(same_type[0][1])
+        match = _unique_fallback(shape, same_type, "same-type")
+        if match is not None:
+            mapping[shape.element.ph_idx] = match
+            claimed.add(match[1])
         else:
             still_unmatched.append(shape)
 
@@ -370,12 +371,29 @@ def _compute_mapping(slide_phs, target_layout, placeholder_map):
             if family is not None
             else []
         )
-        if familial:
-            mapping[shape.element.ph_idx] = familial[0]
-            claimed.add(familial[0][1])
+        match = _unique_fallback(shape, familial, "compatible-family")
+        if match is not None:
+            mapping[shape.element.ph_idx] = match
+            claimed.add(match[1])
         else:
             mapping[shape.element.ph_idx] = None
     return mapping
+
+
+def _unique_fallback(shape, candidates, tier):
+    """Return the sole candidate in `tier`, or refuse when that tier is ambiguous."""
+    if len(candidates) > 1:
+        raise AmbiguousTargetError(
+            "placeholder type %s, idx %d has multiple unclaimed %s fallback targets: %s; "
+            "pass placeholder_map={source_idx: target_idx | None} to choose explicitly"
+            % (
+                shape.element.ph_type.name,
+                shape.element.ph_idx,
+                tier,
+                ", ".join("type %s, idx %d" % (ph_type.name, idx) for ph_type, idx in candidates),
+            )
+        )
+    return candidates[0] if candidates else None
 
 
 # ------------------------------------------------------------------------ resolve and bake

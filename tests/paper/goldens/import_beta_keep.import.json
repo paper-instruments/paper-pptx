@@ -1,6 +1,6 @@
 {
   "schema": "paper-import-report",
-  "version": 1,
+  "version": 2,
   "mode": "keep_appearance",
   "source_slide": "/ppt/slides/slide1.xml",
   "dest_slide": "/ppt/slides/slide4.xml",
@@ -8,6 +8,7 @@
   "position": 3,
   "layout_binding": "/ppt/slideLayouts/slideLayout12.xml",
   "layout_binding_method": "transplant",
+  "placeholder_map_used": [],
   "parts_added": [
     "/ppt/slideLayouts/slideLayout12.xml",
     "/ppt/slideMasters/slideMaster2.xml",

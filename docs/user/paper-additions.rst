@@ -230,9 +230,12 @@ The package authors the fields. PowerPoint or LibreOffice refreshes their values
 slide number written this way stays correct after a reorder.
 
 **Layout rebind** (:ref:`rebind_api`). :meth:`~pptx.slide.Slide.rebind_layout` moves a slide to
-another layout, matching placeholders by type and
-index with an explicit map and orphan policy for the rest. Its |RebindReport| is required. The
-resolver runs before and after, and every run whose *resolved* appearance changed is reported.
+another layout. Placeholder matching settles exact type-and-index matches globally, then accepts a
+same-type or compatible-family fallback only when it has one unclaimed candidate. Ambiguity raises
+|AmbiguousTargetError| before mutation; a partial
+``placeholder_map={source_idx: target_idx | None}`` chooses selected slots while the rest remain
+automatic, and ``None`` deliberately invokes the orphan policy. Its |RebindReport| is required.
+The resolver runs before and after, and every run whose *resolved* appearance changed is reported.
 
 **Slide import and deck merge** (:ref:`compose_api`).
 :meth:`~pptx.presentation.Presentation.import_slide` and
@@ -251,6 +254,14 @@ falls through to a weaker match or chooses the first layout. Pass ``target_layou
 :meth:`~pptx.presentation.Presentation.import_slide` to settle the choice explicitly. Whole-deck
 append preflights every source slide, so an ambiguous later layout leaves the destination
 unchanged.
+
+Adopt-theme import applies the same exact-first, unique-only placeholder reconciliation. Pass a
+partial ``placeholder_map`` to :meth:`~pptx.presentation.Presentation.import_slide` when a
+same-type or compatible-family tier is ambiguous; a ``None`` target deliberately bakes that
+source placeholder. Keep-appearance and bake reject the argument because they do not reconcile
+placeholder bindings. :meth:`~pptx.presentation.Presentation.append_deck` remains automatic-only
+and atomically refuses if any staged slide needs an explicit map. ``paper-import-report`` version
+2 always records ``placeholder_map_used``; non-reconciling modes use an empty list.
 
 **Send-safe delivery.** Stripping speaker notes, review comments, and authorship before a deck
 leaves the building needs no dedicated API: a part leaves the package by becoming unreachable, and
