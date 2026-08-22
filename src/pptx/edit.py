@@ -63,11 +63,22 @@ class ReplaceResult:
 def replace_text(
     prs: "Presentation", find: str, replace: str, *, include_notes: bool = False
 ) -> ReplaceResult:
-    """Replace every occurrence of `find` with `replace` across `prs`, preserving formatting.
+    """Replace literal `find` with `replace` across `prs`; return a |ReplaceResult|.
 
-    Deck-wide and visibility-complete: slide shapes, grouped shapes, and table cells (and
-    existing notes slides when `include_notes=True`). Zero matches is a normal
-    `ReplaceResult(0)`, not a refusal. Validation completes before the first write.
+    Matching is case-sensitive, left-to-right, and non-overlapping. A match may span consecutive
+    text runs in one paragraph, but never a paragraph boundary or an intervening non-run element
+    such as a line break or field. `find` must be a non-empty string; `replace` may be empty. Tabs
+    are accepted, while line breaks, XML control characters, and non-encodable text are refused.
+
+    Boundary fragments retain their original run properties, and replacement text receives the
+    run properties of the run where its match starts. Untouched runs remain byte-identical. Any
+    run left with no text after replacement is removed, so formatting found only on that run is
+    not retained.
+
+    Traversal covers slide shapes, grouped shapes, and table cells, plus existing notes slides
+    when `include_notes=True`. An unsupported blind region refuses the whole operation before any
+    write. Zero matches is a successful result with ``replacements == 0`` and no block anchors.
+    Each returned block anchor describes the post-edit text of a block that changed.
     """
     _validate_find_replace(find, replace)
     _require_presentation_root(prs)
@@ -92,12 +103,18 @@ def replace_text(
 def replace_text_at(
     prs: "Presentation", anchor: BlockAnchor, find: str, replace: str
 ) -> ReplaceResult:
-    """Replace `find` with `replace` inside the single block addressed by `anchor`.
+    """Replace literal `find` in the block at `anchor`; return a |ReplaceResult|.
 
-    The block's current text must hash to `anchor.content_hash` — a mismatch means the
-    document changed since the anchor was produced and raises |StaleAnchorError| (recover
-    explicitly with :func:`refind`). `find` absent from the block raises
-    |TargetNotFoundError|. Formatting-preservation semantics as :func:`replace_text`.
+    Matching, validation, run-boundary formatting, and non-run boundaries are the same as
+    :func:`replace_text`. The block's current text must hash to `anchor.content_hash`; otherwise
+    |StaleAnchorError| is raised and :func:`refind` is the explicit recovery path. An anchor that
+    addresses an unsupported blind region, or a missing target, refuses without mutation; blind
+    regions elsewhere do not block this anchored operation. `find` absent from the block, or
+    present only across a boundary a match cannot cross, raises |TargetNotFoundError| rather than
+    returning a zero count.
+
+    On success the result contains the number of occurrences replaced in that block and its one
+    post-edit anchor.
     """
     _validate_find_replace(find, replace)
     if not isinstance(anchor, BlockAnchor):

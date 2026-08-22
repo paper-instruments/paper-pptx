@@ -430,5 +430,5 @@ def test_lo_smoke_helper_rejects_non_presentation_bytes(tmp_path):
     plain-text fallback 'converts' arbitrary garbage to a valid PDF with exit code 0."""
     garbage = tmp_path / "garbage.pptx"
     garbage.write_bytes(b"this is not a zip file at all " * 100)
-    with pytest.raises(AssertionError, match="could not load"):
+    with pytest.raises(AssertionError, match=r"could not (?:be )?load"):
         lo_load_smoke(garbage, tmp_path)

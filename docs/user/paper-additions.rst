@@ -155,6 +155,38 @@ guess. On tables, :meth:`~pptx.table.Table.insert_row` /
 :meth:`~pptx.table.Table.delete_column` keep the grid definition consistent and guard merged
 regions cell-wise. A merged header row does not block body-row operations.
 
+Choose lookup by ownership. ``table_by_name()`` returns table content directly. If the edit also
+needs width, height, position, or other geometry, retain the owning graphic frame with
+``shape_by_name()``, check :attr:`~pptx.shapes.graphfrm.GraphicFrame.has_table`, and then use its
+:attr:`~pptx.shapes.graphfrm.GraphicFrame.table`. Geometry belongs to the frame, not to |Table|::
+
+    from pptx import Presentation
+    from pptx.package import patch_save
+
+    prs = Presentation("input.pptx")
+    slide = prs.slides[0]
+    frame = slide.shapes.shape_by_name("Plan Matrix")
+    if not frame.has_table:
+        raise ValueError("Plan Matrix is not a table")
+    table = frame.table
+
+    inserted_column_idx = 2
+    table.insert_column(1, copy_format_from=1)
+    table.cell(0, inserted_column_idx).text = "Current"
+    delta = patch_save("input.pptx", prs, "output.pptx")
+
+The returned |PackageDiff| is the residual package delta after unchanged original bytes have been
+restored. Column insertion recalculates the owning frame's width; other shape geometry remains on
+``frame``.
+
+``copy_format_from`` names a pre-insertion column. It copies each source cell's direct formatting
+into an empty, unmerged cell in the corresponding row; it does not materialize appearance inherited
+from a table style or theme. An explicit ``width`` wins over the template width. Use
+:meth:`~pptx.table._Cell.merge` to create a merge, :meth:`~pptx.table._Cell.extend_merge` to grow an
+existing rectangular merge rightward, downward, or both, and :meth:`~pptx.table._Cell.split` to
+remove one. Merge extension validates the entire requested rectangle before mutation, so malformed
+topology, conflicts, and stale cells refuse without a partial edit.
+
 **Text, notes, images, and charts** (:ref:`text_api`, :ref:`shape_api`, :ref:`chart-api`). Real
 bullets and numbering via :attr:`~pptx.text.text._Paragraph.bullet` (a |BulletFormat|); autofit
 you can read and freeze with :meth:`~pptx.text.text.TextFrame.normalize_autofit`; speaker-notes
@@ -166,10 +198,16 @@ handles workbook-less charts, including those in the LibreOffice fixture corpus.
 
 **Package comparison and narrow saves** (:ref:`package_api`).
 :func:`~pptx.package.diff_package` reports what changed between two files, part by part, using
-semantic XML comparison. Indentation is noise; a trailing space inside a text run is content.
+semantic XML comparison. Indentation is noise; a trailing space inside a text run is content. Valid
+relationship registries compare complete bindings rather than child order, and valid content-type
+registries compare the effective assignments for package members. Unknown or ambiguous registry
+structures fall back conservatively; real relationship, content-type, member, and ordinary XML
+ordering changes remain visible.
 :func:`~pptx.package.patch_save` writes the edit and restores original bytes for every part that
 did not semantically change. A one-line edit to a sixty-slide deck therefore diffs as one part,
-not sixty.
+not sixty. Table and shape APIs edit an in-memory |Presentation|; use ``save()`` for normal
+serialization or ``patch_save(original_path, prs, out_path)`` when unchanged package members should
+retain their original bytes.
 
 
 Compose across decks
