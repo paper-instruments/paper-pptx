@@ -1,6 +1,6 @@
 {
   "schema": "paper-deck-diff",
-  "version": 4,
+  "version": 5,
   "detail": "text",
   "slides_added": [
     {
@@ -35,9 +35,19 @@
       "slide_id": 256,
       "text_changes": [
         {
-          "shape_id": 2,
-          "shape_name": "Title 1",
-          "block_ordinal": 0,
+          "kind": "replacement",
+          "shape": {
+            "shape_id": 2,
+            "name": "Title 1"
+          },
+          "before_location": {
+            "container": "shape",
+            "paragraph_index": 0
+          },
+          "after_location": {
+            "container": "shape",
+            "paragraph_index": 0
+          },
           "before": "Lineage slide one",
           "after": "Lineage slide one, retitled"
         }

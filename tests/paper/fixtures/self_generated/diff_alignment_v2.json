@@ -1,0 +1,18 @@
+{
+  "fixture": "diff_alignment_v2.pptx",
+  "provenance": {
+    "app": "paper-pptx fixture authoring script",
+    "version": "0.2.0",
+    "notes": "Independently authored after side of the LS-05 paragraph/table alignment pair."
+  },
+  "features": ["diff-alignment-after", "paragraph-insertion", "table-row-insertion"],
+  "ground_truth": {
+    "slide_count": 1,
+    "paragraphs": ["Inserted paragraph", "Anchor", "Repeated", "Tail"],
+    "table_rows": 3,
+    "table_columns": 2,
+    "inserted_row_index": 1
+  },
+  "verified_by": "UNVERIFIED - machine-authored ground truth",
+  "date": "2026-08-22"
+}

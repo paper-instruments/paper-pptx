@@ -1217,6 +1217,38 @@ def build_lineage_trio() -> "tuple[Path, Path, Path]":
     return v1_path, v2_path, reorder_path
 
 
+def _diff_alignment_deck(paragraphs, rows) -> "Presentation":
+    """Author one LS-05 side independently from literal content."""
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(5), Inches(2))
+    box.name = "alignment_text"
+    box.text_frame.paragraphs[0].text = paragraphs[0]
+    for text in paragraphs[1:]:
+        box.text_frame.add_paragraph().text = text
+    frame = slide.shapes.add_table(
+        len(rows), len(rows[0]), Inches(1), Inches(3.5), Inches(6), Inches(2)
+    )
+    frame.name = "alignment_table"
+    for row_index, values in enumerate(rows):
+        for column_index, text in enumerate(values):
+            frame.table.cell(row_index, column_index).text = text
+    return prs
+
+
+def build_diff_alignment_pair() -> "tuple[Path, Path]":
+    """LS-05 pair authored independently, never by mutating the before deck."""
+    v1 = _diff_alignment_deck(
+        ("Anchor", "Repeated", "Tail"),
+        (("Name", "Value"), ("Alpha", "10")),
+    )
+    v2 = _diff_alignment_deck(
+        ("Inserted paragraph", "Anchor", "Repeated", "Tail"),
+        (("Name", "Value"), ("New", "5"), ("Alpha", "10")),
+    )
+    return _save(v1, "diff_alignment_v1.pptx"), _save(v2, "diff_alignment_v2.pptx")
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     builders = [
@@ -1233,6 +1265,7 @@ def main() -> None:
         build_gauntlet,
         build_corrupt_dangling_sldid,
         build_large_smoke,
+        build_diff_alignment_pair,
     ]
     for builder in builders:
         result = builder()

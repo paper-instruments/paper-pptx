@@ -30,7 +30,7 @@ decks can reuse numeric ids and are outside the lineage contract. Deleting a sha
 reusing its id for a new shape of the same structural kind is also indistinguishable without a
 persistent identifier that general PPTX files do not provide.
 
-``paper-deck-diff`` schema version 4 uses one structured shape reference everywhere. Entries in
+``paper-deck-diff`` schema version 5 uses one structured shape reference everywhere. Entries in
 ``shapes_added``, ``shapes_removed``, and ``images_replaced`` are
 ``{"shape_id": ..., "name": ...}``; the ``shape`` value in ``geometry_changes`` and the ``chart``
 value in ``chart_data_changes`` use that same structure. Additions use the after-side name,
@@ -39,6 +39,30 @@ migrating from version 3 should compare ``entry["shape_id"]`` (or
 ``entry["shape"]["shape_id"]`` / ``entry["chart"]["shape_id"]``) rather than the former string
 label. A rename alone remains observable through ``package_changes`` and does not manufacture a
 specialized shape change.
+
+Text comparison is likewise lineage-scoped. Paragraphs are partitioned by the slide-wide ID of
+their ordinary/grouped leaf shape or table frame, then aligned by the exact inspection-v3
+fingerprint (NFC-normalized literal segments plus field type and position). The matcher does not
+use paragraph ordinal, display name, geometry, edit distance, or fuzzy text. Insertions and
+deletions therefore do not shift unchanged neighbors into fictional replacements. Exact unique
+reorders can be reported as ``kind="move"``; a uniquely bounded one-for-one change is a
+``replacement``. Repeated regions that cannot be associated from exact context use one
+``ambiguity`` event rather than an arbitrary pairing.
+
+Every text event carries a structured ``shape`` reference and separate ``before_location`` and
+``after_location``. A location contains the container kind and container-local paragraph index;
+table-cell locations also contain row and column. Insertions and deletions use ``null`` on the
+absent side. Ambiguity events keep the singular locations null and list the exact candidates.
+Version-4 consumers must migrate from ``shape_id``/``shape_name``/``block_ordinal`` to these
+version-5 fields.
+
+At ``detail="structure"``, ``table_structure_changes`` reports stable table-frame identity and
+before/after row and column counts. A provably located row or column insertion/deletion includes
+its index; duplicate or blank cells retain candidate indexes and an ambiguity marker. At
+``detail="text"`` the same frame-scoped alignment retains separate cell coordinates. At
+``detail="full"`` effective-font and bullet shifts reuse those exact paragraph pairs and have
+before/after locations. Table effective formatting and table bullets remain unsupported and are
+not inferred. Speaker notes retain the separate flat ``notes_change`` comparison.
 
 .. currentmodule:: pptx.diff
 
@@ -60,6 +84,11 @@ specialized shape change.
    :member-order: bysource
 
 .. autoclass:: BulletShift()
+   :members:
+   :undoc-members:
+   :member-order: bysource
+
+.. autoclass:: EffectiveShift()
    :members:
    :undoc-members:
    :member-order: bysource
