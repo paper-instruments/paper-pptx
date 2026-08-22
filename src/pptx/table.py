@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Iterator
 
 from pptx.dml.fill import FillFormat
@@ -12,11 +13,47 @@ from pptx.util import Emu, lazyproperty
 
 if TYPE_CHECKING:
     from pptx.enum.text import MSO_VERTICAL_ANCHOR
-    from pptx.oxml.table import CT_Table, CT_TableCell, CT_TableCol, CT_TableRow
+    from pptx.oxml.table import (
+        CT_Table,
+        CT_TableCell,
+        CT_TableCellProperties,
+        CT_TableCol,
+        CT_TableRow,
+    )
     from pptx.parts.slide import BaseSlidePart
     from pptx.shapes.graphfrm import GraphicFrame
     from pptx.types import ProvidesPart
     from pptx.util import Length
+
+
+def _replace_cell_properties(
+    tc: CT_TableCell, tcPr_snapshot: CT_TableCellProperties | None
+) -> None:
+    """Replace `tc` direct properties with a detached snapshot when one exists."""
+    if tcPr_snapshot is None:
+        return
+    existing_tcPr = tc.tcPr
+    if existing_tcPr is not None:
+        tc.remove(existing_tcPr)
+    tc.append(tcPr_snapshot)
+
+
+def _apply_merge_topology(tc_range: TcRange) -> None:
+    """Write canonical rectangular merge attributes for `tc_range`."""
+    row_count, col_count = tc_range.dimensions
+    for tc in tc_range.iter_tcs():
+        tc.rowSpan = 1
+        tc.gridSpan = 1
+        tc.hMerge = False
+        tc.vMerge = False
+    for tc in tc_range.iter_top_row_tcs():
+        tc.rowSpan = row_count
+    for tc in tc_range.iter_left_col_tcs():
+        tc.gridSpan = col_count
+    for tc in tc_range.iter_except_left_col_tcs():
+        tc.hMerge = True
+    for tc in tc_range.iter_except_top_row_tcs():
+        tc.vMerge = True
 
 
 class Table(object):
@@ -156,14 +193,23 @@ class Table(object):
     def horz_banding(self, value: bool):
         self._tbl.bandRow = value
 
-    def insert_column(self, after: int, *, width: Length | None = None) -> _Column:
+    def insert_column(
+        self,
+        after: int,
+        *,
+        width: Length | None = None,
+        copy_format_from: int | None = None,
+    ) -> _Column:
         """Insert a new empty column immediately after 0-based column `after`; return it.
 
         paper-pptx addition. `after=-1` inserts before the first column.
-        `width` (EMU int) defaults to the width of the neighboring column at `after` (the
-        first column when `after=-1`). A new minimal empty cell is inserted at the same grid
-        position in every row - the grid stays consistent by construction - and the graphic
-        frame's width is recalculated.
+        `copy_format_from` is the zero-based index of a column in the table before insertion.
+        When provided, each new cell receives a deep copy of that row's template-cell `a:tcPr`
+        (direct formatting only); text and merge state are never copied. `width` (EMU int) wins
+        when provided, otherwise the template column supplies the width. With no template, width
+        defaults to the neighboring column at `after` (the first column when `after=-1`). A new
+        minimal empty cell is inserted at the same grid position in every row - the grid stays
+        consistent by construction - and the graphic frame's width is recalculated.
 
         Merged-cell guard is cell-wise: refuses (|UnsupportedStructureError|, tree
         untouched) only when the insertion boundary would split a horizontal merge; vertical
@@ -172,6 +218,8 @@ class Table(object):
         self._validate_structure()
         col_count = len(self._tbl.tblGrid.gridCol_lst)
         self._validate_grid_index(after, "after", col_count, lower=-1)
+        if copy_format_from is not None:
+            self._validate_grid_index(copy_format_from, "copy_format_from", col_count)
         if width is not None and (
             isinstance(width, bool) or not isinstance(width, int) or width <= 0
         ):
@@ -189,16 +237,32 @@ class Table(object):
                     conflicts,
                 )
 
-        neighbor_idx = 0 if after == -1 else after
+        template_tcPrs = (
+            tuple(
+                deepcopy(tr.tc_lst[copy_format_from].tcPr)
+                if tr.tc_lst[copy_format_from].tcPr is not None
+                else None
+                for tr in self._tbl.tr_lst
+            )
+            if copy_format_from is not None
+            else None
+        )
+        default_width_idx = (
+            copy_format_from
+            if copy_format_from is not None
+            else (0 if after == -1 else after)
+        )
         new_width = Emu(width) if width is not None else Emu(
-            self._tbl.tblGrid.gridCol_lst[neighbor_idx].w
+            self._tbl.tblGrid.gridCol_lst[default_width_idx].w
         )
         from pptx._transaction import PackageTransaction
 
         with PackageTransaction(self.part.package, self):
             gridCol = self._tbl.tblGrid.insert_gridCol_at(after + 1, new_width)
-            for tr in self._tbl.tr_lst:
-                tr.insert_tc_at(after + 1)
+            for row_idx, tr in enumerate(self._tbl.tr_lst):
+                tc = tr.insert_tc_at(after + 1)
+                if template_tcPrs is not None:
+                    _replace_cell_properties(tc, template_tcPrs[row_idx])
             self.notify_width_changed()
             column = _Column(gridCol, self.columns)
         return column
@@ -218,8 +282,6 @@ class Table(object):
         untouched) only when the insertion boundary would split a vertical merge; a merged
         header row never blocks body-row insertion.
         """
-        from copy import deepcopy
-
         self._validate_structure()
         row_count = len(self._tbl.tr_lst)
         self._validate_grid_index(after, "after", row_count, lower=-1)
@@ -241,19 +303,22 @@ class Table(object):
             0 if after == -1 else after
         )
         template_tr = self._tbl.tr_lst[template_idx]
+        template_tcPrs = (
+            tuple(
+                deepcopy(tc.tcPr) if tc.tcPr is not None else None
+                for tc in template_tr.tc_lst
+            )
+            if copy_format_from is not None
+            else None
+        )
         from pptx._transaction import PackageTransaction
 
         with PackageTransaction(self.part.package, self):
             tr = self._tbl.insert_tr_at(after + 1, Emu(template_tr.h))
             for col_idx in range(len(self._tbl.tblGrid.gridCol_lst)):
                 tc = tr.add_tc()
-                if copy_format_from is not None:
-                    template_tcPr = template_tr.tc_lst[col_idx].tcPr
-                    if template_tcPr is not None:
-                        existing_tcPr = tc.tcPr
-                        if existing_tcPr is not None:
-                            tc.remove(existing_tcPr)
-                        tc.append(deepcopy(template_tcPr))
+                if template_tcPrs is not None:
+                    _replace_cell_properties(tc, template_tcPrs[col_idx])
             self.notify_height_changed()
             row = _Row(tr, self.rows)
         return row
@@ -437,6 +502,114 @@ class _MergeRegion(object):
             self.top, self.left, self.top, self.bottom, self.left, self.right,
         )
 
+    def intersects(self, other: _MergeRegion) -> bool:
+        """True when this region and `other` share at least one grid cell."""
+        return not (
+            self.bottom < other.top
+            or other.bottom < self.top
+            or self.right < other.left
+            or other.right < self.left
+        )
+
+
+def _validate_merge_topology(tbl: CT_Table, region: _MergeRegion) -> None:
+    """Refuse unless `region` has the exact continuation topology for its spans."""
+    from pptx.errors import UnsupportedStructureError
+
+    row_count = len(tbl.tr_lst)
+    col_count = len(tbl.tblGrid.gridCol_lst)
+    if (
+        region.top < 0
+        or region.left < 0
+        or region.rowSpan < 1
+        or region.gridSpan < 1
+        or region.bottom >= row_count
+        or region.right >= col_count
+    ):
+        raise UnsupportedStructureError(
+            "merge origin declares an out-of-bounds region %s; repair the table before "
+            "extending the merge" % region
+        )
+
+    for row_idx in range(region.top, region.bottom + 1):
+        tr = tbl.tr_lst[row_idx]
+        if len(tr.tc_lst) <= region.right:
+            raise UnsupportedStructureError(
+                "merge region %s crosses ragged row %d; repair the table before extending "
+                "the merge" % (region, row_idx)
+            )
+        for col_idx in range(region.left, region.right + 1):
+            tc = tr.tc_lst[col_idx]
+            expected_row_span = region.rowSpan if row_idx == region.top else 1
+            expected_grid_span = region.gridSpan if col_idx == region.left else 1
+            expected_h_merge = col_idx != region.left
+            expected_v_merge = row_idx != region.top
+            if (
+                tc.rowSpan != expected_row_span
+                or tc.gridSpan != expected_grid_span
+                or tc.hMerge is not expected_h_merge
+                or tc.vMerge is not expected_v_merge
+            ):
+                raise UnsupportedStructureError(
+                    "merge region %s has non-canonical continuation state at cell (%d, %d); "
+                    "repair or split the merge before extending it"
+                    % (region, row_idx, col_idx)
+                )
+
+
+def _validate_requested_merge_extension(
+    tbl: CT_Table,
+    origin_tc: CT_TableCell,
+    current_region: _MergeRegion,
+    requested_region: _MergeRegion,
+) -> None:
+    """Refuse unless newly absorbed cells are rectangular, live-grid, and unmerged."""
+    from pptx.errors import UnsupportedStructureError
+
+    row_count = len(tbl.tr_lst)
+    col_count = len(tbl.tblGrid.gridCol_lst)
+    if requested_region.bottom >= row_count or requested_region.right >= col_count:
+        raise UnsupportedStructureError(
+            "requested merge region %s is outside the table grid" % requested_region
+        )
+    for row_idx in range(requested_region.top, requested_region.bottom + 1):
+        if len(tbl.tr_lst[row_idx].tc_lst) <= requested_region.right:
+            raise UnsupportedStructureError(
+                "requested merge region %s crosses ragged row %d; repair the table before "
+                "extending the merge" % (requested_region, row_idx)
+            )
+
+    conflicts = []
+    for row_idx, tr in enumerate(tbl.tr_lst):
+        for col_idx, tc in enumerate(tr.tc_lst):
+            if tc is origin_tc or not tc.is_merge_origin:
+                continue
+            region = _MergeRegion(row_idx, col_idx, tc.rowSpan, tc.gridSpan)
+            if region.intersects(requested_region):
+                conflicts.append(region)
+    if conflicts:
+        raise UnsupportedStructureError(
+            "extending merge %s to %s would overlap merged cell%s %s"
+            % (
+                current_region,
+                requested_region,
+                "" if len(conflicts) == 1 else "s",
+                ", ".join(str(region) for region in conflicts),
+            )
+        )
+
+    for row_idx in range(requested_region.top, requested_region.bottom + 1):
+        for col_idx in range(requested_region.left, requested_region.right + 1):
+            if row_idx <= current_region.bottom and col_idx <= current_region.right:
+                continue
+            tc = tbl.tr_lst[row_idx].tc_lst[col_idx]
+            if tc.rowSpan != 1 or tc.gridSpan != 1 or tc.hMerge or tc.vMerge:
+                raise UnsupportedStructureError(
+                    "extending merge %s to %s would absorb cell (%d, %d) carrying merge "
+                    "state; split or repair that merge first"
+                    % (current_region, requested_region, row_idx, col_idx)
+                )
+
 
 class _Cell(Subshape):
     """Table cell"""
@@ -548,17 +721,77 @@ class _Cell(Subshape):
             raise ValueError("range contains one or more merged cells")
 
         tc_range.move_content_to_origin()
+        _apply_merge_topology(tc_range)
 
-        row_count, col_count = tc_range.dimensions
+    def extend_merge(self, other_cell: _Cell) -> None:
+        """Extend this merge-origin cell through `other_cell` atomically.
 
-        for tc in tc_range.iter_top_row_tcs():
-            tc.rowSpan = row_count
-        for tc in tc_range.iter_left_col_tcs():
-            tc.gridSpan = col_count
-        for tc in tc_range.iter_except_left_col_tcs():
-            tc.hMerge = True
-        for tc in tc_range.iter_except_top_row_tcs():
-            tc.vMerge = True
+        paper-pptx addition. `other_cell` is the requested new lower-right corner. The existing
+        rectangular merge may grow rightward, downward, or in both directions. Only paragraphs
+        from newly absorbed cells move to this origin, in row-major order; existing merged content
+        is not moved again.
+
+        The existing merge must have canonical continuation topology and every newly absorbed cell
+        must be unmerged. Malformed or conflicting merge structure raises
+        |UnsupportedStructureError| without mutation. A stale origin or target raises
+        |TargetNotFoundError|. Passing a non-cell, a cell from another table, a non-origin receiver,
+        or a corner that would shrink or move the merge raises |ValueError|.
+        """
+        if not isinstance(other_cell, _Cell):
+            raise ValueError("other_cell must be a table cell")
+
+        from pptx._ownership import require_element_attached
+
+        require_element_attached(self._tc, self.part, argument="merge origin")
+        require_element_attached(other_cell._tc, other_cell.part, argument="merge target")
+
+        tbl = self._tc.tbl
+        if tbl is not other_cell._tc.tbl:
+            raise ValueError("other_cell from different table")
+        if not self.is_merge_origin:
+            raise ValueError(
+                "cell is not a merge-origin cell; use merge() to create a new merge"
+            )
+
+        current_region = _MergeRegion(
+            self._tc.row_idx,
+            self._tc.col_idx,
+            self._tc.rowSpan,
+            self._tc.gridSpan,
+        )
+        _validate_merge_topology(tbl, current_region)
+
+        requested_region = _MergeRegion(
+            current_region.top,
+            current_region.left,
+            other_cell._tc.row_idx - current_region.top + 1,
+            other_cell._tc.col_idx - current_region.left + 1,
+        )
+        if (
+            requested_region.bottom < current_region.bottom
+            or requested_region.right < current_region.right
+        ):
+            raise ValueError(
+                "other_cell must be at or beyond the current lower-right merge corner; "
+                "merge shrinking and upward/leftward extension are not supported"
+            )
+        if (
+            requested_region.bottom == current_region.bottom
+            and requested_region.right == current_region.right
+        ):
+            return
+
+        _validate_requested_merge_extension(tbl, self._tc, current_region, requested_region)
+
+        from pptx._transaction import PackageTransaction
+
+        requested_range = TcRange(self._tc, other_cell._tc)
+        with PackageTransaction(self.part.package, self, other_cell):
+            for tc in requested_range.iter_tcs():
+                if tc.row_idx <= current_region.bottom and tc.col_idx <= current_region.right:
+                    continue
+                self._tc.append_ps_from(tc)
+            _apply_merge_topology(requested_range)
 
     @property
     def span_height(self) -> int:
