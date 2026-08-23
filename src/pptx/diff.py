@@ -487,7 +487,14 @@ def _shape_kind(shape) -> str:
     """Return the structural element kind used to decide shape compatibility."""
     from lxml import etree
 
-    return etree.QName(shape._element.tag).localname
+    localname = etree.QName(shape._element.tag).localname
+    if localname != "graphicFrame":
+        return localname
+    # -- p:graphicFrame is only the generic container. Its graphic-data URI distinguishes
+    # -- tables, charts, OLE objects, SmartArt, and other extension payloads whose shape IDs
+    # -- can be reused after delete-then-add just like any other top-level shape.
+    graphic_data_uri = shape._element.graphicData_uri
+    return "graphicFrame[%s]" % (graphic_data_uri or "unknown")
 
 
 def _iter_shape_tree(shapes):

@@ -629,6 +629,38 @@ def test_incompatible_shape_kind_reuse_is_removal_plus_addition():
     assert change.chart_data_changes == ()
 
 
+def test_incompatible_graphic_frame_payload_reuse_is_removal_plus_addition():
+    from pptx.chart.data import CategoryChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+
+    before = Presentation()
+    slide = before.slides.add_slide(before.slide_layouts[6])
+    table = slide.shapes.add_table(2, 2, 0, 0, 914400, 914400)
+    table.name = "Reused"
+    shape_id = table.shape_id
+    before_bytes = _serialized(before)
+
+    after = Presentation(io.BytesIO(before_bytes))
+    after_slide = after.slides[0]
+    after_slide.shapes.delete(after_slide.shapes[0])
+    chart_data = CategoryChartData()
+    chart_data.categories = ["A"]
+    chart_data.add_series("Series", (1,))
+    chart = after_slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED, 0, 0, 914400, 914400, chart_data
+    )
+    chart.name = "Reused"
+    assert chart.shape_id == shape_id
+
+    report = diff_decks(io.BytesIO(before_bytes), after)
+    change = report.slide_changes[0]
+    expected = (ShapeRef(shape_id=shape_id, name="Reused"),)
+    assert change.shapes_removed == expected
+    assert change.shapes_added == expected
+    assert change.geometry_changes == ()
+    assert change.chart_data_changes == ()
+
+
 def test_duplicate_shape_ids_refuse_with_deterministic_candidate_details():
     before = Presentation(_path("self_generated/minimal_clean.pptx"))
     after = Presentation(_path("self_generated/minimal_clean.pptx"))
