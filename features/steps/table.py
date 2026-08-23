@@ -204,14 +204,14 @@ def then_cell_text_eq_value(context, value):
 def then_cell_span_height_eq(context, cell_ref, int_lit):
     expected = int(int_lit)
     actual = getattr(context, cell_ref).span_height
-    assert actual is expected, "%s.span_height == %s" % (cell_ref, actual)
+    assert actual == expected, "%s.span_height == %s" % (cell_ref, actual)
 
 
 @then("{cell_ref}.span_width == {int_lit}")
 def then_cell_span_width_eq(context, cell_ref, int_lit):
     expected = int(int_lit)
     actual = getattr(context, cell_ref).span_width
-    assert actual is expected, "%s.span_width == %s" % (cell_ref, actual)
+    assert actual == expected, "%s.span_width == %s" % (cell_ref, actual)
 
 
 @then("cell.vertical_anchor == {value}")
