@@ -30,6 +30,12 @@ decks can reuse numeric ids and are outside the lineage contract. Deleting a sha
 reusing its id for a new shape of the same structural kind is also indistinguishable without a
 persistent identifier that general PPTX files do not provide.
 
+Text inspection is visibility-complete even though the public shape facets are intentionally
+top-level. Ordinary text and recursively grouped leaf text use the inspection-visible leaf's exact
+slide-wide shape ID and compatible structural kind as their text-container boundary. Table text
+uses the table graphic-frame ID. Group display names, group order, shape geometry, and text
+similarity are never identity.
+
 ``paper-deck-diff`` schema version 5 uses one structured shape reference everywhere. Entries in
 ``shapes_added``, ``shapes_removed``, and ``images_replaced`` are
 ``{"shape_id": ..., "name": ...}``; the ``shape`` value in ``geometry_changes`` and the ``chart``
@@ -40,29 +46,74 @@ migrating from version 3 should compare ``entry["shape_id"]`` (or
 label. A rename alone remains observable through ``package_changes`` and does not manufacture a
 specialized shape change.
 
-Text comparison is likewise lineage-scoped. Paragraphs are partitioned by the slide-wide ID of
-their ordinary/grouped leaf shape or table frame, then aligned by the exact inspection-v3
-fingerprint (NFC-normalized literal segments plus field type and position). The matcher does not
-use paragraph ordinal, display name, geometry, edit distance, or fuzzy text. Insertions and
-deletions therefore do not shift unchanged neighbors into fictional replacements. Exact unique
-reorders can be reported as ``kind="move"``; a uniquely bounded one-for-one change is a
-``replacement``. Repeated regions that cannot be associated from exact context use one
-``ambiguity`` event rather than an arbitrary pairing.
+Text comparison is a deterministic snapshot comparison, not recovered edit history. Within each
+stable container, paragraphs are ordered values made from raw literal text and positioned field
+markers. Run boundaries and formatting do not participate. The matcher consumes the longest exact
+prefix first and then the longest non-overlapping exact suffix. It emits at most one event for the
+remaining middle:
 
-Every text event carries a structured ``shape`` reference and separate ``before_location`` and
-``after_location``. A location contains the container kind and container-local paragraph index;
-table-cell locations also contain row and column. Insertions and deletions use ``null`` on the
-absent side. Ambiguity events keep the singular locations null and list the exact candidates.
-Version-4 consumers must migrate from ``shape_id``/``shape_name``/``block_ordinal`` to these
-version-5 fields.
+* ``insertion`` when only the after range contains paragraphs;
+* ``deletion`` when only the before range contains paragraphs;
+* ``replacement`` when each range contains exactly one paragraph; or
+* ``changed_region`` for every larger two-sided change, including paragraph reorders.
 
-At ``detail="structure"``, ``table_structure_changes`` reports stable table-frame identity and
-before/after row and column counts. A provably located row or column insertion/deletion includes
-its index; duplicate or blank cells retain candidate indexes and an ambiguity marker. At
-``detail="text"`` the same frame-scoped alignment retains separate cell coordinates. At
-``detail="full"`` effective-font and bullet shifts reuse those exact paragraph pairs and have
-before/after locations. Table effective formatting and table bullets remain unsupported and are
-not inferred. Speaker notes retain the separate flat ``notes_change`` comparison.
+The comparison is exact: whitespace and Unicode representation are content, so canonically
+equivalent but differently encoded strings remain different. There is no paragraph ``move`` or
+``ambiguity`` event and no claim that equal text denotes one persistent paragraph. For repeated
+values, consuming the prefix before the suffix gives one canonical hunk location. That location may
+differ from where a user historically inserted or removed a duplicate paragraph.
+
+An unmatched text-bearing container contributes one whole-container insertion or deletion event
+alongside any shape addition or removal. It is not paired with another unmatched container.
+
+All four kinds use the same version-5 payload::
+
+    {
+        "kind": "replacement",
+        "shape": {"shape_id": 12, "name": "Summary"},
+        "before_range": {"start": 0, "end": 1},
+        "after_range": {"start": 0, "end": 1},
+        "before": [
+            {
+                "location": {"container": "shape", "paragraph_index": 0},
+                "text": "Old summary",
+                "fields": [],
+            }
+        ],
+        "after": [
+            {
+                "location": {"container": "shape", "paragraph_index": 0},
+                "text": "New summary",
+                "fields": [{"offset": 11, "type": "slidenum"}],
+            }
+        ],
+    }
+
+``before_range`` and ``after_range`` are zero-based, half-open paragraph indexes in that side's
+container sequence. ``before`` and ``after`` are always arrays; an absent side is ``[]``, never
+``null``. Every block has raw ``text``, an always-present ``fields`` array of positioned
+``{offset, type}`` records, and its exact container-local ``location``. A table-cell location also
+has ``row`` and ``column``; its paragraph index is local to that cell. Table container ranges index
+the frame's complete row-major paragraph sequence, while block locations retain their snapshot
+coordinates.
+
+Version-4 consumers must replace scalar ``before``/``after`` values and
+``shape_id``/``shape_name``/``block_ordinal`` keys with the regular version-5 arrays, ranges,
+structured ``shape``, and per-block locations. Version 5 has no scalar compatibility form.
+
+At ``detail="structure"``, ``table_structure_changes`` reports only stable table-frame identity
+and exact before/after row and column counts. It does not infer which row or column was historically
+inserted or deleted. At ``detail="text"``, the row-major hunk provides exact cell evidence but its
+coordinates identify snapshot positions, not persistent cells; column growth can therefore produce
+one broad ``changed_region``. At ``detail="full"``, effective-font and bullet comparison is limited
+to an unchanged prefix/suffix paragraph whose complete text-and-field value occurs exactly once in
+each container. Runs then match only by a non-empty exact text identity or exact field type that is
+itself unique within each paragraph. Repeated paragraphs, changed-region paragraphs, table
+effective formatting, and table bullets deliberately produce no specialized shift.
+
+Speaker notes retain the separate flat ``notes_change`` comparison. ``package_changes`` remains
+the authoritative semantic package-level fallback when a specialized facet is intentionally
+coarse or unsupported, including formatting inside changed text and table-style formatting.
 
 .. currentmodule:: pptx.diff
 

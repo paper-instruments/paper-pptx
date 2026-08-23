@@ -321,16 +321,34 @@ matching: independently authored decks are out of scope, and deleting a shape th
 for a new same-kind shape cannot be detected without a persistent identifier general PPTX files do
 not carry.
 
-Within a stable leaf shape or table frame, paragraphs align by the exact structural fingerprint
-emitted by text inspection, never by paragraph ordinal, fuzzy text, display name, or geometry.
-Text events identify insertion, deletion, replacement, exact move, or ambiguity and carry separate
-structured before/after locations. Table-cell locations retain row and column, so inserting a row
-does not turn every later cell into a replacement. ``detail="structure"`` reports before/after
-table dimensions and an insertion/deletion index only when exact grid evidence makes it unique;
-otherwise it records the ambiguity. Version-4 consumers must replace the former
-``shape_id``/``shape_name``/``block_ordinal`` text keys with ``shape``, ``before_location``, and
-``after_location``. Notes remain one flat ``notes_change``. Table effective formatting and table
-bullets remain outside the resolver and are not reported.
+Text comparison below that shape boundary is an exact snapshot diff, not reconstructed edit
+history. Ordinary and recursively grouped leaf text uses the leaf's slide-wide shape ID and
+compatible kind; table text uses the stable table-frame ID. Within each container, version 5
+consumes the longest equal text-and-field prefix, then the longest non-overlapping suffix, and
+reports the remaining middle as one ``insertion``, ``deletion``, one-paragraph ``replacement``, or
+``changed_region``. A paragraph reorder is therefore a changed region, never a paragraph move.
+
+Every text event has ``before_range`` and ``after_range`` half-open container indexes plus
+array-valued ``before`` and ``after`` evidence. An absent side is an empty array. Each block carries
+its exact location, raw text, and positioned field markers; table-cell locations include row,
+column, and the paragraph index within that cell. Whitespace and Unicode representation remain
+content. With duplicate paragraphs the prefix-first rule chooses one deterministic endpoint hunk,
+but it does not claim that this was the historical edit location or that equal paragraphs share
+persistent identity. An unmatched text-bearing container contributes one whole-container insertion
+or deletion event; it is not paired with another unmatched container.
+
+Version-4 consumers must replace scalar text values and the former
+``shape_id``/``shape_name``/``block_ordinal`` keys with structured ``shape``, ranges, and per-block
+locations. Version 5 has no scalar compatibility payload. ``detail="structure"`` reports exact
+before/after table dimensions but does not infer an inserted row or column index. Coordinates in a
+row-major table hunk describe each snapshot rather than persistent cells.
+
+At ``detail="full"``, effective-font and bullet shifts require an unchanged prefix/suffix paragraph
+whose complete text-and-field value is unique on each side, followed by an exact run identity that
+is unique within each paragraph. Repeated paragraphs and changed regions are intentionally skipped.
+Notes remain one flat ``notes_change``; table effective formatting and table bullets remain outside
+the resolver. ``package_changes`` is the authoritative semantic package-level fallback for
+unsupported or deliberately coarse facets.
 Callers can use the result to check a session's changes. Release job evaluations compare the
 operation report with ``diff_decks(input, output)`` for every import/rebind/refresh job and
 require them to agree.
