@@ -23,6 +23,7 @@ from pptx.errors import (
     UnsupportedStructureError,
 )
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+from pptx.package import patch_save
 from pptx.slide import SlideClonePolicy
 from pptx.util import Inches
 
@@ -42,6 +43,7 @@ SHARED_MEDIA = "self_generated/shared_media.pptx"
 GAUNTLET = "self_generated/gauntlet.pptx"
 MINIMAL = "self_generated/minimal_clean.pptx"
 LO_CHART_NOTES = "libreoffice_export/lo_chart_notes.pptx"
+WALNUT_CHART_NOTES = "other_producers/walnut_chart_notes_absolute_rels.pptx"
 _RELS_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 
@@ -131,6 +133,71 @@ def test_clone_deep_copies_chart_workbook_and_notes_with_exact_budget():
             "ppt/slides/slide2.xml",
         ],
     )
+    _assert_relationship_integrity(after)
+
+
+def test_patch_save_clones_and_edits_walnut_graph_with_exact_budget(tmp_path):
+    source = corpus.fixture_path(WALNUT_CHART_NOTES)
+    before = source.read_bytes()
+    before_map = zip_member_map(before)
+    prs = Presentation(str(source))
+    source_slide = prs.slides[1]
+    clone = prs.slides.clone(1)
+    title = next(
+        shape
+        for shape in clone.shapes
+        if getattr(shape, "text", "")
+        == "Clone this slide without sharing its chart or notes"
+    )
+    title.text += " — COPY"
+    chart = next(shape.chart for shape in clone.shapes if shape.has_chart)
+    chart_data = CategoryChartData()
+    chart_data.categories = ["Q1", "Q2", "Q3", "Q4"]
+    chart_data.add_series("Clone", (16, 22, 29, 38))
+    chart.replace_data(chart_data)
+    clone.replace_notes_text("Clone-only notes.")
+    out = tmp_path / "walnut-clone.pptx"
+
+    diff = patch_save(str(source), prs, str(out))
+    after = out.read_bytes()
+
+    assert_changed_parts(
+        before,
+        after,
+        expect_changed=[
+            "[Content_Types].xml",
+            "ppt/_rels/presentation.xml.rels",
+            "ppt/presentation.xml",
+        ],
+        expect_added=[
+            "ppt/embeddings/clone-target1.xlsx",
+            "ppt/notesSlides/_rels/notesSlide7.xml.rels",
+            "ppt/notesSlides/notesSlide7.xml",
+            "ppt/slides/_rels/slide7.xml.rels",
+            "ppt/slides/charts/_rels/chart2.xml.rels",
+            "ppt/slides/charts/chart2.xml",
+            "ppt/slides/slide7.xml",
+        ],
+    )
+    assert [delta.partname for delta in diff.deltas] == [
+        "/[Content_Types].xml",
+        "/ppt/_rels/presentation.xml.rels",
+        "/ppt/embeddings/clone-target1.xlsx",
+        "/ppt/notesSlides/_rels/notesSlide7.xml.rels",
+        "/ppt/notesSlides/notesSlide7.xml",
+        "/ppt/presentation.xml",
+        "/ppt/slides/_rels/slide7.xml.rels",
+        "/ppt/slides/charts/_rels/chart2.xml.rels",
+        "/ppt/slides/charts/chart2.xml",
+        "/ppt/slides/slide7.xml",
+    ]
+    reopened = Presentation(str(out))
+    assert len(reopened.slides) == 7
+    assert reopened.slides[2].read_notes_text() == "Clone-only notes."
+    assert source_slide.read_notes_text() != "Clone-only notes."
+    assert zip_member_map(after)["ppt/slides/charts/chart1.xml"] == before_map[
+        "ppt/slides/charts/chart1.xml"
+    ]
     _assert_relationship_integrity(after)
 
 

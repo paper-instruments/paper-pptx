@@ -16,6 +16,7 @@ from PIL import Image as PILImage
 from pptx import Presentation
 from pptx.errors import PaperRefusal, TargetNotFoundError, UnsupportedStructureError
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+from pptx.package import patch_save
 
 from . import corpus
 from .contract import (
@@ -29,6 +30,7 @@ from .relint import dangling_relationship_targets, missing_relationship_referenc
 
 GAUNTLET = "self_generated/gauntlet.pptx"
 SHARED_MEDIA = "self_generated/shared_media.pptx"
+WALNUT_SHARED_MEDIA = "other_producers/walnut_shared_media_absolute_rels.pptx"
 
 
 def _open(relpath):
@@ -108,6 +110,49 @@ def test_replace_has_exact_part_budget_and_keeps_shared_original():
     reopened = Presentation(io.BytesIO(after))
     untouched = next(s for s in reopened.slides[1].shapes if s.name == "gauntlet_img_1")
     assert untouched.image.blob != _png_bytes()
+
+
+def test_patch_save_isolates_one_walnut_shared_image_with_exact_budget(tmp_path):
+    source = corpus.fixture_path(WALNUT_SHARED_MEDIA)
+    before = source.read_bytes()
+    prs = Presentation(str(source))
+    slide = prs.slides[1]
+    picture_a = next(shape for shape in slide.shapes if shape.name == "Shared Logo A")
+    picture_b = next(shape for shape in slide.shapes if shape.name == "Shared Logo B")
+    original_shared_bytes = picture_b.image.blob
+    replacement = _png_bytes()
+    picture_a.replace_image(io.BytesIO(replacement))
+    out = tmp_path / "walnut-image.pptx"
+
+    diff = patch_save(str(source), prs, str(out))
+    after = out.read_bytes()
+
+    assert_changed_parts(
+        before,
+        after,
+        expect_changed=[
+            "[Content_Types].xml",
+            "ppt/slides/_rels/slide2.xml.rels",
+            "ppt/slides/slide2.xml",
+        ],
+        expect_added=["ppt/media/image1.png"],
+    )
+    assert [delta.partname for delta in diff.deltas] == [
+        "/[Content_Types].xml",
+        "/ppt/media/image1.png",
+        "/ppt/slides/_rels/slide2.xml.rels",
+        "/ppt/slides/slide2.xml",
+    ]
+    reopened = Presentation(str(out))
+    reopened_slide = reopened.slides[1]
+    reopened_a = next(shape for shape in reopened_slide.shapes if shape.name == "Shared Logo A")
+    reopened_b = next(shape for shape in reopened_slide.shapes if shape.name == "Shared Logo B")
+    assert reopened_a.image.blob == replacement
+    assert reopened_b.image.blob == original_shared_bytes
+    assert reopened_a.image.blob != reopened_b.image.blob
+    zip_map = zip_member_map(after)
+    assert dangling_relationship_targets(zip_map) == []
+    assert missing_relationship_references(zip_map) == []
 
 
 def test_old_image_part_is_orphaned_only_when_last_reference_goes():

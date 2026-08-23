@@ -25,6 +25,8 @@ from . import corpus
 V1 = "self_generated/lineage_v1.pptx"
 V2 = "self_generated/lineage_v2.pptx"
 REORDER = "self_generated/lineage_reorder.pptx"
+WALNUT_CHART_NOTES = "other_producers/walnut_chart_notes_absolute_rels.pptx"
+WALNUT_SHARED_MEDIA = "other_producers/walnut_shared_media_absolute_rels.pptx"
 
 NONCORRUPT_RELPATHS = [
     r for r in corpus.iter_fixture_relpaths() if not corpus.is_corrupt_fixture(r)
@@ -41,6 +43,15 @@ def _path(relpath):
 @pytest.mark.parametrize("relpath", NONCORRUPT_RELPATHS)
 def test_self_diff_is_empty_across_entire_corpus(relpath):
     report = diff_decks(_path(relpath), _path(relpath), detail="text")
+    assert report.is_empty, report.to_dict()
+
+
+@pytest.mark.parametrize("relpath", [WALNUT_CHART_NOTES, WALNUT_SHARED_MEDIA])
+def test_deck_diff_ignores_walnut_serialization_only_package_rewrites(relpath, tmp_path):
+    serialized = tmp_path / "ordinary-save.pptx"
+    Presentation(_path(relpath)).save(str(serialized))
+
+    report = diff_decks(_path(relpath), str(serialized), detail="full")
     assert report.is_empty, report.to_dict()
 
 

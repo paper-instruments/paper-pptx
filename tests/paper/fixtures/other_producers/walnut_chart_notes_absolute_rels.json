@@ -1,0 +1,24 @@
+{
+  "fixture": "walnut_chart_notes_absolute_rels.pptx",
+  "provenance": {
+    "app": "Walnut Exporter",
+    "version": "unknown",
+    "notes": "Byte-for-byte copy of paper-office-evals eval_fixture_04_structure.pptx at commit 1469dcd223ffaa33c5709e99e881918ab33fad8e, distributed under that repository's MIT license. The package app metadata identifies Walnut Exporter; no transformation was applied."
+  },
+  "features": [
+    "absolute internal relationship targets",
+    "chart with embedded workbook",
+    "speaker notes on every slide"
+  ],
+  "ground_truth": {
+    "application": "Walnut Exporter",
+    "slide_count": 6,
+    "absolute_internal_relationship_count": 53,
+    "chart_count": 1,
+    "embedded_workbook_count": 1,
+    "notes_slide_count": 6,
+    "source_sha256": "39b4266cd63cbd9b39751fedf213343a9eed45d2510f4204ef52da822420f6fc"
+  },
+  "verified_by": "Mechanically verified from the source package ZIP/XML structure; producer version unavailable",
+  "date": "2026-08-21"
+}

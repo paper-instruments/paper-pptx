@@ -11,6 +11,7 @@ import zipfile
 
 import pytest
 
+import pptx.package as package_module
 from pptx import Presentation
 from pptx.errors import PaperRefusal, UnsupportedStructureError
 from pptx.package import PackageDiff, diff_package, patch_save, xml_equivalent
@@ -24,6 +25,8 @@ GAUNTLET = "self_generated/gauntlet.pptx"
 PAIR_A = "self_generated/whitespace_trailing_a.pptx"
 PAIR_B = "self_generated/whitespace_trailing_b.pptx"
 LO_MINIMAL = "libreoffice_export/lo_minimal_clean.pptx"
+WALNUT_CHART_NOTES = "other_producers/walnut_chart_notes_absolute_rels.pptx"
+WALNUT_SHARED_MEDIA = "other_producers/walnut_shared_media_absolute_rels.pptx"
 
 
 def _fixture(relpath):
@@ -54,6 +57,75 @@ def _folder_record_deck(target):
     return _deck_with_extra_members(
         MINIMAL, target, {"docProps/": b"", "ppt/": b"", "ppt/slides/": b""}
     )
+
+
+_CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
+_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+
+
+def _rels_xml(*relationships, root_attributes="", prefix=""):
+    children = "".join(relationships)
+    return (
+        '<Relationships xmlns="%s"%s>%s%s</Relationships>'
+        % (_RELS_NS, root_attributes, prefix, children)
+    ).encode()
+
+
+def _rel(rId="rId1", reltype="urn:test", target="../media/image1.png", **attributes):
+    attrs = {"Id": rId, "Type": reltype, "Target": target, **attributes}
+    rendered = " ".join('%s="%s"' % item for item in attrs.items())
+    return "<Relationship %s/>" % rendered
+
+
+def _types_xml(*declarations, root_attributes=""):
+    return (
+        '<Types xmlns="%s"%s>%s</Types>'
+        % (_CT_NS, root_attributes, "".join(declarations))
+    ).encode()
+
+
+def _default(extension, content_type, extra=""):
+    return '<Default Extension="%s" ContentType="%s"%s/>' % (
+        extension,
+        content_type,
+        extra,
+    )
+
+
+def _override(partname, content_type, extra=""):
+    return '<Override PartName="%s" ContentType="%s"%s/>' % (
+        partname,
+        content_type,
+        extra,
+    )
+
+
+def _content_type_pair():
+    core = "application/vnd.openxmlformats-package.core-properties+xml"
+    presentation = (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+    )
+    rels = "application/vnd.openxmlformats-package.relationships+xml"
+    original = _types_xml(
+        _default("xml", core),
+        _default("rels", rels),
+        _override("/ppt/presentation.xml", presentation),
+    )
+    serialized = _types_xml(
+        _default("rels", rels),
+        _default("xml", "application/xml"),
+        _override("/docProps/core.xml", core),
+        _override("/ppt/presentation.xml", presentation),
+    )
+    members = {
+        "[Content_Types].xml": original,
+        "_rels/.rels": _rels_xml(_rel(target="ppt/presentation.xml")),
+        "docProps/core.xml": b"<core/>",
+        "ppt/presentation.xml": b"<presentation/>",
+    }
+    candidate = dict(members)
+    candidate["[Content_Types].xml"] = serialized
+    return original, serialized, members, candidate
 
 
 # -------------------------------------------------------------------------- xml_equivalent
@@ -90,11 +162,292 @@ def test_malformed_xml_raises_valueerror():
         xml_equivalent("not xml at all", "<a/>")
 
 
+@pytest.mark.parametrize(
+    "prohibited",
+    [
+        '<!DOCTYPE a><a/>',
+        '<!DOCTYPE a [<!ENTITY value "expanded">]><a>&value;</a>',
+    ],
+)
+def test_xml_equivalent_rejects_dtd_and_entity_declarations(prohibited):
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        xml_equivalent(prohibited, "<a/>")
+
+
 def test_identical_files_compare_equivalent_part_by_part():
     members = zip_member_map(corpus.fixture_path(MINIMAL).read_bytes())
     for name, blob in members.items():
         if name.endswith(".xml") or name.endswith(".rels"):
             assert xml_equivalent(blob, blob)
+
+
+# ---------------------------------------------------------- OPC relationship equivalence
+
+
+@pytest.mark.parametrize(
+    "member",
+    ["_rels/.rels", "ppt/slides/_rels/slide1.xml.rels"],
+)
+def test_relationship_bindings_ignore_child_order_and_internal_target_spelling(member):
+    if member == "_rels/.rels":
+        absolute = "/ppt/presentation.xml"
+        relative = "ppt/presentation.xml"
+    else:
+        absolute = "/ppt/media/image1.png"
+        relative = "../media/image1.png"
+    original = _rels_xml(
+        _rel("rId1", "urn:image", absolute),
+        _rel("rId2", "urn:external", "https://example.com/a", TargetMode="External"),
+    )
+    serialized = _rels_xml(
+        _rel("rId2", "urn:external", "https://example.com/a", TargetMode="External"),
+        _rel("rId1", "urn:image", relative, TargetMode="Internal"),
+    )
+
+    assert package_module._members_semantically_equal(member, original, serialized)
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        _rel("rId9", "urn:image", "../media/image1.png"),
+        _rel("rId1", "urn:other", "../media/image1.png"),
+        _rel("rId1", "urn:image", "../media/image2.png"),
+        _rel("rId1", "urn:image", "../media/image1.png", TargetMode="External"),
+        _rel("rId1", "urn:image", "../media/image1.png", custom="changed"),
+    ],
+)
+def test_relationship_binding_mutations_remain_significant(changed):
+    original = _rels_xml(_rel("rId1", "urn:image", "../media/image1.png", custom="kept"))
+
+    assert not package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", original, _rels_xml(changed)
+    )
+
+
+def test_relationship_root_unknown_attributes_are_compared_exactly():
+    original = _rels_xml(
+        _rel("rId1"), _rel("rId2"), root_attributes=' producer="walnut"'
+    )
+    reordered = _rels_xml(
+        _rel("rId2"), _rel("rId1"), root_attributes=' producer="walnut"'
+    )
+    changed = _rels_xml(
+        _rel("rId2"), _rel("rId1"), root_attributes=' producer="other"'
+    )
+
+    assert package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", original, reordered
+    )
+    assert not package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", original, changed
+    )
+
+
+def test_external_relationship_targets_are_not_uri_normalized():
+    encoded = _rels_xml(
+        _rel("rId1", "urn:external", "HTTPS://EXAMPLE.COM/a/../b", TargetMode="External")
+    )
+    normalized = _rels_xml(
+        _rel("rId1", "urn:external", "https://example.com/b", TargetMode="External")
+    )
+
+    assert not package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", encoded, normalized
+    )
+
+
+def test_relationship_comments_are_ignored_but_processing_instructions_fall_back():
+    plain = _rels_xml(_rel())
+    commented = _rels_xml(_rel(), prefix="<!-- producer note -->")
+    instructed = _rels_xml(_rel(), prefix="<?producer keep?>")
+
+    assert package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", plain, commented
+    )
+    assert not package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", plain, instructed
+    )
+
+
+def test_non_xml_whitespace_relationship_text_forces_order_sensitive_fallback():
+    original = _rels_xml(_rel("rId1"), _rel("rId2"), prefix="\N{NO-BREAK SPACE}")
+    reordered = _rels_xml(_rel("rId2"), _rel("rId1"), prefix="\N{NO-BREAK SPACE}")
+
+    assert not package_module._members_semantically_equal(
+        "ppt/slides/_rels/slide1.xml.rels", original, reordered
+    )
+
+
+@pytest.mark.parametrize(
+    "unsupported",
+    [
+        b'<Relationships xmlns="urn:wrong"><Relationship Id="rId1"/></Relationships>',
+        _rels_xml('<Relationship Type="urn:test" Target="x"/>'),
+        _rels_xml(_rel(TargetMode="Sideways")),
+        _rels_xml(_rel(), _rel()),
+        _rels_xml('<Relationship Id="rId1" Type="urn:test" Target="x">text</Relationship>'),
+        _rels_xml('<Unknown/><Relationship Id="rId1" Type="urn:test" Target="x"/>'),
+    ],
+)
+def test_unsupported_relationship_shapes_get_no_specialized_normalization(unsupported):
+    assert (
+        package_module._relationships_semantically_equal(
+            "ppt/slides/_rels/slide1.xml.rels", unsupported, unsupported
+        )
+        is None
+    )
+
+
+def test_invalid_relationship_member_name_gets_no_specialized_normalization():
+    original = _rels_xml(_rel("rId1"), _rel("rId2"))
+    reordered = _rels_xml(_rel("rId2"), _rel("rId1"))
+
+    assert not package_module._members_semantically_equal(
+        "ppt/slides/slide1.xml.rels", original, reordered
+    )
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        b"<Relationships>",
+        b'<!DOCTYPE Relationships><Relationships xmlns="%s"/>' % _RELS_NS.encode(),
+        (
+            b'<!DOCTYPE Relationships [<!ENTITY x "value">]>'
+            b'<Relationships xmlns="%s">&x;</Relationships>' % _RELS_NS.encode()
+        ),
+    ],
+)
+def test_relationship_malformed_or_dtd_input_raises_valueerror(malformed):
+    with pytest.raises(ValueError):
+        package_module._members_semantically_equal(
+            "ppt/slides/_rels/slide1.xml.rels", malformed, _rels_xml(_rel())
+        )
+
+
+# ------------------------------------------------------------- content-type equivalence
+
+
+def test_content_types_compare_effective_assignments_in_package_context():
+    original, serialized, members, candidate = _content_type_pair()
+
+    assert package_module._members_semantically_equal(
+        "[Content_Types].xml", original, serialized, members, candidate
+    )
+
+
+def test_content_type_effective_change_remains_significant():
+    original, serialized, members, candidate = _content_type_pair()
+    changed = serialized.replace(
+        b"application/vnd.openxmlformats-package.core-properties+xml",
+        b"application/x-wrong-core-properties",
+    )
+    candidate["[Content_Types].xml"] = changed
+
+    assert not package_module._members_semantically_equal(
+        "[Content_Types].xml", original, changed, members, candidate
+    )
+
+
+def test_content_type_declaration_matching_no_member_remains_significant():
+    original, serialized, members, candidate = _content_type_pair()
+    changed = serialized.replace(
+        b"</Types>", b'<Default Extension="unused" ContentType="application/x-unused"/></Types>'
+    )
+    candidate["[Content_Types].xml"] = changed
+
+    assert not package_module._members_semantically_equal(
+        "[Content_Types].xml", original, changed, members, candidate
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        b'<Override PartName="/absent.xml" ContentType="application/xml"/>',
+        b'<Override PartName="/docProps/core.xml" ContentType="application/xml"/>',
+        b'<Default Extension="rels" ContentType="application/x-conflict"/>',
+        b'<Unknown Value="x"/>',
+    ],
+)
+def test_unsupported_content_type_shapes_fall_back_without_effective_normalization(change):
+    original, serialized, members, candidate = _content_type_pair()
+    changed = serialized.replace(b"</Types>", change + b"</Types>")
+    candidate["[Content_Types].xml"] = changed
+
+    assert not package_module._members_semantically_equal(
+        "[Content_Types].xml", original, changed, members, candidate
+    )
+
+
+def test_unknown_content_type_attributes_remain_significant():
+    original, serialized, members, candidate = _content_type_pair()
+    changed = serialized.replace(b'<Types xmlns="', b'<Types producer="changed" xmlns="')
+    candidate["[Content_Types].xml"] = changed
+
+    assert not package_module._members_semantically_equal(
+        "[Content_Types].xml", original, changed, members, candidate
+    )
+
+    declaration_changed = serialized.replace(
+        b'<Default Extension="rels"', b'<Default producer="changed" Extension="rels"'
+    )
+    candidate["[Content_Types].xml"] = declaration_changed
+    assert not package_module._members_semantically_equal(
+        "[Content_Types].xml", original, declaration_changed, members, candidate
+    )
+
+
+def test_content_type_missing_coverage_gets_no_specialized_normalization():
+    original, serialized, members, candidate = _content_type_pair()
+    missing = serialized.replace(
+        b'<Default Extension="xml" ContentType="application/xml"/>', b""
+    ).replace(
+        b'<Override PartName="/docProps/core.xml" '
+        b'ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+        b"",
+    )
+    candidate["[Content_Types].xml"] = missing
+
+    member_names = package_module._content_type_member_names(candidate)
+    assert package_module._content_type_model(missing, member_names) is None
+    assert not package_module._members_semantically_equal(
+        "[Content_Types].xml", original, missing, members, candidate
+    )
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        b"<Types>",
+        b'<!DOCTYPE Types><Types xmlns="%s"/>' % _CT_NS.encode(),
+    ],
+)
+def test_content_type_malformed_or_dtd_input_raises_valueerror(malformed):
+    original, _, members, candidate = _content_type_pair()
+    candidate["[Content_Types].xml"] = malformed
+
+    with pytest.raises(ValueError):
+        package_module._members_semantically_equal(
+            "[Content_Types].xml", original, malformed, members, candidate
+        )
+
+
+@pytest.mark.parametrize("dtd_side", ["original", "candidate"])
+def test_content_type_fallback_rejects_dtd_when_package_member_sets_differ(dtd_side):
+    original, serialized, members, candidate = _content_type_pair()
+    dtd = b'<!DOCTYPE Types><Types xmlns="%s"/>' % _CT_NS.encode()
+    candidate["ppt/added.xml"] = b"<added/>"
+    if dtd_side == "original":
+        original = members["[Content_Types].xml"] = dtd
+    else:
+        serialized = candidate["[Content_Types].xml"] = dtd
+
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        package_module._members_semantically_equal(
+            "[Content_Types].xml", original, serialized, members, candidate
+        )
 
 
 # --------------------------------------------------------------------------- diff_package
@@ -110,6 +463,14 @@ def test_diff_reports_exactly_the_trailing_space_part():
 def test_diff_of_a_package_with_itself_is_empty():
     diff = diff_package(_fixture(GAUNTLET), _fixture(GAUNTLET))
     assert diff.is_empty
+
+
+@pytest.mark.parametrize("relpath", [WALNUT_CHART_NOTES, WALNUT_SHARED_MEDIA])
+def test_diff_ignores_walnut_serialization_only_package_rewrites(relpath, tmp_path):
+    serialized = tmp_path / "ordinary-save.pptx"
+    Presentation(_fixture(relpath)).save(str(serialized))
+
+    assert diff_package(_fixture(relpath), str(serialized)).is_empty
 
 
 def test_diff_reports_added_removed_and_binary_changes(tmp_path):
@@ -137,6 +498,24 @@ def test_diff_reports_added_removed_and_binary_changes(tmp_path):
     assert len(diff.deltas) == 2
 
 
+def test_diff_rejects_dtd_content_types_when_package_members_differ(tmp_path):
+    original = zip_member_map(corpus.fixture_path(MINIMAL).read_bytes())
+    modified = dict(original)
+    modified["ppt/added.xml"] = b"<added/>"
+    modified["[Content_Types].xml"] = (
+        b'<!DOCTYPE Types><Types xmlns="%s"/>' % _CT_NS.encode()
+    )
+
+    original_path, modified_path = tmp_path / "a.pptx", tmp_path / "b.pptx"
+    for path, members in ((original_path, original), (modified_path, modified)):
+        with zipfile.ZipFile(str(path), "w") as zipf:
+            for name, data in members.items():
+                zipf.writestr(name, data)
+
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        diff_package(str(original_path), str(modified_path))
+
+
 def test_diff_to_dict_carries_pinned_schema_and_is_deterministic():
     diff = diff_package(_fixture(PAIR_A), _fixture(PAIR_B))
     payload = diff.to_dict()
@@ -148,7 +527,9 @@ def test_diff_to_dict_carries_pinned_schema_and_is_deterministic():
 # ------------------------------------------------------------------------------ patch_save
 
 
-@pytest.mark.parametrize("relpath", [MINIMAL, GAUNTLET])
+@pytest.mark.parametrize(
+    "relpath", [MINIMAL, GAUNTLET, WALNUT_CHART_NOTES, WALNUT_SHARED_MEDIA]
+)
 def test_noop_round_trip_is_byte_identical(relpath, tmp_path):
     out = tmp_path / "noop.pptx"
     diff = patch_save(_fixture(relpath), Presentation(_fixture(relpath)), str(out))
