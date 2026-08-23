@@ -810,6 +810,24 @@ def test_unique_paragraph_reorder_is_exact_move_evidence():
     assert {event["before"] for event in events} == {"A", "B"}
 
 
+def test_unique_paragraph_at_same_location_is_not_reported_as_moved():
+    events = (
+        diff_decks(
+            _alignment_deck(("A", "B", "C")),
+            _alignment_deck(("C", "B", "A")),
+            detail="text",
+        )
+        .slide_changes[0]
+        .text_changes
+    )
+
+    assert {(event["kind"], event["before"]) for event in events} == {
+        ("move", "A"),
+        ("move", "C"),
+    }
+    assert all(event["before_location"] != event["after_location"] for event in events)
+
+
 def test_nested_group_text_alignment_uses_leaf_id_not_group_path():
     before = _alignment_deck(("A", "B"))
     after = _alignment_deck(("X", "A", "B"))

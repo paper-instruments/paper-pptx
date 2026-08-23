@@ -855,6 +855,11 @@ def _align_slide_text(slide_a, slide_b) -> tuple:
             (index_a, unique_b[value]) for value, index_a in unique_a.items() if value in unique_b
         }
         pairs = tuple(sorted(set(ordered) | global_unique))
+        move_pairs = tuple(
+            (index_a, index_b)
+            for index_a, index_b in sorted(global_unique - set(ordered))
+            if _block_location(before[index_a]) != _block_location(after[index_b])
+        )
         reference = shapes_b.get(key[1]) or shapes_a[key[1]]
         alignments.append(
             _ContainerAlignment(
@@ -863,7 +868,7 @@ def _align_slide_text(slide_a, slide_b) -> tuple:
                 after,
                 pairs,
                 ordered,
-                tuple(sorted(global_unique - set(ordered))),
+                move_pairs,
             )
         )
     return tuple(alignments)
