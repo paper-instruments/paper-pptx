@@ -262,7 +262,8 @@ def xml_equivalent(a: Union[bytes, str], b: Union[bytes, str]) -> bool:
     of element-childless elements — `a:t` and friends — is never normalized in any way: two
     documents differing only by a trailing space inside a text node are NOT equivalent.
 
-    Raises |ValueError| when either argument is not well-formed XML.
+    Raises |ValueError| when either argument is not well-formed XML or contains a DTD or
+    entity declaration.
     """
     return _c14n_bytes(a) == _c14n_bytes(b)
 
@@ -295,16 +296,11 @@ def _drop_structural_whitespace(data: Union[bytes, str]) -> str:
     element children — this element). The text of element-childless elements is untouchable
     here by construction, so preserved-space content like `a:t` can never be altered.
 
-    Raises |ValueError| on malformed XML.
+    Raises |ValueError| on malformed or DTD-bearing XML.
     """
     from lxml import etree as _etree
 
-    if isinstance(data, str):
-        data = data.encode("utf-8")
-    try:
-        root = _etree.fromstring(data)
-    except _etree.XMLSyntaxError as e:
-        raise ValueError("not well-formed XML: %s" % e)
+    root = _parse_package_xml(data).getroot()
     for element in root.iter():
         if len(element) and element.text is not None and not element.text.strip():
             element.text = None
@@ -535,7 +531,7 @@ def _content_type_model(data: bytes, members: tuple[str, ...]):
     )
 
 
-def _parse_package_xml(data: bytes):
+def _parse_package_xml(data: Union[bytes, str]):
     """Return a securely parsed XML tree; raise ValueError for malformed or DTD-bearing XML."""
     from lxml import etree as _etree
 

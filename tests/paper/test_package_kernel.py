@@ -162,6 +162,18 @@ def test_malformed_xml_raises_valueerror():
         xml_equivalent("not xml at all", "<a/>")
 
 
+@pytest.mark.parametrize(
+    "prohibited",
+    [
+        '<!DOCTYPE a><a/>',
+        '<!DOCTYPE a [<!ENTITY value "expanded">]><a>&value;</a>',
+    ],
+)
+def test_xml_equivalent_rejects_dtd_and_entity_declarations(prohibited):
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        xml_equivalent(prohibited, "<a/>")
+
+
 def test_identical_files_compare_equivalent_part_by_part():
     members = zip_member_map(corpus.fixture_path(MINIMAL).read_bytes())
     for name, blob in members.items():
