@@ -107,9 +107,9 @@ def when_I_assign_origin_cell_eq_table_cell_0_0(context):
     context.origin_cell = context.table_.cell(0, 0)
 
 
-@when("I assign other_cell = table.cell(1, 1)")
-def when_I_assign_other_cell_eq_table_cell_1_1(context):
-    context.other_cell = context.table_.cell(1, 1)
+@when("I assign other_cell = table.cell({row_idx:d}, {col_idx:d})")
+def when_I_assign_other_cell_eq_table_cell(context, row_idx, col_idx):
+    context.other_cell = context.table_.cell(row_idx, col_idx)
 
 
 @when("I assign table.first_col = True")
@@ -150,6 +150,11 @@ def when_I_call_cell_split_other_cell(context):
 @when("I call origin_cell.merge(other_cell)")
 def when_I_call_origin_cell_merge_other_cell(context):
     context.origin_cell.merge(context.other_cell)
+
+
+@when("I call origin_cell.extend_merge(other_cell)")
+def when_I_call_origin_cell_extend_merge_other_cell(context):
+    context.origin_cell.extend_merge(context.other_cell)
 
 
 # then ====================================================
@@ -195,18 +200,18 @@ def then_cell_text_eq_value(context, value):
     assert actual == expected, 'cell.text == "%s"' % actual
 
 
-@then("cell.span_height == {int_lit}")
-def then_cell_span_height_eq(context, int_lit):
+@then("{cell_ref}.span_height == {int_lit}")
+def then_cell_span_height_eq(context, cell_ref, int_lit):
     expected = int(int_lit)
-    actual = context.cell.span_height
-    assert actual is expected, "cell.span_height == %s" % actual
+    actual = getattr(context, cell_ref).span_height
+    assert actual == expected, "%s.span_height == %s" % (cell_ref, actual)
 
 
-@then("cell.span_width == {int_lit}")
-def then_cell_span_width_eq(context, int_lit):
+@then("{cell_ref}.span_width == {int_lit}")
+def then_cell_span_width_eq(context, cell_ref, int_lit):
     expected = int(int_lit)
-    actual = context.cell.span_width
-    assert actual is expected, "cell.span_width == %s" % actual
+    actual = getattr(context, cell_ref).span_width
+    assert actual == expected, "%s.span_width == %s" % (cell_ref, actual)
 
 
 @then("cell.vertical_anchor == {value}")
