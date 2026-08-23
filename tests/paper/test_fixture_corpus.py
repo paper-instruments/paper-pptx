@@ -22,6 +22,8 @@ from .relint import dangling_relationship_targets, missing_relationship_referenc
 _A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 _P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 _R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_EP = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+_PKG_R = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 ALL_RELPATHS = corpus.iter_fixture_relpaths()
 NONCORRUPT_RELPATHS = [r for r in ALL_RELPATHS if not corpus.is_corrupt_fixture(r)]
@@ -136,6 +138,68 @@ def test_corrupt_fixture_behaves_as_documented():
     assert ground_truth["opens_with_python_pptx"] is True
     with pytest.raises(KeyError):
         list(prs.slides)
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "other_producers/walnut_chart_notes_absolute_rels.pptx",
+        "other_producers/walnut_shared_media_absolute_rels.pptx",
+    ],
+)
+def test_walnut_fixture_identity_and_absolute_relationship_ground_truth(relpath):
+    ground_truth = _ground_truth(relpath)
+    with zipfile.ZipFile(str(corpus.fixture_path(relpath))) as zipf:
+        app = etree.fromstring(zipf.read("docProps/app.xml"))
+        relationships = [
+            rel
+            for name in zipf.namelist()
+            if name.endswith(".rels")
+            for rel in etree.fromstring(zipf.read(name)).iter("{%s}Relationship" % _PKG_R)
+        ]
+    absolute_internal = [
+        rel
+        for rel in relationships
+        if rel.get("TargetMode", "Internal") == "Internal"
+        and rel.get("Target", "").startswith("/")
+    ]
+
+    assert app.findtext("{%s}Application" % _EP) == ground_truth["application"]
+    assert len(absolute_internal) == ground_truth["absolute_internal_relationship_count"]
+    assert corpus.sha256_of(corpus.fixture_path(relpath)) == ground_truth["source_sha256"]
+
+
+def test_walnut_chart_notes_fixture_retains_its_package_graph():
+    relpath = "other_producers/walnut_chart_notes_absolute_rels.pptx"
+    ground_truth = _ground_truth(relpath)
+    names = _member_names(relpath)
+
+    assert sum("/charts/" in name and name.endswith(".xml") for name in names) == ground_truth[
+        "chart_count"
+    ]
+    assert sum(name.endswith(".xlsx") for name in names) == ground_truth[
+        "embedded_workbook_count"
+    ]
+    assert sum("/notesSlides/" in name and name.endswith(".xml") for name in names) == ground_truth[
+        "notes_slide_count"
+    ]
+
+
+def test_walnut_shared_media_fixture_retains_shared_image_bindings():
+    relpath = "other_producers/walnut_shared_media_absolute_rels.pptx"
+    ground_truth = _ground_truth(relpath)
+    with zipfile.ZipFile(str(corpus.fixture_path(relpath))) as zipf:
+        image_targets = [
+            rel.get("Target")
+            for name in zipf.namelist()
+            if name.endswith(".rels")
+            for rel in etree.fromstring(zipf.read(name)).iter("{%s}Relationship" % _PKG_R)
+            if rel.get("Type", "").endswith("/image")
+        ]
+
+    assert image_targets.count(ground_truth["shared_image_target"]) == ground_truth[
+        "shared_image_relationship_count"
+    ]
 
 
 # --------------------------------------------------------------- ground truth vs. real bytes

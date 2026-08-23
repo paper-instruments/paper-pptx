@@ -1,0 +1,23 @@
+{
+  "fixture": "walnut_shared_media_absolute_rels.pptx",
+  "provenance": {
+    "app": "Walnut Exporter",
+    "version": "unknown",
+    "notes": "Byte-for-byte copy of paper-office-evals eval_fixture_03_objects.pptx at commit 1469dcd223ffaa33c5709e99e881918ab33fad8e, distributed under that repository's MIT license. The package app metadata identifies Walnut Exporter; no transformation was applied."
+  },
+  "features": [
+    "absolute internal relationship targets",
+    "two picture relationships share one image part",
+    "multiple charts and embedded workbooks"
+  ],
+  "ground_truth": {
+    "application": "Walnut Exporter",
+    "slide_count": 6,
+    "absolute_internal_relationship_count": 59,
+    "shared_image_target": "/ppt/media/image.png",
+    "shared_image_relationship_count": 2,
+    "source_sha256": "26bcfb5db1674875744662bf533c521c6764df3c1ffd3115f975f64ab47d78de"
+  },
+  "verified_by": "Mechanically verified from the source package ZIP/XML structure; producer version unavailable",
+  "date": "2026-08-21"
+}
