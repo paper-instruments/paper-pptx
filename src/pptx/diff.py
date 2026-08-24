@@ -1,10 +1,10 @@
 """Deck diff - the verification mirror (paper-pptx addition).
 
-PPTX carries no revision markup: a deck is amnesiac about its own history, so "what
-changed between v3 and v4?" has no programmable answer anywhere in the ecosystem. This
-provides it as a typed report beside the file - the deck-format analogue of a
-redline - assembled from the permanent slide ids, the visibility-complete text layer,
-the effective-value resolver, and the kernel's semantic XML comparison.
+PPTX carries no revision markup: a deck is amnesiac about its own history. This module
+therefore reports deterministic differences between two snapshots rather than claiming
+to recover the edits that produced them. The report is assembled from permanent slide
+ids, stable shape ids, the visibility-complete text layer, the effective-value resolver,
+and the kernel's semantic XML comparison.
 
 The matching contract, declared honestly: slides match by their PERMANENT slide id and
 top-level shapes within them match by slide-wide shape id, which serves lineage-derived
@@ -15,8 +15,13 @@ hazard: deleting the max-id slide then adding a new one recycles the id (upstrea
 max+1), which id-based matching reads as one edited slide - order add-before-delete when
 building lineage.
 
-Report-only: no annotated-copy rendering, no visual diffing, no similarity scoring -
-those are harness products built ON this report.
+Within a stable text container, schema v5 reports at most one changed region after
+consuming the longest exact prefix and then the longest non-overlapping exact suffix.
+Repeated content can make the resulting hunk location differ from the historical edit
+location; the report describes endpoints, never paragraph identity or chronology.
+
+Report-only: no annotated-copy rendering, visual diffing, similarity scoring, or
+paragraph move inference - those are harness products built ON this report.
 """
 
 from __future__ import annotations
@@ -29,7 +34,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 SCHEMA_NAME = "paper-deck-diff"
-SCHEMA_VERSION = 5  # -- was 4: exact paragraph alignment and table structure
+SCHEMA_VERSION = 5  # -- was 4: canonical text hunks and factual table dimensions
 
 _DETAIL_LEVELS = ("structure", "text", "full")
 
@@ -42,15 +47,16 @@ class BulletShift:
     field marker: `text_changes` stays empty while the slide visibly loses every glyph.
     This is the facet that reports it.
 
-    Paragraphs use the same exact container-scoped alignment as text and effective-font
-    reporting. Repeated ambiguity is skipped rather than settled by paragraph order.
+    Paragraphs qualify only when their exact text-and-field value is unique on both sides
+    and lies in the canonical unchanged prefix or suffix. Repeated or changed-region
+    paragraphs are skipped rather than paired by position.
 
     Fields:
 
     * ``part`` -- partname of the slide the paragraph lives on.
     * ``shape`` -- stable shape identity plus current display name.
     * ``before_location`` / ``after_location`` -- container-local paragraph locations.
-    * ``text`` -- the paragraph's text, which is also half its identity.
+    * ``text`` -- the unchanged paragraph's literal text.
     * ``before`` / ``after`` -- the resolved ``bullet``, ``bullet_font`` and ``bullet_size``
       payloads from :func:`pptx.inspect.effective_paragraph_format` on each side.
     """
@@ -102,7 +108,7 @@ class ShapeRef:
 
 @dataclass(frozen=True)
 class EffectiveShift:
-    """One exactly aligned run whose resolved font changed."""
+    """One uniquely matched run in a unique unchanged paragraph whose resolved font changed."""
 
     part: str
     shape: ShapeRef
@@ -281,11 +287,25 @@ def diff_decks(path_a, path_b, *, detail: str = "structure") -> DeckDiff:
     adding a new one RECYCLES the id, and this diff will read that delete-plus-add as one edited
     slide - order add-before-delete when producing lineage decks you intend to diff.
 
-    Paragraphs align by exact inspection fingerprints within their stable leaf-shape or table-
-    frame container. Insertions and deletions do not shift unchanged neighbors into replacements;
-    repeated content that exact context cannot associate is reported as ambiguous. Table grid
-    dimensions are structural changes, speaker notes remain one flat comparison, and table-cell
-    effective formatting and bullets remain outside the supported resolver domain.
+    Within each stable leaf-shape or table-frame container, paragraphs are ordered snapshot values
+    consisting of raw literal text plus positioned field markers. The longest exact prefix is
+    consumed first, followed by the longest non-overlapping exact suffix. The remaining middle is
+    one ``insertion``, ``deletion``, one-paragraph ``replacement``, or ``changed_region`` event.
+    Each event contains zero-based half-open ``before_range``/``after_range`` values and array-
+    valued ``before``/``after`` block evidence; every block carries its structured location, raw
+    text, and positioned fields. Duplicate values follow the prefix-first rule, which is a
+    deterministic endpoint representation rather than the historical edit location. Paragraph
+    moves and ambiguous identity are not inferred.
+
+    An unmatched text-bearing container produces one whole-container insertion or deletion event
+    and is never paired with another unmatched container.
+
+    Table dimensions are structural changes without inferred row/column insertion history.
+    At ``detail="full"``, effective-font and bullet shifts are limited to container-unique,
+    unchanged prefix/suffix paragraphs and exact unique run identities. Speaker notes remain one
+    flat comparison, while table-cell effective formatting and bullets remain outside the
+    supported resolver domain. ``package_changes`` remains the authoritative fallback for every
+    semantic package change not represented by a specialized facet.
     """
     if detail not in _DETAIL_LEVELS:
         raise ValueError(
@@ -624,12 +644,12 @@ def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
             chart_changes.extend(_diff_chart(shape_ref, shape_a.chart, shape_b.chart))
 
     table_structure_changes = _table_structure_changes(slide_a, slide_b)
-    alignments = ()
+    hunks = ()
     text_changes: "List[dict]" = []
     notes_change = None
     if detail in ("text", "full"):
-        alignments = _align_slide_text(slide_a, slide_b)
-        text_changes = _text_events(alignments, detail, slide_a, slide_b)
+        hunks = _slide_text_hunks(slide_a, slide_b)
+        text_changes = _text_events(hunks)
         notes_a = _notes_text(slide_a)
         notes_b = _notes_text(slide_b)
         if notes_a != notes_b:
@@ -638,8 +658,8 @@ def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
     effective_shifts: tuple = ()
     bullet_shifts: tuple = ()
     if detail == "full":
-        effective_shifts = _effective_shifts(alignments)
-        bullet_shifts = _bullet_shifts(slide_a, slide_b, alignments)
+        effective_shifts = _effective_shifts(hunks)
+        bullet_shifts = _bullet_shifts(slide_a, slide_b, hunks)
 
     return SlideChange(
         slide_id=slide_id,
@@ -766,15 +786,14 @@ def _chart_data(chart):
 
 
 @dataclass(frozen=True)
-class _ContainerAlignment:
-    """Exact paragraph evidence for one stable leaf shape or table frame."""
+class _ContainerHunk:
+    """Canonical snapshot evidence for one stable leaf shape or table frame."""
 
     shape: ShapeRef
     before: tuple
     after: tuple
-    pairs: tuple
-    ordered_pairs: tuple
-    move_pairs: tuple
+    before_range: tuple
+    after_range: tuple
 
 
 def _block_location(block) -> dict:
@@ -807,166 +826,114 @@ def _container_blocks(slide) -> dict:
     return {key: tuple(blocks) for key, blocks in result.items()}
 
 
-def _invariant_lcs_pairs(sequence_a, sequence_b) -> tuple:
-    """Return exact pairs present in every optimal LCS, without choosing a tie."""
-    rows, cols = len(sequence_a), len(sequence_b)
-    next_lengths = [0] * (cols + 1)
-    next_forced = [frozenset() for _ in range(cols + 1)]
-    for i in range(rows - 1, -1, -1):
-        lengths = [0] * (cols + 1)
-        forced = [frozenset() for _ in range(cols + 1)]
-        for j in range(cols - 1, -1, -1):
-            choices = []
-            if sequence_a[i] == sequence_b[j]:
-                choices.append((1 + next_lengths[j + 1], next_forced[j + 1] | {(i, j)}))
-            choices.append((next_lengths[j], next_forced[j]))
-            choices.append((lengths[j + 1], forced[j + 1]))
-            best = max(length for length, _ in choices)
-            winners = [pairs for length, pairs in choices if length == best]
-            lengths[j] = best
-            forced[j] = frozenset.intersection(*winners)
-        next_lengths = lengths
-        next_forced = forced
-    return tuple(sorted(next_forced[0]))
+def _paragraph_value(block) -> tuple:
+    """Return exact observable text evidence, with no formatting or normalization."""
+    return block.text, _field_markers(block)
 
 
-def _align_slide_text(slide_a, slide_b) -> tuple:
-    """Return one exact alignment result shared by all paragraph diff facets."""
+def _common_boundary_ranges(before, after) -> tuple:
+    """Return prefix-first, non-overlapping changed ranges in linear time."""
+    prefix_end = 0
+    shared_length = min(len(before), len(after))
+    while prefix_end < shared_length and _paragraph_value(before[prefix_end]) == _paragraph_value(
+        after[prefix_end]
+    ):
+        prefix_end += 1
+
+    suffix_length = 0
+    remaining_a = len(before) - prefix_end
+    remaining_b = len(after) - prefix_end
+    while (
+        suffix_length < min(remaining_a, remaining_b)
+        and _paragraph_value(before[len(before) - suffix_length - 1])
+        == _paragraph_value(after[len(after) - suffix_length - 1])
+    ):
+        suffix_length += 1
+
+    return (
+        (prefix_end, len(before) - suffix_length),
+        (prefix_end, len(after) - suffix_length),
+    )
+
+
+def _container_hunk(shape, before, after) -> _ContainerHunk:
+    """Return the sole canonical changed region for one stable container."""
+    before_range, after_range = _common_boundary_ranges(before, after)
+    return _ContainerHunk(
+        shape=shape,
+        before=before,
+        after=after,
+        before_range=before_range,
+        after_range=after_range,
+    )
+
+
+def _slide_text_hunks(slide_a, slide_b) -> tuple:
+    """Return canonical hunks for compatible leaf-shape and table containers."""
     containers_a = _container_blocks(slide_a)
     containers_b = _container_blocks(slide_b)
     shapes_a = {shape.shape_id: shape for shape in _iter_shape_tree(slide_a.shapes)}
     shapes_b = {shape.shape_id: shape for shape in _iter_shape_tree(slide_b.shapes)}
-    alignments = []
-    for key in sorted(set(containers_a) | set(containers_b)):
+    hunks = []
+    for key in sorted(set(containers_a) | set(containers_b), key=lambda item: (item[1], item[0])):
         before = containers_a.get(key, ())
         after = containers_b.get(key, ())
-        fingerprints_a = tuple(block.anchor.content_hash for block in before)
-        fingerprints_b = tuple(block.anchor.content_hash for block in after)
-        ordered = _invariant_lcs_pairs(fingerprints_a, fingerprints_b)
-        counts_a = Counter(fingerprints_a)
-        counts_b = Counter(fingerprints_b)
-        unique_a = {
-            value: i for i, value in enumerate(fingerprints_a) if counts_a[value] == 1
-        }
-        unique_b = {
-            value: i for i, value in enumerate(fingerprints_b) if counts_b[value] == 1
-        }
-        global_unique = {
-            (index_a, unique_b[value]) for value, index_a in unique_a.items() if value in unique_b
-        }
-        pairs = tuple(sorted(set(ordered) | global_unique))
-        move_pairs = tuple(
-            (index_a, index_b)
-            for index_a, index_b in sorted(global_unique - set(ordered))
-            if _block_location(before[index_a]) != _block_location(after[index_b])
-        )
-        reference = shapes_b.get(key[1]) or shapes_a[key[1]]
-        alignments.append(
-            _ContainerAlignment(
-                _shape_ref(reference),
-                before,
-                after,
-                pairs,
-                ordered,
-                move_pairs,
-            )
-        )
-    return tuple(alignments)
+        shape_a, shape_b = shapes_a.get(key[1]), shapes_b.get(key[1])
+        if (
+            before
+            and after
+            and shape_a is not None
+            and shape_b is not None
+            and _shape_kind(shape_a) != _shape_kind(shape_b)
+        ):
+            hunks.append(_container_hunk(_shape_ref(shape_a), before, ()))
+            hunks.append(_container_hunk(_shape_ref(shape_b), (), after))
+            continue
+        reference = shape_b if after else shape_a
+        hunks.append(_container_hunk(_shape_ref(reference), before, after))
+    return tuple(hunks)
 
 
-def _single_text_event(kind, alignment, block_a, block_b) -> dict:
-    event = {
-        "kind": kind,
-        "shape": alignment.shape,
-        "before_location": _block_location(block_a) if block_a is not None else None,
-        "after_location": _block_location(block_b) if block_b is not None else None,
-        "before": block_a.text if block_a is not None else None,
-        "after": block_b.text if block_b is not None else None,
-    }
-    fields_a, fields_b = _field_markers(block_a), _field_markers(block_b)
-    if fields_a != fields_b:
-        event["field_types_before"] = [field_type for _, field_type in fields_a]
-        event["field_types_after"] = [field_type for _, field_type in fields_b]
-        event["fields_before"] = [
-            {"offset": offset, "type": field_type} for offset, field_type in fields_a
-        ]
-        event["fields_after"] = [
-            {"offset": offset, "type": field_type} for offset, field_type in fields_b
-        ]
-    return event
-
-
-def _ambiguity_event(alignment, before, after) -> dict:
-    def candidates(blocks):
-        return [{"location": _block_location(block), "text": block.text} for block in blocks]
-
+def _text_block_payload(block) -> dict:
+    """Return one exact block as regular v5 snapshot evidence."""
     return {
-        "kind": "ambiguity",
-        "shape": alignment.shape,
-        "before_location": None,
-        "after_location": None,
-        "before_candidates": candidates(before),
-        "after_candidates": candidates(after),
-        "reason": "repeated exact paragraph fingerprints do not establish correspondence",
+        "location": _block_location(block),
+        "text": block.text,
+        "fields": [
+            {"offset": offset, "type": field_type}
+            for offset, field_type in _field_markers(block)
+        ],
     }
 
 
-def _observable_sequence(blocks, detail, slide) -> tuple:
-    values = []
-    for block in blocks:
-        item = [block.text, _field_markers(block)]
-        if detail == "full" and block.container != "table-cell":
-            item.append(tuple((run.text, run.field_type, run.font.to_dict()) for run in block.runs))
-            bullet = _bullet_payload(_paragraph_by_block(slide, block))
-            item.append(bullet[1] if bullet is not None else None)
-        values.append(tuple(item))
-    return tuple(values)
-
-
-def _text_events(alignments, detail, slide_a, slide_b) -> "List[dict]":
-    """Classify exact pairs and conservative unmatched regions into v5 text events."""
+def _text_events(hunks) -> "List[dict]":
+    """Emit at most one canonical endpoint hunk for each stable text container."""
     events = []
-    for alignment in alignments:
-        paired_a = {i for i, _ in alignment.pairs}
-        paired_b = {j for _, j in alignment.pairs}
-        for index_a, index_b in alignment.move_pairs:
-            events.append(
-                _single_text_event(
-                    "move", alignment, alignment.before[index_a], alignment.after[index_b]
-                )
-            )
-        anchors = (
-            ((-1, -1),) + alignment.ordered_pairs + ((len(alignment.before), len(alignment.after)),)
+    for hunk in hunks:
+        start_a, end_a = hunk.before_range
+        start_b, end_b = hunk.after_range
+        before = hunk.before[start_a:end_a]
+        after = hunk.after[start_b:end_b]
+        if not before and not after:
+            continue
+        if not before:
+            kind = "insertion"
+        elif not after:
+            kind = "deletion"
+        elif len(before) == len(after) == 1:
+            kind = "replacement"
+        else:
+            kind = "changed_region"
+        events.append(
+            {
+                "kind": kind,
+                "shape": hunk.shape,
+                "before_range": {"start": start_a, "end": end_a},
+                "after_range": {"start": start_b, "end": end_b},
+                "before": [_text_block_payload(block) for block in before],
+                "after": [_text_block_payload(block) for block in after],
+            }
         )
-        for (left_a, left_b), (right_a, right_b) in zip(anchors, anchors[1:]):
-            before = tuple(
-                alignment.before[i] for i in range(left_a + 1, right_a) if i not in paired_a
-            )
-            after = tuple(
-                alignment.after[j] for j in range(left_b + 1, right_b) if j not in paired_b
-            )
-            if not before and not after:
-                continue
-            if not after:
-                events.extend(
-                    _single_text_event("deletion", alignment, block, None) for block in before
-                )
-            elif not before:
-                events.extend(
-                    _single_text_event("insertion", alignment, None, block) for block in after
-                )
-            elif len(before) == len(after) == 1:
-                events.append(_single_text_event("replacement", alignment, before[0], after[0]))
-            elif _observable_sequence(before, detail, slide_a) != _observable_sequence(
-                after, detail, slide_b
-            ):
-                events.append(_ambiguity_event(alignment, before, after))
-        for index_a, index_b in alignment.pairs:
-            if (index_a, index_b) in alignment.move_pairs:
-                continue
-            block_a, block_b = alignment.before[index_a], alignment.after[index_b]
-            if block_a.text != block_b.text or _field_markers(block_a) != _field_markers(block_b):
-                events.append(_single_text_event("replacement", alignment, block_a, block_b))
     return events
 
 
@@ -999,12 +966,30 @@ def _font_values(font) -> tuple:
     )
 
 
-def _effective_shifts(alignments) -> "Tuple[EffectiveShift, ...]":
-    """Formatting changes for uniquely identified runs in exactly aligned paragraphs."""
+def _unique_unchanged_pairs(hunk):
+    """Boundary pairs whose exact paragraph value is unique on both sides."""
+    values_a = tuple(_paragraph_value(block) for block in hunk.before)
+    values_b = tuple(_paragraph_value(block) for block in hunk.after)
+    counts_a = Counter(values_a)
+    counts_b = Counter(values_b)
+    start_a, end_a = hunk.before_range
+    start_b, end_b = hunk.after_range
+    boundaries = (
+        (range(start_a), range(start_b)),
+        (range(end_a, len(hunk.before)), range(end_b, len(hunk.after))),
+    )
+    for indexes_a, indexes_b in boundaries:
+        for index_a, index_b in zip(indexes_a, indexes_b):
+            if counts_a[values_a[index_a]] == counts_b[values_b[index_b]] == 1:
+                yield index_a, index_b
+
+
+def _effective_shifts(hunks) -> "Tuple[EffectiveShift, ...]":
+    """Formatting changes for unique unchanged boundary paragraphs and runs."""
     shifts = []
-    for alignment in alignments:
-        for index_a, index_b in alignment.pairs:
-            block_a, block_b = alignment.before[index_a], alignment.after[index_b]
+    for hunk in hunks:
+        for index_a, index_b in _unique_unchanged_pairs(hunk):
+            block_a, block_b = hunk.before[index_a], hunk.after[index_b]
             if block_a.container == "table-cell" or block_b.container == "table-cell":
                 continue
             runs_a = [(i, run) for i, run in enumerate(block_a.runs) if run.text != "\v"]
@@ -1029,7 +1014,7 @@ def _effective_shifts(alignments) -> "Tuple[EffectiveShift, ...]":
                 shifts.append(
                     EffectiveShift(
                         part=block_a.anchor.part,
-                        shape=alignment.shape,
+                        shape=hunk.shape,
                         before_location=_block_location(block_a),
                         after_location=_block_location(block_b),
                         before_run_index=run_index_a,
@@ -1075,12 +1060,12 @@ def _bullet_payload(paragraph):
     return values, payload
 
 
-def _bullet_shifts(slide_a, slide_b, alignments) -> "Tuple[BulletShift, ...]":
-    """Bullet changes driven by the same exact paragraph pairs as text and fonts."""
+def _bullet_shifts(slide_a, slide_b, hunks) -> "Tuple[BulletShift, ...]":
+    """Bullet changes for unique unchanged boundary paragraphs."""
     shifts = []
-    for alignment in alignments:
-        for index_a, index_b in alignment.pairs:
-            block_a, block_b = alignment.before[index_a], alignment.after[index_b]
+    for hunk in hunks:
+        for index_a, index_b in _unique_unchanged_pairs(hunk):
+            block_a, block_b = hunk.before[index_a], hunk.after[index_b]
             if block_a.container == "table-cell" or block_b.container == "table-cell":
                 continue
             before = _bullet_payload(_paragraph_by_block(slide_a, block_a))
@@ -1090,7 +1075,7 @@ def _bullet_shifts(slide_a, slide_b, alignments) -> "Tuple[BulletShift, ...]":
             shifts.append(
                 BulletShift(
                     part=block_a.anchor.part,
-                    shape=alignment.shape,
+                    shape=hunk.shape,
                     before_location=_block_location(block_a),
                     after_location=_block_location(block_b),
                     text=block_b.text,
@@ -1101,48 +1086,8 @@ def _bullet_shifts(slide_a, slide_b, alignments) -> "Tuple[BulletShift, ...]":
     return tuple(shifts)
 
 
-def _table_signature(table) -> tuple:
-    """Exact cell paragraph fingerprints arranged as a stable row/column grid."""
-    from pptx.inspect import _paragraph_fingerprint
-
-    return tuple(
-        tuple(
-            tuple(_paragraph_fingerprint(paragraph._p) for paragraph in cell.text_frame.paragraphs)
-            for cell in row.cells
-        )
-        for row in table.rows
-    )
-
-
-def _insertion_candidates(before, after, count) -> list:
-    return [
-        index
-        for index in range(len(after) - count + 1)
-        if after[:index] + after[index + count :] == before
-    ]
-
-
-def _dimension_change(before, after, axis) -> dict:
-    delta = len(after) - len(before)
-    kind = "insertion" if delta > 0 else "deletion"
-    count = abs(delta)
-    candidates = (
-        _insertion_candidates(before, after, count)
-        if delta > 0
-        else _insertion_candidates(after, before, count)
-    )
-    result = {"kind": kind, "count": count}
-    if len(candidates) == 1:
-        result["index"] = candidates[0]
-    else:
-        result["ambiguous"] = True
-        result["candidate_indexes"] = candidates
-        result["axis"] = axis
-    return result
-
-
 def _table_structure_changes(slide_a, slide_b) -> tuple:
-    """Return exact table-grid evidence for stable table-frame IDs."""
+    """Return factual dimensions for stable table-frame IDs."""
     shapes_a = {shape.shape_id: shape for shape in _iter_shape_tree(slide_a.shapes)}
     shapes_b = {shape.shape_id: shape for shape in _iter_shape_tree(slide_b.shapes)}
     changes = []
@@ -1160,13 +1105,6 @@ def _table_structure_changes(slide_a, slide_b) -> tuple:
             "before": {"rows": rows_a, "columns": cols_a},
             "after": {"rows": rows_b, "columns": cols_b},
         }
-        grid_a, grid_b = _table_signature(table_a), _table_signature(table_b)
-        if cols_a == cols_b and rows_a != rows_b:
-            change["row_change"] = _dimension_change(grid_a, grid_b, "row")
-        elif rows_a == rows_b and cols_a != cols_b:
-            columns_a = tuple(tuple(row[column] for row in grid_a) for column in range(cols_a))
-            columns_b = tuple(tuple(row[column] for row in grid_b) for column in range(cols_b))
-            change["column_change"] = _dimension_change(columns_a, columns_b, "column")
         changes.append(change)
     return tuple(changes)
 

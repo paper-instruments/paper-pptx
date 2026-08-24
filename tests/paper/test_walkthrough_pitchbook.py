@@ -156,11 +156,12 @@ def test_pitchbook_self_consistency_against_deck_diff(tmp_path):
     # -- the footer pass shows on every ORIGINAL slide as added text blocks
     for slide_id, change in changes.items():
         if change.text_changes:
-            assert all(c["before"] is None for c in change.text_changes), (
+            assert all(c["before"] == [] for c in change.text_changes), (
                 "unexpected edits to library content on slide %d" % slide_id
             )
             assert any(
-                c["after"] == "Paper Pitch Book" for c in change.text_changes
+                any(block["text"] == "Paper Pitch Book" for block in c["after"])
+                for c in change.text_changes
             ), "footer text missing on slide %d" % slide_id
 
 

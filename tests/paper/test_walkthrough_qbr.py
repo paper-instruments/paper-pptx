@@ -256,10 +256,10 @@ def test_walkthrough_self_consistency_against_deck_diff(tmp_path):
     assert any(
         c["kind"] == "replacement"
         and c["shape"]["shape_id"] == 2
-        and c["before_location"] == {"container": "shape", "paragraph_index": 0}
-        and c["after_location"] == {"container": "shape", "paragraph_index": 0}
-        and c["before"] == "Gauntlet: branded"
-        and c["after"] == "Q4 Business Review"
+        and c["before"][0]["location"] == {"container": "shape", "paragraph_index": 0}
+        and c["after"][0]["location"] == {"container": "shape", "paragraph_index": 0}
+        and c["before"][0]["text"] == "Gauntlet: branded"
+        and c["after"][0]["text"] == "Q4 Business Review"
         for c in retitled.to_dict()["text_changes"]
     )
     # -- the chart update replace_data_safe performed, per series/category
