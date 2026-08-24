@@ -298,6 +298,11 @@ slide still uses::
             if not layout.used_by_slides:
                 master.slide_layouts.remove(layout)
 
+When a layout name will drive an edit, use
+:meth:`~pptx.slide.SlideLayouts.get_unique_by_name`. Layout names can repeat; the strict lookup
+refuses missing or duplicate matches and lets the agent choose explicitly. The inherited
+:meth:`~pptx.slide.SlideLayouts.get_by_name` remains first-match for upstream compatibility.
+
 Verify what changed
 -------------------
 

@@ -843,11 +843,41 @@ class SlideLayouts(ParentedElementProxy):
         return len(self._sldLayoutIdLst)
 
     def get_by_name(self, name: str, default: SlideLayout | None = None) -> SlideLayout | None:
-        """Return SlideLayout object having `name`, or `default` if not found."""
+        """Return the first layout named `name`, or `default` when none is found.
+
+        This preserves the upstream first-match contract. Use :meth:`get_unique_by_name` when the
+        result will drive an edit and duplicate layout names must be surfaced rather than guessed.
+        """
         for slide_layout in self:
             if slide_layout.name == name:
                 return slide_layout
         return default
+
+    def get_unique_by_name(self, name: str) -> SlideLayout:
+        """Return the only layout named `name`; refuse when zero or multiple layouts match.
+
+        Use this for mutation targeting because layout names are not required to be unique. A
+        missing name raises |TargetNotFoundError| and duplicates raise |AmbiguousTargetError|;
+        resolve ambiguity by selecting a layout explicitly by index or partname.
+        """
+        from pptx.errors import AmbiguousTargetError, TargetNotFoundError
+
+        matches = [
+            (idx, slide_layout)
+            for idx, slide_layout in enumerate(self)
+            if slide_layout.name == name
+        ]
+        if not matches:
+            raise TargetNotFoundError("no slide layout in this master is named %r" % name)
+        if len(matches) > 1:
+            candidates = ", ".join(
+                "%d (%s)" % (idx, slide_layout.part.partname) for idx, slide_layout in matches
+            )
+            raise AmbiguousTargetError(
+                "%d slide layouts in this master are named %r; candidates: %s; select the "
+                "intended layout explicitly by index or partname" % (len(matches), name, candidates)
+            )
+        return matches[0][1]
 
     def index(self, slide_layout: SlideLayout) -> int:
         """Return zero-based index of `slide_layout` in this collection.

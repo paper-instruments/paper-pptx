@@ -8,6 +8,7 @@ import pytest
 
 from pptx.dml.fill import FillFormat
 from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.errors import AmbiguousTargetError, TargetNotFoundError
 from pptx.package import Package
 from pptx.parts.presentation import PresentationPart
 from pptx.parts.slide import SlideLayoutPart, SlideMasterPart, SlidePart
@@ -804,6 +805,45 @@ class DescribeSlideLayouts(object):
         # ---but default can be specified---
         slide_layout = slide_layouts.get_by_name("pick me!", "default-value")
         assert slide_layout == "default-value"
+
+    def it_can_find_the_unique_slide_layout_by_name(self, _iter_, slide_layout_, slide_layout_2_):
+        _iter_.return_value = iter((slide_layout_, slide_layout_2_))
+        slide_layout_.name = "not this one"
+        slide_layout_2_.name = "pick me!"
+        slide_layouts = SlideLayouts(None, None)
+
+        slide_layout = slide_layouts.get_unique_by_name("pick me!")
+
+        assert slide_layout is slide_layout_2_
+
+    def but_it_refuses_when_no_slide_layout_has_that_name(
+        self, _iter_, slide_layout_, slide_layout_2_
+    ):
+        _iter_.return_value = iter((slide_layout_, slide_layout_2_))
+        slide_layout_.name = "one"
+        slide_layout_2_.name = "two"
+        slide_layouts = SlideLayouts(None, None)
+
+        with pytest.raises(TargetNotFoundError, match="no slide layout.*pick me!"):
+            slide_layouts.get_unique_by_name("pick me!")
+
+    def but_it_refuses_duplicate_slide_layout_names_with_actionable_candidates(
+        self, _iter_, slide_layout_, slide_layout_2_
+    ):
+        _iter_.return_value = iter((slide_layout_, slide_layout_2_))
+        slide_layout_.name = slide_layout_2_.name = "Duplicate"
+        slide_layout_.part.partname = "/ppt/slideLayouts/slideLayout1.xml"
+        slide_layout_2_.part.partname = "/ppt/slideLayouts/slideLayout2.xml"
+        slide_layouts = SlideLayouts(None, None)
+
+        with pytest.raises(AmbiguousTargetError) as exc_info:
+            slide_layouts.get_unique_by_name("Duplicate")
+
+        message = str(exc_info.value)
+        assert "2 slide layouts" in message
+        assert "0 (/ppt/slideLayouts/slideLayout1.xml)" in message
+        assert "1 (/ppt/slideLayouts/slideLayout2.xml)" in message
+        assert "explicitly by index or partname" in message
 
     def it_knows_the_index_of_each_of_its_slide_layouts(
         self, _iter_, slide_layout_, slide_layout_2_
