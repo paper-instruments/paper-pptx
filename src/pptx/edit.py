@@ -1,7 +1,7 @@
-"""Anchor-consuming write APIs: formatting-preserving text replacement (paper-pptx addition).
+"""Structural-anchor write APIs: formatting-preserving text replacement (paper-pptx addition).
 
-The write half of the loop `pptx.inspect` opened. `inspect_text` produces content-hash
-anchors; this module consumes them. The run-preservation semantics:
+The write half of the loop `pptx.inspect` opened. `inspect_text` produces structural,
+content-validated anchors; this module consumes them. The run-preservation semantics:
 
 - literal, case-sensitive matching; matches never cross paragraph, line-break (`a:br`), or
   field (`a:fld`) boundaries;
@@ -26,14 +26,33 @@ from pptx.errors import (
     TargetNotFoundError,
     UnsupportedStructureError,
 )
-from pptx.inspect import BlockAnchor, content_hash, iter_text_bodies
+from pptx.inspect import (
+    _ANCHOR_VERSION,
+    BlockAnchor,
+    _paragraph_fingerprint,
+    _paragraph_literal_text,
+    content_hash,
+    iter_text_bodies,
+)
 from pptx.oxml.ns import qn
 
 if TYPE_CHECKING:
     from pptx.presentation import Presentation
 
 RESULT_SCHEMA_NAME = "paper-replace-result"
-RESULT_SCHEMA_VERSION = 1
+RESULT_SCHEMA_VERSION = 2
+
+
+@dataclass(frozen=True)
+class _BlockTarget:
+    """One exact paragraph plus the structural facts needed to anchor it."""
+
+    part: str
+    block_index: int
+    owner: object
+    paragraph_index: int
+    cell_coordinates: object
+    paragraph: object
 
 
 @dataclass(frozen=True)
@@ -90,13 +109,11 @@ def replace_text(
         plan = _materialize_blocks(prs, include_notes)
         total = 0
         touched: List[BlockAnchor] = []
-        for partname, block_index, p in plan:
-            count = _replace_in_paragraph(p, find, replace)
+        for target in plan:
+            count = _replace_in_paragraph(target.paragraph, find, replace)
             if count:
                 total += count
-                touched.append(
-                    BlockAnchor(partname, block_index, content_hash(_paragraph_text(p)))
-                )
+                touched.append(_anchor_for_target(target))
         return ReplaceResult(total, tuple(touched))
 
 
@@ -106,12 +123,12 @@ def replace_text_at(
     """Replace literal `find` in the block at `anchor`; return a |ReplaceResult|.
 
     Matching, validation, run-boundary formatting, and non-run boundaries are the same as
-    :func:`replace_text`. The block's current text must hash to `anchor.content_hash`; otherwise
-    |StaleAnchorError| is raised and :func:`refind` is the explicit recovery path. An anchor that
-    addresses an unsupported blind region, or a missing target, refuses without mutation; blind
-    regions elsewhere do not block this anchored operation. `find` absent from the block, or
-    present only across a boundary a match cannot cross, raises |TargetNotFoundError| rather than
-    returning a zero count.
+    :func:`replace_text`. Current anchors resolve the exact shape or table cell first, then require
+    a unique matching full fingerprint in that container. Changed content raises
+    |StaleAnchorError|; missing or ambiguous structure refuses without mutation. Legacy
+    three-field anchors search only for an exact unique short hash in their named part. `find`
+    absent from the resolved block, or present only across a boundary a match cannot cross, raises
+    |TargetNotFoundError| rather than returning a zero count.
 
     On success the result contains the number of occurrences replaced in that block and its one
     post-edit anchor.
@@ -123,15 +140,13 @@ def replace_text_at(
     from pptx._transaction import PackageTransaction
 
     with PackageTransaction(prs.part.package, prs):
-        p = _block_paragraph(prs, anchor)
-        current_text = _paragraph_text(p)
-        current_hash = content_hash(current_text)
-        if current_hash != anchor.content_hash:
-            raise StaleAnchorError(
-                "anchor is stale: block %d of %s now hashes %s (anchor says %s); the document"
-                " changed since the anchor was produced — use pptx.edit.refind() to recover"
-                % (anchor.block_index, anchor.part, current_hash, anchor.content_hash)
-            )
+        target = (
+            _resolve_legacy_target(prs, anchor)
+            if anchor.is_legacy
+            else _resolve_current_target(prs, anchor)
+        )
+        p = target.paragraph
+        current_text = _paragraph_literal_text(p)
         if find not in current_text:
             raise TargetNotFoundError(
                 "%r does not occur in the anchored block (text %r)" % (find, current_text)
@@ -146,48 +161,40 @@ def replace_text_at(
             )
         return ReplaceResult(
             count,
-            (BlockAnchor(anchor.part, anchor.block_index, content_hash(_paragraph_text(p))),),
+            (_anchor_for_target(target),),
         )
 
 
 def refind(prs: "Presentation", anchor: BlockAnchor) -> BlockAnchor:
-    """Return a fresh anchor for the unique block still matching `anchor.content_hash`.
+    """Return a fresh current anchor for an exact unique fingerprint match.
 
-    The explicit recovery path for a stale anchor: searches every block of the anchor's
-    part by content hash. No match → |TargetNotFoundError|; more than one →
-    |AmbiguousTargetError| (the hash alone cannot say which block was meant).
+    Current anchors search only their structurally identified shape or table cell. Legacy
+    three-field anchors search the whole named part by their pinned short text hash. Neither path
+    uses ordinal preference, shape names, geometry, or approximate text.
     """
     if not isinstance(anchor, BlockAnchor):
         raise ValueError("anchor must be a BlockAnchor, got %r" % (anchor,))
-    matches = []
-    for partname, spTree in _iter_story_trees(prs, include_notes=True):
-        if partname != anchor.part:
-            continue
-        block_index = 0
-        for kind, _, txBody, _, _ in iter_text_bodies(spTree):
-            if txBody is None:
-                block_index += 1  # -- occupies an index but is never hash-matchable
-                continue
-            for p in txBody.findall(qn("a:p")):
-                if content_hash(_paragraph_text(p)) == anchor.content_hash:
-                    matches.append(BlockAnchor(partname, block_index, anchor.content_hash))
-                block_index += 1
+    _require_presentation_root(prs)
+    if anchor.is_legacy:
+        return _anchor_for_target(_resolve_legacy_target(prs, anchor))
+    spTree, container = _resolve_current_container(prs, anchor)
+    matches = [
+        _target_from_container(anchor.part, spTree, container, index, p)
+        for index, p in enumerate(container["txBody"].findall(qn("a:p")))
+        if _paragraph_fingerprint(p) == anchor.content_hash
+    ]
     if not matches:
         raise TargetNotFoundError(
-            "no block in %s hashes to %s; the anchored content is gone"
+            "no paragraph in the anchored container of %s has fingerprint %s; the anchored"
+            " content is gone"
             % (anchor.part, anchor.content_hash)
         )
     if len(matches) > 1:
         raise AmbiguousTargetError(
-            "%d blocks in %s hash to %s (indices %s); refusing to pick one"
-            % (
-                len(matches),
-                anchor.part,
-                anchor.content_hash,
-                [m.block_index for m in matches],
-            )
+            "%d paragraphs in the anchored container of %s have fingerprint %s"
+            % (len(matches), anchor.part, anchor.content_hash)
         )
-    return matches[0]
+    return _anchor_for_target(matches[0])
 
 
 # ------------------------------------------------------------------------------- internals
@@ -240,7 +247,7 @@ def _iter_story_trees(prs, include_notes) -> "Iterator[Tuple[str, object]]":
 
 
 def _materialize_blocks(prs, include_notes):
-    """Return the complete [(partname, block_index, a:p element)] plan, refusing first.
+    """Return the complete structural paragraph plan, refusing before any mutation.
 
     Exhausting the traversal before any mutation is what makes deck-wide replacement
     refusal-atomic: the depth guard and the markup-compatibility refusal below fire while
@@ -249,68 +256,253 @@ def _materialize_blocks(prs, include_notes):
     """
     plan = []
     for partname, spTree in _iter_story_trees(prs, include_notes):
-        block_index = 0
-        for kind, _, txBody, _, _ in iter_text_bodies(spTree):
-            if kind == "alternate-content":
-                raise UnsupportedStructureError(
-                    "%s contains mc:AlternateContent; deck-wide replacement cannot"
-                    " guarantee every occurrence is reached inside markup-compatibility"
-                    " branches (inspect_text reports these as blind regions)" % partname
-                )
-            if txBody is None:
-                block_index += 1
-                continue
-            for p in txBody.findall(qn("a:p")):
-                plan.append((partname, block_index, p))
-                block_index += 1
+        plan.extend(_iter_block_targets(partname, spTree, refuse_alternate_content=True))
     return plan
 
 
-def _block_paragraph(prs, anchor: BlockAnchor):
-    """Return the `a:p` element at `anchor.block_index` within `anchor.part`.
-
-    Block indices align with `inspect_text`: an `mc:AlternateContent` subtree occupies
-    exactly one (blind) index; anchoring it refuses.
-    """
-    for partname, spTree in _iter_story_trees(prs, include_notes=True):
-        if partname != anchor.part:
-            continue
-        block_index = 0
-        for kind, _, txBody, _, _ in iter_text_bodies(spTree):
-            if txBody is None:
-                if block_index == anchor.block_index:
-                    detail = (
-                        "mc:AlternateContent (a blind region)"
-                        if kind == "alternate-content"
-                        else "%s (a blind graphic region)" % kind
-                    )
-                    raise UnsupportedStructureError(
-                        "the anchored block is %s; this content is not editable in v0.1"
-                        % detail
-                    )
-                block_index += 1
-                continue
-            for p in txBody.findall(qn("a:p")):
-                if block_index == anchor.block_index:
-                    return p
-                block_index += 1
+def _resolve_legacy_target(prs, anchor: BlockAnchor) -> _BlockTarget:
+    """Resolve a three-field anchor only by an exact unique part-wide legacy hash."""
+    spTree = _story_tree(prs, anchor.part)
+    matches = [
+        target
+        for target in _iter_block_targets(anchor.part, spTree)
+        if content_hash(_paragraph_literal_text(target.paragraph)) == anchor.content_hash
+    ]
+    if not matches:
         raise TargetNotFoundError(
-            "block index %d is beyond the %d blocks of %s"
-            % (anchor.block_index, block_index, anchor.part)
+            "no block in %s hashes to %s; the anchored content is gone"
+            % (anchor.part, anchor.content_hash)
         )
-    raise TargetNotFoundError("no slide or notes part named %r in this presentation" % anchor.part)
+    if len(matches) > 1:
+        raise AmbiguousTargetError(
+            "%d blocks in %s hash to %s (indices %s); refusing to pick one"
+            % (
+                len(matches),
+                anchor.part,
+                anchor.content_hash,
+                [target.block_index for target in matches],
+            )
+        )
+    return matches[0]
 
 
-def _paragraph_text(p) -> str:
-    """Concatenated `a:r` run text of `p` — same definition `inspect_text` hashes."""
-    pieces = []
-    for child in p:
-        if child.tag == qn("a:r"):
-            text = child.find(qn("a:t"))
-            pieces.append((text.text or "") if text is not None else "")
-        elif child.tag == qn("a:br"):
-            pieces.append("\v")
-    return "".join(pieces)
+def _resolve_current_target(prs, anchor: BlockAnchor) -> _BlockTarget:
+    """Resolve current structural identity, then validate content and local uniqueness."""
+    spTree, container = _resolve_current_container(prs, anchor)
+    locator = anchor.locator
+    paragraph_index = locator.get("paragraph_index")
+    if not isinstance(paragraph_index, int) or isinstance(paragraph_index, bool):
+        raise UnsupportedStructureError(
+            "current anchor locator requires an integer paragraph_index"
+        )
+    paragraphs = container["txBody"].findall(qn("a:p"))
+    if not 0 <= paragraph_index < len(paragraphs):
+        raise TargetNotFoundError(
+            "paragraph index %r is beyond the %d paragraphs in the anchored container of %s"
+            % (paragraph_index, len(paragraphs), anchor.part)
+        )
+    paragraph = paragraphs[paragraph_index]
+    current_fingerprint = _paragraph_fingerprint(paragraph)
+    if current_fingerprint != anchor.content_hash:
+        raise StaleAnchorError(
+            "anchor is stale: structurally resolved paragraph %d of %s now fingerprints %s"
+            " (anchor says %s); use pptx.edit.refind() to recover"
+            % (paragraph_index, anchor.part, current_fingerprint, anchor.content_hash)
+        )
+    matching_indices = [
+        index
+        for index, candidate in enumerate(paragraphs)
+        if _paragraph_fingerprint(candidate) == anchor.content_hash
+    ]
+    if len(matching_indices) > 1:
+        raise AmbiguousTargetError(
+            "%d paragraphs in the anchored container of %s share fingerprint %s"
+            " (local indices %s); refusing to trust paragraph_index"
+            % (len(matching_indices), anchor.part, anchor.content_hash, matching_indices)
+        )
+    return _target_from_container(anchor.part, spTree, container, paragraph_index, paragraph)
+
+
+def _resolve_current_container(prs, anchor: BlockAnchor):
+    """Resolve and return a current anchor's exact supported text container."""
+    if anchor.version != _ANCHOR_VERSION or not isinstance(anchor.locator, dict):
+        raise UnsupportedStructureError(
+            "anchor version/locator is unsupported (expected current version %d)"
+            % _ANCHOR_VERSION
+        )
+    locator = anchor.locator
+    kind = locator.get("kind")
+    if kind not in ("shape", "table-cell"):
+        detail = "mc:AlternateContent" if kind == "alternate-content" else repr(kind)
+        raise UnsupportedStructureError(
+            "anchored container kind %s is a blind or unsupported text region" % detail
+        )
+    shape_id = locator.get("shape_id")
+    if not isinstance(shape_id, int) or isinstance(shape_id, bool) or shape_id <= 0:
+        raise UnsupportedStructureError("current anchor locator requires a positive shape_id")
+    spTree = _story_tree(prs, anchor.part)
+
+    matching_owners = [
+        owner for owner in _iter_shape_owners(spTree) if _owner_shape_id(owner) == shape_id
+    ]
+    if not matching_owners:
+        raise TargetNotFoundError(
+            "no container with shape id %d exists in %s" % (shape_id, anchor.part)
+        )
+    if len(matching_owners) > 1:
+        raise AmbiguousTargetError(
+            "%d containers in %s claim shape id %d; refusing ambiguous structural identity"
+            % (len(matching_owners), anchor.part, shape_id)
+        )
+    structural_owner = matching_owners[0]
+    resolved = {"owner": structural_owner, "cells": {}}
+    for actual_kind, owner, txBody, _, cell_coordinates in iter_text_bodies(spTree):
+        if owner is not structural_owner:
+            continue
+        resolved["kind"] = (
+            "shape" if actual_kind in ("shape", "group")
+            else "table-cell" if actual_kind == "table-cell"
+            else actual_kind
+        )
+        if resolved["kind"] == "shape":
+            resolved["txBody"] = txBody
+        elif resolved["kind"] == "table-cell":
+            resolved["cells"][cell_coordinates] = txBody
+
+    if "kind" not in resolved:
+        raise UnsupportedStructureError(
+            "shape id %d in %s is not a supported text container" % (shape_id, anchor.part)
+        )
+    if resolved["kind"] != kind:
+        raise UnsupportedStructureError(
+            "shape id %d in %s is a %s container, not the anchored %s container"
+            % (shape_id, anchor.part, resolved["kind"], kind)
+        )
+    if kind == "shape":
+        return spTree, {
+            "kind": kind,
+            "owner": structural_owner,
+            "txBody": resolved["txBody"],
+            "cell_coordinates": None,
+        }
+
+    row = locator.get("row")
+    column = locator.get("column")
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in (row, column)):
+        raise UnsupportedStructureError(
+            "table-cell anchor locator requires integer row and column coordinates"
+        )
+    coordinates = row, column
+    txBody = resolved["cells"].get(coordinates)
+    if txBody is None:
+        raise TargetNotFoundError(
+            "table cell (%d, %d) does not exist in shape id %d of %s"
+            % (row, column, shape_id, anchor.part)
+        )
+    return spTree, {
+        "kind": kind,
+        "owner": structural_owner,
+        "txBody": txBody,
+        "cell_coordinates": coordinates,
+    }
+
+
+def _story_tree(prs, partname):
+    """Return the unique slide/notes story tree named `partname`."""
+    matches = [
+        spTree
+        for candidate_partname, spTree in _iter_story_trees(prs, include_notes=True)
+        if candidate_partname == partname
+    ]
+    if not matches:
+        raise TargetNotFoundError(
+            "no slide or notes part named %r in this presentation" % partname
+        )
+    if len(matches) > 1:
+        raise AmbiguousTargetError(
+            "%d slide or notes stories are named %r; refusing ambiguous part identity"
+            % (len(matches), partname)
+        )
+    return matches[0]
+
+
+def _iter_block_targets(partname, spTree, *, refuse_alternate_content=False):
+    """Yield editable paragraph targets in the shared diagnostic traversal order."""
+    block_index = 0
+    for kind, owner, txBody, _, cell_coordinates in iter_text_bodies(spTree):
+        if kind == "alternate-content" and refuse_alternate_content:
+            raise UnsupportedStructureError(
+                "%s contains mc:AlternateContent; deck-wide replacement cannot guarantee"
+                " every occurrence is reached inside markup-compatibility branches"
+                " (inspect_text reports these as blind regions)" % partname
+            )
+        if txBody is None:
+            block_index += 1
+            continue
+        for paragraph_index, paragraph in enumerate(txBody.findall(qn("a:p"))):
+            yield _BlockTarget(
+                partname,
+                block_index,
+                owner,
+                paragraph_index,
+                cell_coordinates,
+                paragraph,
+            )
+            block_index += 1
+
+
+def _target_from_container(partname, spTree, container, paragraph_index, paragraph):
+    """Build a target with its refreshed part-wide diagnostic block index."""
+    for target in _iter_block_targets(partname, spTree):
+        if target.paragraph is paragraph:
+            return _BlockTarget(
+                partname,
+                target.block_index,
+                container["owner"],
+                paragraph_index,
+                container["cell_coordinates"],
+                paragraph,
+            )
+    raise TargetNotFoundError(
+        "the structurally resolved paragraph is not reachable in %s" % partname
+    )
+
+
+def _anchor_for_target(target: _BlockTarget) -> BlockAnchor:
+    """Return a fresh current structural anchor for `target`."""
+    locator = {
+        "kind": "table-cell" if target.cell_coordinates is not None else "shape",
+        "shape_id": _owner_shape_id(target.owner),
+    }
+    if target.cell_coordinates is not None:
+        locator["row"], locator["column"] = target.cell_coordinates
+    locator["paragraph_index"] = target.paragraph_index
+    return BlockAnchor(
+        target.part,
+        target.block_index,
+        _paragraph_fingerprint(target.paragraph),
+        _ANCHOR_VERSION,
+        locator,
+    )
+
+
+def _owner_shape_id(owner) -> int:
+    """Return an owner's cNvPr id, or zero for a blind owner without one."""
+    cNvPr = owner.find(".//%s" % qn("p:cNvPr"))
+    if cNvPr is None:
+        return 0
+    try:
+        return int(cNvPr.get("id"))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _iter_shape_owners(container):
+    """Yield every ordinary shape owner recursively, excluding blind AC branches."""
+    for owner in container.iter_shape_elms():
+        yield owner
+        if owner.tag == qn("p:grpSp"):
+            yield from _iter_shape_owners(owner)
 
 
 def _replace_in_paragraph(p, find: str, replace: str) -> int:

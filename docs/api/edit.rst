@@ -3,11 +3,10 @@
 Anchored text editing (``pptx.edit``)
 =====================================
 
-*paper-pptx addition.* Change text while preserving run formatting. Paragraph blocks are
-addressed by the content-hash |BlockAnchor| from :func:`pptx.inspect.inspect_text`. Because the
-anchor carries a hash of the block's text, an edit aimed at content that has since changed raises
-|StaleAnchorError| rather than being silently misapplied. :func:`refind` is the explicit recovery
-path.
+*paper-pptx addition.* Change text while preserving run formatting. Current paragraph anchors from
+:func:`pptx.inspect.inspect_text` identify their owning shape or table cell structurally and then
+validate a full content fingerprint. A changed fingerprint raises |StaleAnchorError| rather than
+redirecting the edit. :func:`refind` is the explicit, exact recovery path.
 
 Matching and boundaries
 -----------------------
@@ -42,13 +41,24 @@ existing notes slides. No match is a successful :class:`ReplaceResult` with zero
 Unsupported markup-compatibility regions are blind to complete traversal, so their presence
 refuses the deck-wide operation before any write.
 
-:func:`replace_text_at` limits replacement to one anchored paragraph. A changed content hash raises
-|StaleAnchorError|; a missing match (including one found only across a prohibited boundary) raises
-|TargetNotFoundError|. An anchor addressing an unsupported blind region also refuses without
-mutation; unrelated blind regions elsewhere do not block the anchored edit. On success both
-functions return a :class:`ReplaceResult` containing the count and post-edit anchors for the blocks
-that changed. Use :func:`refind` explicitly to recover the unique current location of stale
-anchored content; it refuses when no block or more than one block has the requested content hash.
+:func:`replace_text_at` limits replacement to one anchored paragraph. It first resolves the named
+slide or notes part, the slide-unique owning shape ID, table coordinates where applicable, and the
+paragraph's container-local index. Only then does it validate the fingerprint. A missing or
+ambiguous owner, changed table topology, invalid local paragraph, or duplicate exact fingerprint
+inside the resolved container refuses before mutation; the diagnostic part-wide block ordinal is
+never a current write target. A changed fingerprint raises |StaleAnchorError|. A missing literal
+match (including one found only across a prohibited boundary) raises |TargetNotFoundError|.
+
+An anchor addressing an unsupported blind region also refuses without mutation; unrelated blind
+regions elsewhere do not block the anchored edit. Notes anchors returned by
+``replace_text(..., include_notes=True)`` follow the same structural and fingerprint rules after
+save and reopen. On success both replacement functions return a version-2
+``paper-replace-result`` containing the count and fresh current anchors for the changed blocks.
+
+:func:`refind` searches a current anchor only inside its structurally identified container for an
+exact unique full-fingerprint match, refreshing local and diagnostic coordinates. A legacy
+three-field anchor is searched exact-uniquely across its named part; its stored block ordinal is
+ignored. No path uses fuzzy text, shape names, group order, geometry, or nearest-match behavior.
 
 .. currentmodule:: pptx.edit
 

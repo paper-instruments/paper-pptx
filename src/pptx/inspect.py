@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import unicodedata
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Iterator, Optional, Tuple
@@ -50,7 +51,8 @@ if TYPE_CHECKING:
     from pptx.text.text import _Run
 
 SCHEMA_NAME = "paper-text-inspection"
-SCHEMA_VERSION = 2  # -- visibility-complete traversal, container/blind fields
+SCHEMA_VERSION = 3  # -- structurally addressed, full-fingerprint text anchors
+_ANCHOR_VERSION = 2
 
 #: Resolved value of a bullet typeface or size that defers to the run's own text, whether an
 #: `a:buFontTx` / `a:buSzTx` said so explicitly or the whole chain went silent. A sentinel
@@ -82,6 +84,41 @@ def content_hash(text: str) -> str:
     """
     normalized = unicodedata.normalize("NFC", text)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+
+
+def _paragraph_literal_text(p) -> str:
+    """Return literal paragraph content, excluding volatile field display values."""
+    pieces = []
+    for child in p:
+        if child.tag == qn("a:r"):
+            text = child.find(qn("a:t"))
+            pieces.append((text.text or "") if text is not None else "")
+        elif child.tag == qn("a:br"):
+            pieces.append("\v")
+    return "".join(pieces)
+
+
+def _paragraph_fingerprint(p) -> str:
+    """Full SHA-256 over normalized literal segments and positioned field markers.
+
+    Run boundaries are deliberately absent. Field markers split literal segments, preserving
+    their positions and ordered types while excluding their volatile cached display text.
+    """
+    tokens = []
+    literal = []
+    for child in p:
+        if child.tag == qn("a:fld"):
+            tokens.append(["text", unicodedata.normalize("NFC", "".join(literal))])
+            tokens.append(["field", child.get("type") or ""])
+            literal = []
+        elif child.tag == qn("a:r"):
+            text = child.find(qn("a:t"))
+            literal.append((text.text or "") if text is not None else "")
+        elif child.tag == qn("a:br"):
+            literal.append("\v")
+    tokens.append(["text", unicodedata.normalize("NFC", "".join(literal))])
+    encoded = json.dumps(tokens, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -182,30 +219,46 @@ class EffectiveBullet:
 
 @dataclass(frozen=True)
 class BlockAnchor:
-    """The pinned anchor shape: part + block index + content hash (detects staleness).
+    """A structural current anchor or conservative three-field legacy anchor.
 
     Fields:
 
     * ``part`` -- partname of the story the block lives in (a slide or notes slide).
-    * ``block_index`` -- 0-based index of the paragraph block within that part, in the
-      visibility-complete traversal order.
-    * ``content_hash`` -- first 8 hex chars of the SHA-256 of the block's NFC-normalized
-      text; a mismatch on re-inspection is how a stale anchor is detected.
+    * ``block_index`` -- diagnostic 0-based part traversal index. Current anchors never use it
+      as write identity.
+    * ``content_hash`` -- a current full structural fingerprint, or the pinned eight-character
+      text hash on a legacy anchor.
+    * ``version`` -- current anchor schema version; absent on legacy anchors.
+    * ``locator`` -- exact container identity and container-local paragraph coordinates.
+
+    Existing ``BlockAnchor(part, block_index, content_hash)`` construction remains valid and
+    creates a legacy anchor. Legacy writes search the named part for an exact unique hash match.
     """
 
     part: str
     block_index: int
     content_hash: str
+    version: Optional[int] = None
+    locator: Optional[dict] = None
+
+    @property
+    def is_legacy(self) -> bool:
+        """Whether this is an old three-field anchor without structural identity."""
+        return self.version is None and self.locator is None
 
     def to_dict(self) -> dict:
         """Return this anchor as a JSON-ready dict. Store it to re-target the same text block on a
         later open.
         """
-        return {
+        payload = {
             "part": self.part,
             "block_index": self.block_index,
             "content_hash": self.content_hash,
         }
+        if not self.is_legacy:
+            payload["version"] = self.version
+            payload["locator"] = dict(self.locator) if self.locator is not None else None
+        return payload
 
 
 @dataclass(frozen=True)
@@ -680,7 +733,8 @@ def inspect_text(slide: "Slide") -> TextInspection:
     Traversal is depth-first document order over the shape tree: top-level `p:sp` shapes,
     `p:sp` shapes inside groups (recursively, to any depth), and table cells
     (row-major within each table graphic-frame). `block_index` numbers blocks consecutively
-    in that pinned order. Table-cell blocks report their text but are *blind regions* for
+    in that pinned order for diagnostics only; current anchors address their owning shape or
+    table cell structurally. Table-cell blocks report their text but are *blind regions* for
     effective values (see |TextBlock|); chart text lives in the chart part, not the slide
     part, and is out of scope here.
     """
@@ -695,13 +749,13 @@ def inspect_text(slide: "Slide") -> TextInspection:
 
 
 def iter_text_bodies(spTree):
-    """Yield `(kind, owner_elm, txBody, group_path, cell_detail)` depth-first, document order.
+    """Yield `(kind, owner_elm, txBody, group_path, cell_coordinates)` in document order.
 
     The single source of traversal truth shared by `inspect_text` and `pptx.edit`
     (visibility-complete: top-level `p:sp`, grouped `p:sp` recursively to any depth,
     table cells row-major). `kind` is "shape" | "group" | "table-cell"; `owner_elm` is the
-    `p:sp` or `p:graphicFrame`; `cell_detail` is `"<frame-name>!r{row}c{col}"` for table
-    cells, None otherwise.
+    `p:sp` or `p:graphicFrame`; `cell_coordinates` is ``(row, column)`` for table cells and
+    |None| otherwise. Display-oriented cell detail is assembled only by inspection callers.
     """
     return _iter_container(spTree, ())
 
@@ -744,23 +798,31 @@ def _iter_container(container_elm, group_path):
                 )
                 yield kind, child, None, group_path, _cNvPr_name(child)
                 continue
-            frame_name = _cNvPr_name(child)
             for row_index, tr in enumerate(tbl.findall(qn("a:tr"))):
                 for col_index, tc in enumerate(tr.findall(qn("a:tc"))):
                     txBody = tc.find(qn("a:txBody"))
                     if txBody is not None:
-                        detail = "%s!r%dc%d" % (frame_name, row_index, col_index)
-                        yield "table-cell", child, txBody, group_path, detail
+                        yield "table-cell", child, txBody, group_path, (row_index, col_index)
 
 
 def _walk_container(spTree, group_path, partname, resolver, blocks) -> None:
     """Append TextBlocks for every text body under `spTree` (see iter_text_bodies)."""
-    for kind, owner, txBody, path, cell_detail in iter_text_bodies(spTree):
+    for kind, owner, txBody, path, cell_coordinates in iter_text_bodies(spTree):
         if kind in ("alternate-content", "chart", "graphic-frame"):
             cNvPr = owner.find(".//%s" % qn("p:cNvPr"))
+            locator = {
+                "kind": kind,
+                "shape_id": int(cNvPr.get("id")) if cNvPr is not None else 0,
+            }
             blocks.append(
                 TextBlock(
-                    anchor=BlockAnchor(partname, len(blocks), content_hash("")),
+                    anchor=BlockAnchor(
+                        partname,
+                        len(blocks),
+                        _paragraph_fingerprint(owner.makeelement(qn("a:p"), {})),
+                        _ANCHOR_VERSION,
+                        locator,
+                    ),
                     shape_id=int(cNvPr.get("id")) if cNvPr is not None else 0,
                     shape_name=(cNvPr.get("name") or "") if cNvPr is not None else "",
                     placeholder_type=None,
@@ -768,13 +830,18 @@ def _walk_container(spTree, group_path, partname, resolver, blocks) -> None:
                     text="",
                     runs=(),
                     container=kind,
-                    container_detail=cell_detail or ("/".join(path) if path else None),
+                    container_detail=(
+                        _cNvPr_name(owner) if kind in ("chart", "graphic-frame")
+                        else "/".join(path) if path else None
+                    ),
                     blind=True,
                 )
             )
             continue
         if kind == "table-cell":
-            for p in txBody.findall(qn("a:p")):
+            row_index, col_index = cell_coordinates
+            cell_detail = "%s!r%dc%d" % (_cNvPr_name(owner), row_index, col_index)
+            for paragraph_index, p in enumerate(txBody.findall(qn("a:p"))):
                 runs = tuple(
                     InspectedRun(
                         (
@@ -791,7 +858,17 @@ def _walk_container(spTree, group_path, partname, resolver, blocks) -> None:
                     if item.tag in (qn("a:r"), qn("a:fld"), qn("a:br"))
                 )
                 _append_block(
-                    blocks, partname, owner, p, runs, None, "table-cell", cell_detail, True
+                    blocks,
+                    partname,
+                    owner,
+                    p,
+                    runs,
+                    None,
+                    "table-cell",
+                    cell_detail,
+                    True,
+                    paragraph_index,
+                    cell_coordinates,
                 )
         else:
             placeholder_type = None
@@ -799,7 +876,7 @@ def _walk_container(spTree, group_path, partname, resolver, blocks) -> None:
                 ph_type = owner.ph_type
                 placeholder_type = ph_type.name if ph_type is not None else None
             container_detail = "/".join(path) if path else None
-            for p in txBody.findall(qn("a:p")):
+            for paragraph_index, p in enumerate(txBody.findall(qn("a:p"))):
                 runs = tuple(
                     InspectedRun(
                         (
@@ -817,28 +894,51 @@ def _walk_container(spTree, group_path, partname, resolver, blocks) -> None:
                 )
                 _append_block(
                     blocks, partname, owner, p, runs, placeholder_type, kind,
-                    container_detail, False,
+                    container_detail, False, paragraph_index, None,
                 )
 
 
 def _append_block(
-    blocks, partname, shape_elm, p, runs, placeholder_type, container, container_detail, blind
+    blocks,
+    partname,
+    shape_elm,
+    p,
+    runs,
+    placeholder_type,
+    container,
+    container_detail,
+    blind,
+    paragraph_index,
+    cell_coordinates,
 ) -> None:
     """Append one paragraph to `blocks` as a `TextBlock`.
 
-    The anchor hash covers only non-field text: a field's display text is volatile, so hashing it
-    would rot the anchor on the next PowerPoint render.
+    The current fingerprint covers literal text plus field type/position markers. A field's
+    volatile display text remains excluded so a PowerPoint render does not rot the anchor.
     """
     text = "".join(inspected.text for inspected in runs if inspected.field_type is None)
     pPr = p.find(qn("a:pPr"))
     level = int(pPr.get("lvl", "0")) if pPr is not None else 0
     cNvPr = shape_elm.find(".//%s" % qn("p:cNvPr"))
-    # -- fields (a:fld) are recognized by type but excluded from text/hash: their display
-    # -- text is volatile (PowerPoint re-renders it), so hashing it would rot anchors
+    locator = {
+        "kind": "table-cell" if container == "table-cell" else "shape",
+        "shape_id": int(cNvPr.get("id")),
+    }
+    if cell_coordinates is not None:
+        locator["row"], locator["column"] = cell_coordinates
+    locator["paragraph_index"] = paragraph_index
+    # -- field display text is volatile and excluded from text/fingerprints; stable marker
+    # -- type and position still participate in the current fingerprint
     fields = tuple(run.field_type for run in runs if run.field_type is not None)
     blocks.append(
         TextBlock(
-            anchor=BlockAnchor(partname, len(blocks), content_hash(text)),
+            anchor=BlockAnchor(
+                partname,
+                len(blocks),
+                _paragraph_fingerprint(p),
+                _ANCHOR_VERSION,
+                locator,
+            ),
             shape_id=int(cNvPr.get("id")),
             shape_name=cNvPr.get("name") or "",
             placeholder_type=placeholder_type,

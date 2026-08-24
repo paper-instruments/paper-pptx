@@ -1,6 +1,6 @@
 {
   "schema": "paper-text-inspection",
-  "version": 2,
+  "version": 3,
   "part": "/ppt/slides/slide1.xml",
   "blind_region_count": 0,
   "blocks": [
@@ -8,7 +8,13 @@
       "anchor": {
         "part": "/ppt/slides/slide1.xml",
         "block_index": 0,
-        "content_hash": "10d3e3c4"
+        "content_hash": "e9147e0d286ebb2c4b8f737dc100612faaa3cdf64b49014873f2e3ae1ac422b7",
+        "version": 2,
+        "locator": {
+          "kind": "shape",
+          "shape_id": 2,
+          "paragraph_index": 0
+        }
       },
       "shape_id": 2,
       "shape_name": "Title 1",
@@ -315,7 +321,13 @@
       "anchor": {
         "part": "/ppt/slides/slide1.xml",
         "block_index": 1,
-        "content_hash": "ea718db5"
+        "content_hash": "a1e50f53d1f3ec7bee21ea710a16c56ce922b31a7a1f798ca6d2dd6b54ca72e2",
+        "version": 2,
+        "locator": {
+          "kind": "shape",
+          "shape_id": 3,
+          "paragraph_index": 0
+        }
       },
       "shape_id": 3,
       "shape_name": "Content Placeholder 2",
@@ -628,7 +640,13 @@
       "anchor": {
         "part": "/ppt/slides/slide1.xml",
         "block_index": 2,
-        "content_hash": "fd08683e"
+        "content_hash": "1cde33fc4f990f0e8003c7c7a5183ac93ba366f07321616aa2df372c452595cf",
+        "version": 2,
+        "locator": {
+          "kind": "shape",
+          "shape_id": 3,
+          "paragraph_index": 1
+        }
       },
       "shape_id": 3,
       "shape_name": "Content Placeholder 2",

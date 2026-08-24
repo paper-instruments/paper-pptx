@@ -1,6 +1,6 @@
 {
   "schema": "paper-text-inspection",
-  "version": 2,
+  "version": 3,
   "part": "/ppt/slides/slide1.xml",
   "blind_region_count": 0,
   "blocks": [
@@ -8,7 +8,13 @@
       "anchor": {
         "part": "/ppt/slides/slide1.xml",
         "block_index": 0,
-        "content_hash": "e3b0c442"
+        "content_hash": "430de988160f71aa2280de005f9e9a5aad86a2e7251a2669e7eace6595c6aad6",
+        "version": 2,
+        "locator": {
+          "kind": "shape",
+          "shape_id": 2,
+          "paragraph_index": 0
+        }
       },
       "shape_id": 2,
       "shape_name": "accent1_box",
@@ -25,7 +31,13 @@
       "anchor": {
         "part": "/ppt/slides/slide1.xml",
         "block_index": 1,
-        "content_hash": "59aa6a1d"
+        "content_hash": "137fa67b4914fba503c18298ae22bfbdfa4b4fc5e4f0003f40f2af974f804364",
+        "version": 2,
+        "locator": {
+          "kind": "shape",
+          "shape_id": 3,
+          "paragraph_index": 0
+        }
       },
       "shape_id": 3,
       "shape_name": "tx1_text",

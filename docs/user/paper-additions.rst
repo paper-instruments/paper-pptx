@@ -118,7 +118,7 @@ built for diffing, golden-file tests, and automation:
 
 * :func:`~pptx.inspect.inspect_text` — every text block on a slide, visibility-complete (it sees
   inside grouped shapes and table cells, which ordinary traversal skips), each block
-  carrying a content-hash |BlockAnchor|.
+  carrying a structural, full-fingerprint |BlockAnchor|.
 * :func:`~pptx.inspect.inspect_deck` — a whole-deck structural manifest: per-slide shape
   inventory, geometry, placeholder roles, and layout/master inventory.
 
@@ -129,9 +129,13 @@ Edit one deck
 **Anchored text replacement** (:ref:`edit_api`). :func:`~pptx.edit.replace_text` changes text
 across the deck while preserving each run's formatting. :func:`~pptx.edit.replace_text_at`
 targets one block by the |BlockAnchor| from :func:`~pptx.inspect.inspect_text`. The anchor carries
-a hash of the block's text, so an edit aimed at content that has since changed raises
-|StaleAnchorError| rather than landing in the wrong place. :func:`~pptx.edit.refind` is the
-explicit recovery path.
+the slide or notes part, owning shape ID, table coordinates when applicable, and a
+container-local paragraph index. Editing resolves that identity before validating the full
+content fingerprint, so shape or paragraph reordering cannot redirect a write. Changed content
+raises |StaleAnchorError|; duplicate exact content inside the same container refuses rather than
+trusting an ordinal. :func:`~pptx.edit.refind` is exact and structurally scoped. Legacy
+three-field anchors remain accepted only when their short hash uniquely identifies one block in
+the named part.
 
 **Slide operations** (:ref:`slides_api`). :meth:`~pptx.slide.Slides.clone`,
 :meth:`~pptx.slide.Slides.delete`, :meth:`~pptx.slide.Slides.reorder`, and

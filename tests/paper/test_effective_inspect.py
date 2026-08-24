@@ -368,7 +368,7 @@ def test_inspect_text_sees_table_cells_as_counted_blind_regions():
     assert inspection.blind_region_count == 4
 
     payload = inspection.to_dict()
-    assert payload["version"] == 2
+    assert payload["version"] == 3
     assert payload["blind_region_count"] == 4
 
 
@@ -1072,5 +1072,11 @@ def test_blocks_carry_stable_anchors_in_sptree_order():
     )
     title_block = inspection.blocks[0]
     assert title_block.anchor.part == "/ppt/slides/slide1.xml"
-    assert title_block.anchor.content_hash == content_hash("Branded Title")
+    assert title_block.anchor.version == 2
+    assert len(title_block.anchor.content_hash) == 64
+    assert title_block.anchor.locator == {
+        "kind": "shape",
+        "shape_id": title_block.shape_id,
+        "paragraph_index": 0,
+    }
     assert title_block.placeholder_type == "TITLE"
