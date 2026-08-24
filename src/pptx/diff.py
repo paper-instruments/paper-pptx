@@ -6,12 +6,14 @@ provides it as a typed report beside the file - the deck-format analogue of a
 redline - assembled from the permanent slide ids, the visibility-complete text layer,
 the effective-value resolver, and the kernel's semantic XML comparison.
 
-The matching contract, declared honestly: slides match by their PERMANENT slide id,
-which serves lineage-derived decks (v4 saved from v3 - the actual use case). Independently
-built decks can reuse the same numeric ids, so unrelated decks are outside this matching
-contract. One documented hazard: deleting the max-id slide then adding a new one recycles
-the id (upstream allocates max+1), which id-based matching reads as one edited slide -
-order add-before-delete when building lineage.
+The matching contract, declared honestly: slides match by their PERMANENT slide id and
+top-level shapes within them match by slide-wide shape id, which serves lineage-derived
+decks (v4 saved from v3 - the actual use case). Independently built decks can reuse the
+same numeric ids, so unrelated decks are outside this matching contract. Deleting an id
+and reusing it for a new same-kind object is likewise indistinguishable. One documented
+hazard: deleting the max-id slide then adding a new one recycles the id (upstream allocates
+max+1), which id-based matching reads as one edited slide - order add-before-delete when
+building lineage.
 
 Report-only: no annotated-copy rendering, no visual diffing, no similarity scoring -
 those are harness products built ON this report.
@@ -26,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 SCHEMA_NAME = "paper-deck-diff"
-SCHEMA_VERSION = 3  # -- was 2: bullet_shifts added
+SCHEMA_VERSION = 4  # -- was 3: shape facets use stable structured references
 
 _DETAIL_LEVELS = ("structure", "text", "full")
 
@@ -86,6 +88,18 @@ class SlideRef:
 
 
 @dataclass(frozen=True)
+class ShapeRef:
+    """Identifies a slide-scoped shape by stable id and display name."""
+
+    shape_id: int
+    name: str
+
+    def to_dict(self) -> dict:
+        """Return this shape reference as a JSON-ready dict."""
+        return {"shape_id": self.shape_id, "name": self.name}
+
+
+@dataclass(frozen=True)
 class MovedSlide:
     """A slide that kept its identity and changed position."""
     slide_id: int
@@ -107,10 +121,10 @@ class SlideChange:
     from the payload, so an all-empty change never appears in `slide_changes`."""
 
     slide_id: int
-    shapes_added: Tuple[str, ...] = ()
-    shapes_removed: Tuple[str, ...] = ()
+    shapes_added: Tuple[ShapeRef, ...] = ()
+    shapes_removed: Tuple[ShapeRef, ...] = ()
     geometry_changes: Tuple[dict, ...] = ()
-    images_replaced: Tuple[str, ...] = ()
+    images_replaced: Tuple[ShapeRef, ...] = ()
     chart_data_changes: Tuple[dict, ...] = ()
     text_changes: Tuple[dict, ...] = ()
     notes_change: Optional[dict] = None
@@ -137,15 +151,19 @@ class SlideChange:
         """
         payload: dict = {"slide_id": self.slide_id}
         if self.shapes_added:
-            payload["shapes_added"] = list(self.shapes_added)
+            payload["shapes_added"] = [ref.to_dict() for ref in self.shapes_added]
         if self.shapes_removed:
-            payload["shapes_removed"] = list(self.shapes_removed)
+            payload["shapes_removed"] = [ref.to_dict() for ref in self.shapes_removed]
         if self.geometry_changes:
-            payload["geometry_changes"] = list(self.geometry_changes)
+            payload["geometry_changes"] = [
+                _shape_refs_to_dict(change) for change in self.geometry_changes
+            ]
         if self.images_replaced:
-            payload["images_replaced"] = list(self.images_replaced)
+            payload["images_replaced"] = [ref.to_dict() for ref in self.images_replaced]
         if self.chart_data_changes:
-            payload["chart_data_changes"] = list(self.chart_data_changes)
+            payload["chart_data_changes"] = [
+                _shape_refs_to_dict(change) for change in self.chart_data_changes
+            ]
         if self.text_changes:
             payload["text_changes"] = list(self.text_changes)
         if self.notes_change is not None:
@@ -155,6 +173,17 @@ class SlideChange:
         if self.bullet_shifts:
             payload["bullet_shifts"] = [s.to_dict() for s in self.bullet_shifts]
         return payload
+
+
+def _shape_refs_to_dict(value):
+    """Recursively replace |ShapeRef| values with JSON-ready dictionaries."""
+    if isinstance(value, ShapeRef):
+        return value.to_dict()
+    if isinstance(value, dict):
+        return {key: _shape_refs_to_dict(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_shape_refs_to_dict(item) for item in value]
+    return value
 
 
 @dataclass(frozen=True)
@@ -207,10 +236,13 @@ def diff_decks(path_a, path_b, *, detail: str = "structure") -> DeckDiff:
     to read; when both sides are a path or a file-like object, the packages are compared
     exactly.
 
-    Matching is by permanent slide id and is intended for lineage-derived decks.
-    Independently built decks can reuse ids and are outside this contract. One declared
-    hazard: slide ids allocate as max+1, so deleting the highest-id slide and then adding
-    a new one RECYCLES the id, and this diff will read that delete-plus-add as one edited
+    Matching is by permanent slide id and, within matched slides, top-level shapes match by
+    slide-wide shape id and compatible structural kind. Display names are labels only. Moving a
+    shape across a group boundary remains a top-level removal or addition. Independently built
+    decks can reuse ids and are outside this contract. A deleted shape id reused by a new
+    same-kind shape is likewise indistinguishable without a persistent identifier not present in
+    general PPTX files. Slide ids allocate as max+1, so deleting the highest-id slide and then
+    adding a new one RECYCLES the id, and this diff will read that delete-plus-add as one edited
     slide - order add-before-delete when producing lineage decks you intend to diff.
     """
     if detail not in _DETAIL_LEVELS:
@@ -451,34 +483,57 @@ def _title_of(slide) -> "Optional[str]":
 # ---------------------------------------------------------------------- within one slide
 
 
-def _shape_keys(slide) -> dict:
-    """Deterministic shape key map: unique name, else `<kind>#<ordinal>` (declared
-    fallback for unnamed shapes; duplicate names get the synthetic key too - honest
-    ambiguity handling rather than a guess)."""
+def _shape_kind(shape) -> str:
+    """Return the structural element kind used to decide shape compatibility."""
     from lxml import etree
 
-    shapes = list(slide.shapes)
-    names = [shape.name for shape in shapes]
-    keyed = {}
-    kind_counters: "Dict[str, int]" = {}
-    for shape, name in zip(shapes, names):
-        kind = etree.QName(shape._element.tag).localname
-        ordinal = kind_counters.get(kind, 0)
-        kind_counters[kind] = ordinal + 1
-        if name and names.count(name) == 1:
-            keyed[("name", name)] = shape
-        else:
-            keyed[("fallback", kind, ordinal)] = shape
-    return keyed
+    localname = etree.QName(shape._element.tag).localname
+    if localname != "graphicFrame":
+        return localname
+    # -- p:graphicFrame is only the generic container. Its graphic-data URI distinguishes
+    # -- tables, charts, OLE objects, SmartArt, and other extension payloads whose shape IDs
+    # -- can be reused after delete-then-add just like any other top-level shape.
+    graphic_data_uri = shape._element.graphicData_uri
+    return "graphicFrame[%s]" % (graphic_data_uri or "unknown")
 
 
-def _shape_key_text(key) -> str:
-    """Render a shape key for a report.
+def _iter_shape_tree(shapes):
+    """Yield shapes in deterministic tree order for slide-wide id validation."""
+    for shape in shapes:
+        yield shape
+        nested = getattr(shape, "shapes", None)
+        if nested is not None:
+            for descendant in _iter_shape_tree(nested):
+                yield descendant
 
-    The shape name, or `kind#ordinal` when the name is missing or shared with another shape on the
-    same slide.
-    """
-    return key[1] if key[0] == "name" else "%s#%d" % (key[1], key[2])
+
+def _shape_inventory(slide, slide_id: int, side: str) -> dict:
+    """Return top-level shapes by id after validating slide-wide id uniqueness."""
+    from pptx.errors import UnsupportedStructureError
+
+    candidates: "Dict[int, List[object]]" = {}
+    for shape in _iter_shape_tree(slide.shapes):
+        candidates.setdefault(shape.shape_id, []).append(shape)
+    duplicates = {shape_id: shapes for shape_id, shapes in candidates.items() if len(shapes) > 1}
+    if duplicates:
+        details = []
+        for shape_id in sorted(duplicates):
+            shapes = duplicates[shape_id]
+            rendered = ", ".join(
+                "%s name=%r" % (_shape_kind(shape), shape.name) for shape in shapes
+            )
+            details.append("id %d: %d candidates [%s]" % (shape_id, len(shapes), rendered))
+        raise UnsupportedStructureError(
+            "diff_decks refused: %s side of slide %d has duplicate shape IDs (%s); "
+            "shape IDs must be unique across the slide"
+            % (side, slide_id, "; ".join(details))
+        )
+    return {shape.shape_id: shape for shape in slide.shapes}
+
+
+def _shape_ref(shape) -> ShapeRef:
+    """Return the stable report reference for `shape` using its current-side name."""
+    return ShapeRef(shape_id=shape.shape_id, name=shape.name)
 
 
 def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
@@ -489,30 +544,42 @@ def _diff_slide(slide_id, slide_a, slide_b, detail) -> SlideChange:
     match at the top level only, so a shape moved into a group reads as one removal plus one
     addition.
     """
-    shapes_a = _shape_keys(slide_a)
-    shapes_b = _shape_keys(slide_b)
-    shapes_added = tuple(_shape_key_text(key) for key in sorted(set(shapes_b) - set(shapes_a)))
-    shapes_removed = tuple(_shape_key_text(key) for key in sorted(set(shapes_a) - set(shapes_b)))
+    shapes_a = _shape_inventory(slide_a, slide_id, "before")
+    shapes_b = _shape_inventory(slide_b, slide_id, "after")
+    ids_a, ids_b = set(shapes_a), set(shapes_b)
+    added_ids = ids_b - ids_a
+    removed_ids = ids_a - ids_b
+    matched_ids = []
+    for shape_id in sorted(ids_a & ids_b):
+        if _shape_kind(shapes_a[shape_id]) != _shape_kind(shapes_b[shape_id]):
+            removed_ids.add(shape_id)
+            added_ids.add(shape_id)
+        else:
+            matched_ids.append(shape_id)
+
+    shapes_added = tuple(_shape_ref(shapes_b[shape_id]) for shape_id in sorted(added_ids))
+    shapes_removed = tuple(_shape_ref(shapes_a[shape_id]) for shape_id in sorted(removed_ids))
 
     geometry_changes: "List[dict]" = []
-    images_replaced: "List[str]" = []
+    images_replaced: "List[ShapeRef]" = []
     chart_changes: "List[dict]" = []
-    for key in sorted(set(shapes_a) & set(shapes_b)):
-        shape_a, shape_b = shapes_a[key], shapes_b[key]
-        key_text = _shape_key_text(key)
+    for shape_id in matched_ids:
+        shape_a, shape_b = shapes_a[shape_id], shapes_b[shape_id]
+        shape_ref = _shape_ref(shape_b)
         for facet in ("left", "top", "width", "height", "rotation"):
             value_a = getattr(shape_a, facet, None)
             value_b = getattr(shape_b, facet, None)
             if value_a != value_b:
                 geometry_changes.append(
-                    {"shape": key_text, "facet": facet, "before": value_a, "after": value_b}
+                    {"shape": shape_ref, "facet": facet, "before": value_a, "after": value_b}
                 )
-        if _image_hash(shape_a) is not None and _image_hash(shape_a) != _image_hash(shape_b):
-            images_replaced.append(key_text)
+        image_hash_a = _image_hash(shape_a)
+        if image_hash_a is not None and image_hash_a != _image_hash(shape_b):
+            images_replaced.append(shape_ref)
         if detail in ("text", "full") and getattr(shape_a, "has_chart", False) and getattr(
             shape_b, "has_chart", False
         ):
-            chart_changes.extend(_diff_chart(key_text, shape_a.chart, shape_b.chart))
+            chart_changes.extend(_diff_chart(shape_ref, shape_a.chart, shape_b.chart))
 
     text_changes: "List[dict]" = []
     notes_change = None
