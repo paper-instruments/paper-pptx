@@ -59,10 +59,28 @@ BETA = "self_generated/template_beta.pptx"
 LO_ALPHA = "libreoffice_export/lo_template_alpha.pptx"
 SECTIONS = "self_generated/sections.pptx"
 GAUNTLET = "self_generated/gauntlet.pptx"
+P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main"
+SECTION_IDS = {
+    "Intro": "{11111111-1111-4111-8111-111111111111}",
+    "Body": "{22222222-2222-4222-8222-222222222222}",
+    "Close": "{33333333-3333-4333-8333-333333333333}",
+}
 
 
 def _open(relpath):
     return Presentation(str(corpus.fixture_path(relpath)))
+
+
+def _sections(prs):
+    return prs._element.findall(".//{%s}sectionLst/{%s}section" % (P14, P14))
+
+
+def _section_by_id(prs, section_id):
+    return next(section for section in _sections(prs) if section.get("id") == section_id)
+
+
+def _section_slide_ids(section):
+    return [int(entry.get("id")) for entry in section.findall(".//{%s}sldId" % P14)]
 
 
 def _set_content_slots(layout, slots):
@@ -649,41 +667,176 @@ def test_position_inserts_at_index():
     assert len(reopened.slides) == 4
 
 
-def test_section_enrollment_named_and_adjacent():
+def test_unique_named_section_enrollment_persists_and_reports_identity():
     dest = _open(SECTIONS)
     source = _open(BETA)
+    source_before = zip_member_map(save_to_bytes(source))
+    before = save_to_bytes(dest)
+
     report = dest.import_slide(source, 0, mode="adopt_theme", section="Close")
+
     assert report.section == "Close"
-    saved = save_to_bytes(dest)
-    _assert_clean(saved)  # -- the id-list scan proves every section id resolves
+    assert report.section_id == SECTION_IDS["Close"]
+    after = save_to_bytes(dest)
+    assert_changed_parts(
+        before,
+        after,
+        expect_added=["ppt/slides/_rels/slide6.xml.rels", "ppt/slides/slide6.xml"],
+        expect_changed=[
+            "[Content_Types].xml",
+            "ppt/_rels/presentation.xml.rels",
+            "ppt/presentation.xml",
+        ],
+    )
+    _assert_clean(after)
+    reopened = Presentation(io.BytesIO(after))
+    close_ids = _section_slide_ids(_section_by_id(reopened, SECTION_IDS["Close"]))
+    assert close_ids[-1] == report.dest_slide_id
+    assert reopened.slides[-1].shapes.title.text_frame.text == "Beta Overview"
+    assert zip_member_map(save_to_bytes(source)) == source_before
+
+
+def test_exact_section_id_selects_intended_duplicate_name_and_persists():
+    dest = _open(SECTIONS)
+    source = _open(BETA)
+    _sections(dest)[1].set("name", "Close")
+
+    report = dest.import_slide(
+        source, 0, mode="adopt_theme", section_id=SECTION_IDS["Close"]
+    )
+
+    assert report.section == "Close"
+    assert report.section_id == SECTION_IDS["Close"]
+    reopened = save_reopen(dest)
+    selected = _section_by_id(reopened, SECTION_IDS["Close"])
+    other = _section_by_id(reopened, SECTION_IDS["Body"])
+    assert _section_slide_ids(selected)[-1] == report.dest_slide_id
+    assert report.dest_slide_id not in _section_slide_ids(other)
+    assert reopened.slides[-1].shapes.title.text_frame.text == "Beta Overview"
+    _assert_clean(save_to_bytes(dest))
+
+
+def test_duplicate_section_name_refuses_atomically_with_all_candidates():
+    dest = _open(SECTIONS)
+    _sections(dest)[1].set("name", "Close")
+    before = zip_member_map(save_to_bytes(dest))
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(_open(BETA), 0, mode="adopt_theme", section="Close"),
+        AmbiguousTargetError,
+    )
+
+    message = str(error)
+    assert "section_id" in message
+    assert "order=1, id=%r" % SECTION_IDS["Body"] in message
+    assert "order=2, id=%r" % SECTION_IDS["Close"] in message
+    assert zip_member_map(save_to_bytes(dest)) == before
+
+
+def test_duplicate_section_id_refuses_atomically_instead_of_selecting_first():
+    dest = _open(SECTIONS)
+    _sections(dest)[1].set("id", SECTION_IDS["Intro"])
+    before = zip_member_map(save_to_bytes(dest))
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(
+            _open(BETA), 0, mode="adopt_theme", section_id=SECTION_IDS["Intro"]
+        ),
+        AmbiguousTargetError,
+    )
+
+    message = str(error)
+    assert "section=" in message
+    assert "order=0, name='Intro', id=%r" % SECTION_IDS["Intro"] in message
+    assert "order=1, name='Body', id=%r" % SECTION_IDS["Intro"] in message
+    assert zip_member_map(save_to_bytes(dest)) == before
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {"section": "No Such Section"},
+        {"section_id": "{99999999-9999-4999-8999-999999999999}"},
+        {"section_id": SECTION_IDS["Intro"].strip("{}")},
+    ],
+)
+def test_missing_or_nonexact_section_selector_refuses_atomically(selector):
+    dest = _open(SECTIONS)
+    before = zip_member_map(save_to_bytes(dest))
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(_open(BETA), 0, mode="adopt_theme", **selector),
+        TargetNotFoundError,
+    )
+
+    assert "section" in str(error)
+    assert zip_member_map(save_to_bytes(dest)) == before
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {"section": 1},
+        {"section_id": 1},
+        {"section": "Intro", "section_id": SECTION_IDS["Intro"]},
+    ],
+)
+def test_section_selector_argument_errors_are_atomic(selector):
+    dest = _open(SECTIONS)
+    before = zip_member_map(save_to_bytes(dest))
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(_open(BETA), 0, mode="adopt_theme", **selector),
+        ValueError,
+    )
+
+    assert "section" in str(error)
+    assert zip_member_map(save_to_bytes(dest)) == before
+
+
+def test_implicit_section_enrollment_remains_adjacent_and_reports_identity():
+    dest = _open(SECTIONS)
+    source = _open(BETA)
 
     # -- adjacent enrollment: inserting at position 1 lands in "Intro" (slide 1's
     # -- section), DIRECTLY AFTER slide 1's entry, and the report says which section
-    dest2 = _open(SECTIONS)
-    report2 = dest2.import_slide(source, 0, mode="adopt_theme", position=1)
-    assert report2.section == "Intro"  # -- actual enrollment, not the (None) argument
-    saved2 = save_to_bytes(dest2)
-    _assert_clean(saved2)
-    from lxml import etree
-
-    presentation = etree.fromstring(zip_member_map(saved2)["ppt/presentation.xml"])
-    P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main"
-    intro = next(
-        s for s in presentation.findall(".//{%s}section" % P14) if s.get("name") == "Intro"
-    )
-    intro_ids = [e.get("id") for e in intro.findall(".//{%s}sldId" % P14)]
-    P = "http://schemas.openxmlformats.org/presentationml/2006/main"
-    deck_ids = [e.get("id") for e in presentation.findall(".//{%s}sldIdLst/{%s}sldId" % (P, P))]
+    report = dest.import_slide(source, 0, mode="adopt_theme", position=1)
+    assert report.section == "Intro"  # -- actual enrollment, not the (None) argument
+    assert report.section_id == SECTION_IDS["Intro"]
+    reopened = save_reopen(dest)
+    intro_ids = _section_slide_ids(_section_by_id(reopened, SECTION_IDS["Intro"]))
+    deck_ids = [slide.slide_id for slide in reopened.slides]
     # -- section order mirrors deck order: [slide 1's id, the imported slide's id]
     assert intro_ids == [deck_ids[0], deck_ids[1]]
+    _assert_clean(save_to_bytes(dest))
 
 
-def test_missing_section_refuses_atomically():
+def test_implicit_section_enrollment_keeps_first_section_fallback():
     dest = _open(SECTIONS)
-    before = save_to_bytes(dest)
-    with pytest.raises(TargetNotFoundError):
-        dest.import_slide(_open(BETA), 0, mode="adopt_theme", section="No Such Section")
-    assert_changed_parts(before, save_to_bytes(dest))  # -- empty budget
+    report = dest.import_slide(_open(BETA), 0, mode="adopt_theme", position=0)
+
+    assert report.section == "Intro"
+    assert report.section_id == SECTION_IDS["Intro"]
+    reopened = save_reopen(dest)
+    intro_ids = _section_slide_ids(_section_by_id(reopened, SECTION_IDS["Intro"]))
+    deck_ids = [slide.slide_id for slide in reopened.slides]
+    assert intro_ids[:2] == deck_ids[:2]
+    _assert_clean(save_to_bytes(dest))
+
+
+def test_import_without_destination_sections_reports_null_section_identity():
+    dest = _open(ALPHA)
+
+    report = dest.import_slide(_open(BETA), 0, mode="adopt_theme")
+
+    assert report.section is None
+    assert report.section_id is None
+    reopened = save_reopen(dest)
+    assert _sections(reopened) == []
 
 
 # --------------------------------------------------------------------------- append_deck
@@ -835,7 +988,9 @@ def test_non_reconciling_reports_always_serialize_empty_placeholder_map(mode):
 
     assert report.placeholder_map_used == ()
     assert report.to_dict()["placeholder_map_used"] == []
-    assert report.to_dict()["version"] == 2
+    assert report.to_dict()["version"] == 3
+    assert report.to_dict()["section"] is None
+    assert report.to_dict()["section_id"] is None
 
 
 def test_import_report_is_deterministic_across_runs():

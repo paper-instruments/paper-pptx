@@ -149,6 +149,7 @@ class Presentation(PartElementProxy):
         position: int | None = None,
         notes: bool = True,
         section: str | None = None,
+        section_id: str | None = None,
         target_layout=None,
         placeholder_map="auto",
     ) -> "ImportReport":
@@ -175,8 +176,12 @@ class Presentation(PartElementProxy):
         comments drop (reported); OLE objects, controls, internal slide links, and
         unknown relationship types refuse (`RelationshipPolicyError`) before any write.
         `notes` copies the speaker-notes part re-linked to this deck's notes master.
-        `section` names an existing destination section to enroll in; None enrolls
-        adjacent to the insertion point when this deck has sections.
+        `section` selects an existing destination section by unique exact name;
+        `section_id` selects by exact stored GUID when names collide. They are mutually
+        exclusive. With neither selector, enrollment remains adjacent to the insertion
+        point when this deck has sections. Missing selectors raise
+        |TargetNotFoundError| and duplicate matches raise |AmbiguousTargetError| before
+        any write.
         Multiple candidates at any automatic layout tier raise |AmbiguousTargetError|
         before any write and list the layouts; pass an enrolled destination
         `target_layout` to resolve that choice explicitly.
@@ -196,6 +201,7 @@ class Presentation(PartElementProxy):
             position=position,
             notes=notes,
             section=section,
+            section_id=section_id,
             target_layout=target_layout,
             placeholder_map=placeholder_map,
         )
