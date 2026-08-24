@@ -244,6 +244,14 @@ masters), or ``"bake"`` (freeze effective values into explicit properties). The 
 presentation remains unchanged. Charts travel with their workbooks, and unresolvable
 relationships raise a typed refusal. Each import returns an |ImportReport|.
 
+Automatic destination-layout binding is conservative: exact name, then exact non-custom type,
+then a bake-only blank fallback, with exactly one candidate required at the first matching tier.
+Ambiguity raises |AmbiguousTargetError| before the write and identifies every candidate; it never
+falls through to a weaker match or chooses the first layout. Pass ``target_layout`` to
+:meth:`~pptx.presentation.Presentation.import_slide` to settle the choice explicitly. Whole-deck
+append preflights every source slide, so an ambiguous later layout leaves the destination
+unchanged.
+
 **Send-safe delivery.** Stripping speaker notes, review comments, and authorship before a deck
 leaves the building needs no dedicated API: a part leaves the package by becoming unreachable, and
 the serializer never writes an unreachable part. Drop the relationship and the part is gone::

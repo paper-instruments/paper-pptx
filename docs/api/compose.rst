@@ -7,12 +7,21 @@ Slide import and deck merge (``pptx.compose``)
 slide's appearance lives outside the slide, in its layout, master, and theme. Import is therefore
 an *inheritance-reconciliation* problem with three explicit modes:
 
-- **adopt_theme**: rebind the incoming slide to the closest destination layout so it takes the
-  destination theme; appearance shifts are included in the report.
+- **adopt_theme**: rebind the incoming slide to a unique exact-name destination layout, or when
+  none exists, a unique exact non-custom-type layout, so it takes the destination theme;
+  appearance shifts are included in the report.
 - **keep_appearance**: transplant the source layout / master / theme chain, deduplicated by
   content hash so importing ten slides from one source does not create ten masters.
-- **bake**: snapshot the slide's effective values into explicit properties, then attach to a
-  destination layout: visually stable without importing masters.
+- **bake**: snapshot the slide's effective values into explicit properties, then attach through
+  the same unique name/type tiers or a unique blank-layout fallback: visually stable without
+  importing masters. Bake never falls back to the first destination layout.
+
+Automatic tiers are evaluated in that order: an empty tier continues, while the first non-empty
+tier must contain exactly one candidate. Multiple candidates at a stronger tier raise
+|AmbiguousTargetError| before any destination write; the refusal lists each layout's name, type,
+part, and owning master. Pass an enrolled destination ``target_layout`` to
+:meth:`.Presentation.import_slide` to make the choice explicit. A whole-deck append preflights
+every source slide under the same rules, so ambiguity on a later slide appends nothing.
 
 The source presentation remains unchanged. Charts travel with their embedded workbooks, media is
 always copied across packages, and relationships that cannot be resolved refuse
