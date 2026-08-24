@@ -150,6 +150,7 @@ class Presentation(PartElementProxy):
         notes: bool = True,
         section: str | None = None,
         target_layout=None,
+        placeholder_map="auto",
     ) -> "ImportReport":
         """Import `slide` from `source_prs` into this presentation; return the report.
 
@@ -179,6 +180,11 @@ class Presentation(PartElementProxy):
         Multiple candidates at any automatic layout tier raise |AmbiguousTargetError|
         before any write and list the layouts; pass an enrolled destination
         `target_layout` to resolve that choice explicitly.
+        Adopt-theme placeholder reconciliation first preserves exact type+idx matches,
+        then accepts same-type or compatible-family fallbacks only when unique. Pass a
+        partial `placeholder_map={source_idx: target_idx | None}` to resolve ambiguity;
+        `None` deliberately orphans and bakes that source placeholder. The argument does
+        not apply to keep-appearance or bake imports. Whole-deck append remains automatic-only.
         """
         from pptx.compose import import_slide
 
@@ -191,6 +197,7 @@ class Presentation(PartElementProxy):
             notes=notes,
             section=section,
             target_layout=target_layout,
+            placeholder_map=placeholder_map,
         )
 
     @property

@@ -16,7 +16,8 @@ import pytest
 from lxml import etree
 
 from pptx import Presentation
-from pptx.errors import PaperRefusal, UnsupportedStructureError
+from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.errors import AmbiguousTargetError, PaperRefusal, UnsupportedStructureError
 from pptx.util import Emu
 
 from . import corpus
@@ -36,6 +37,17 @@ BETA = "self_generated/template_beta.pptx"
 
 def _open(relpath):
     return Presentation(str(corpus.fixture_path(relpath)))
+
+
+def _set_target_content_slots(target, slots):
+    placeholders = sorted(
+        (ph for ph in target.placeholders if ph.element.ph_type == PP_PLACEHOLDER.OBJECT),
+        key=lambda ph: ph.element.ph_idx,
+    )
+    assert len(placeholders) == len(slots)
+    for placeholder, (ph_type, idx) in zip(placeholders, slots):
+        placeholder.element.ph.type = ph_type
+        placeholder.element.ph.idx = idx
 
 
 # ------------------------------------------------------------------------------- happy path
@@ -106,12 +118,48 @@ def test_family_matching_rewrites_placeholder_type_and_idx():
     assert reopened.slides[0].slide_layout.name == "Title and Content"
 
 
+@pytest.mark.parametrize(
+    ("layout_idx", "target_type", "target_type_name"),
+    [
+        (7, PP_PLACEHOLDER.OBJECT, "OBJECT"),
+        (2, PP_PLACEHOLDER.BODY, "BODY"),
+    ],
+)
+def test_unique_same_type_and_family_fallbacks_persist(
+    layout_idx, target_type, target_type_name
+):
+    prs = _open(GAUNTLET)
+    target = prs.slide_layouts[layout_idx]
+    slot = next(ph for ph in target.placeholders if ph.element.ph_idx == 1)
+    slot.element.ph.type = target_type
+    slot.element.ph.idx = 9
+    before = save_to_bytes(prs)
+
+    report = prs.slides[0].rebind_layout(target)
+
+    assert report.placeholder_map_used == ((0, 0), (1, 9))
+    after = save_to_bytes(prs)
+    assert_changed_parts(
+        before,
+        after,
+        expect_changed=["ppt/slides/_rels/slide1.xml.rels", "ppt/slides/slide1.xml"],
+    )
+    reopened = Presentation(io.BytesIO(after))
+    rebound = next(
+        shape for shape in reopened.slides[0].shapes if shape.name == "Content Placeholder 2"
+    )
+    assert rebound.element.ph_idx == 9
+    assert rebound.element.ph_type.name == target_type_name
+
+
 def test_rebind_report_is_deterministic():
     prs_a = _open(GAUNTLET)
     prs_b = _open(GAUNTLET)
     report_a = prs_a.slides[0].rebind_layout(prs_a.slide_layouts[3]).to_dict()
     report_b = prs_b.slides[0].rebind_layout(prs_b.slide_layouts[3]).to_dict()
     assert report_a == report_b
+    assert report_a["schema"] == "paper-rebind-report"
+    assert report_a["version"] == 1
 
 
 def test_rebind_report_run_indices_include_hard_line_breaks():
@@ -247,6 +295,119 @@ def test_post_mutation_report_failure_rolls_rebind_back(monkeypatch):
 
 
 # --------------------------------------------------------------------------- explicit map
+
+
+def test_ambiguous_same_type_fallback_refuses_atomically_and_lists_every_candidate():
+    prs = _open(GAUNTLET)
+    _set_target_content_slots(
+        prs.slide_layouts[3],
+        [(PP_PLACEHOLDER.OBJECT, 3), (PP_PLACEHOLDER.OBJECT, 2)],
+    )
+    before = save_to_bytes(prs)
+
+    raised = assert_refusal_atomic(
+        prs,
+        lambda p: p.slides[0].rebind_layout(p.slide_layouts[3]),
+        AmbiguousTargetError,
+    )
+
+    message = str(raised)
+    assert "type OBJECT, idx 1" in message
+    assert "same-type fallback" in message
+    assert message.index("type OBJECT, idx 2") < message.index("type OBJECT, idx 3")
+    assert "placeholder_map" in message
+    assert_changed_parts(before, save_to_bytes(prs))
+
+
+def test_ambiguous_family_fallback_refuses_without_falling_through():
+    prs = _open(GAUNTLET)
+    _set_target_content_slots(
+        prs.slide_layouts[3],
+        [(PP_PLACEHOLDER.BODY, 3), (PP_PLACEHOLDER.BODY, 2)],
+    )
+    before = save_to_bytes(prs)
+
+    raised = assert_refusal_atomic(
+        prs,
+        lambda p: p.slides[0].rebind_layout(p.slide_layouts[3]),
+        AmbiguousTargetError,
+    )
+
+    message = str(raised)
+    assert "type OBJECT, idx 1" in message
+    assert "compatible-family fallback" in message
+    assert "type BODY, idx 2" in message
+    assert "type BODY, idx 3" in message
+    assert "placeholder_map" in message
+    assert_changed_parts(before, save_to_bytes(prs))
+
+
+def test_placeholder_ambiguity_diagnostic_is_independent_of_layout_traversal_order():
+    def diagnostic(reorder):
+        prs = _open(GAUNTLET)
+        target = prs.slide_layouts[3]
+        _set_target_content_slots(
+            target,
+            [(PP_PLACEHOLDER.OBJECT, 3), (PP_PLACEHOLDER.OBJECT, 2)],
+        )
+        if reorder:
+            first = next(ph for ph in target.placeholders if ph.element.ph_idx == 3)
+            second = next(ph for ph in target.placeholders if ph.element.ph_idx == 2)
+            second._element.addnext(first._element)
+        before = save_to_bytes(prs)
+        message = str(
+            assert_refusal_atomic(
+                prs,
+                lambda p: p.slides[0].rebind_layout(p.slide_layouts[3]),
+                AmbiguousTargetError,
+            )
+        )
+        assert_changed_parts(before, save_to_bytes(prs))
+        return message
+
+    assert diagnostic(reorder=False) == diagnostic(reorder=True)
+
+
+@pytest.mark.parametrize("target_type", [PP_PLACEHOLDER.OBJECT, PP_PLACEHOLDER.BODY])
+def test_partial_explicit_map_disambiguates_and_auto_completes_exact_matches(target_type):
+    prs = _open(GAUNTLET)
+    _set_target_content_slots(
+        prs.slide_layouts[3],
+        [(target_type, 3), (target_type, 2)],
+    )
+
+    report = prs.slides[0].rebind_layout(
+        prs.slide_layouts[3], placeholder_map={1: 2}
+    )
+
+    assert report.placeholder_map_used == ((0, 0), (1, 2))
+    reopened = save_reopen(prs)
+    assert {
+        shape.element.ph_idx for shape in reopened.slides[0].shapes if shape.is_placeholder
+    } == {0, 2}
+
+
+def test_explicit_none_deliberately_orphans_under_refuse_and_bake_policies():
+    refusing = _open(GAUNTLET)
+    raised = assert_refusal_atomic(
+        refusing,
+        lambda p: p.slides[0].rebind_layout(
+            p.slide_layouts[3], placeholder_map={1: None}
+        ),
+        UnsupportedStructureError,
+    )
+    assert "orphan_policy" in str(raised)
+
+    baking = _open(GAUNTLET)
+    report = baking.slides[0].rebind_layout(
+        baking.slide_layouts[3], placeholder_map={1: None}, orphan_policy="bake"
+    )
+    assert report.placeholder_map_used == ((0, 0), (1, None))
+    reopened = save_reopen(baking)
+    baked = next(
+        shape for shape in reopened.slides[0].shapes if shape.name == "Content Placeholder 2"
+    )
+    assert not baked.is_placeholder
 
 
 def test_explicit_map_overrides_auto():

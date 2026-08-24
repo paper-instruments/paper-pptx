@@ -23,6 +23,20 @@ part, and owning master. Pass an enrolled destination ``target_layout`` to
 :meth:`.Presentation.import_slide` to make the choice explicit. A whole-deck append preflights
 every source slide under the same rules, so ambiguity on a later slide appends nothing.
 
+Adopt-theme placeholder reconciliation uses the same exact-first, unique-only matcher as layout
+rebind. Same-type and compatible-family fallbacks bind only when their current unclaimed candidate
+set has one member; ambiguity raises |AmbiguousTargetError| without trying a weaker tier. Supply a
+partial ``placeholder_map={source_idx: target_idx | None}`` to
+:meth:`.Presentation.import_slide` to settle selected sources explicitly while the rest reconcile
+automatically. ``None`` deliberately orphans that source placeholder, which adopt-theme bakes from
+its source-resolved appearance. The argument is rejected for keep-appearance and bake. Whole-deck
+append deliberately remains automatic-only and refuses atomically if any staged slide needs a map.
+
+``paper-import-report`` version 2 always serializes ``placeholder_map_used``. Adopt-theme reports
+the complete resolved source-to-target mapping, including ``null`` orphan targets, in source-index
+order. Keep-appearance and bake serialize an empty list because they do not reconcile
+placeholders.
+
 The source presentation remains unchanged. Charts travel with their embedded workbooks, media is
 always copied across packages, and relationships that cannot be resolved refuse
 (|RelationshipPolicyError|).

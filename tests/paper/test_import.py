@@ -8,12 +8,14 @@ determinism goldens on the import report.
 
 from __future__ import annotations
 
+import copy
 import io
 import json
 
 import pytest
 
 from pptx import Presentation
+from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.errors import (
     AmbiguousTargetError,
     PaperRefusal,
@@ -61,6 +63,28 @@ GAUNTLET = "self_generated/gauntlet.pptx"
 
 def _open(relpath):
     return Presentation(str(corpus.fixture_path(relpath)))
+
+
+def _set_content_slots(layout, slots):
+    placeholders = sorted(
+        (ph for ph in layout.placeholders if ph.element.ph_type == PP_PLACEHOLDER.OBJECT),
+        key=lambda ph: ph.element.ph_idx,
+    )
+    assert len(placeholders) == len(slots)
+    for placeholder, (ph_type, idx) in zip(placeholders, slots):
+        placeholder.element.ph.type = ph_type
+        placeholder.element.ph.idx = idx
+
+
+def _duplicate_content_slot(layout, idx):
+    source = next(
+        ph for ph in layout.placeholders if ph.element.ph_type == PP_PLACEHOLDER.OBJECT
+    )
+    duplicate = copy.deepcopy(source._element)
+    duplicate.nvSpPr.cNvPr.set("id", "99")
+    duplicate.nvSpPr.cNvPr.set("name", "Additional Content Placeholder")
+    duplicate.ph.idx = idx
+    source._element.addnext(duplicate)
 
 
 def _assert_clean(saved_bytes):
@@ -160,6 +184,172 @@ def test_adopt_theme_takes_house_style_and_reports_shifts():
     imported = reopened.slides[3]
     title_font = imported.shapes.title.text_frame.paragraphs[0].runs[0].effective_font()
     assert title_font.name.value == "Georgia"  # -- the house look
+
+
+def test_adopt_theme_report_records_complete_automatic_placeholder_mapping():
+    dest = _open(ALPHA)
+
+    report = dest.import_slide(_open(BETA), 0, mode="adopt_theme")
+
+    assert report.placeholder_map_used == ((0, 0), (1, 1))
+    assert report.to_dict()["placeholder_map_used"] == [
+        {"source_idx": 0, "target_idx": 0},
+        {"source_idx": 1, "target_idx": 1},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("target_type", "tier"),
+    [
+        (PP_PLACEHOLDER.OBJECT, "same-type fallback"),
+        (PP_PLACEHOLDER.BODY, "compatible-family fallback"),
+    ],
+)
+def test_adopt_theme_placeholder_ambiguity_refuses_atomically(target_type, tier):
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    source_before = save_to_bytes(source)
+    target = dest.slide_layouts[3]
+    _set_content_slots(target, [(target_type, 3), (target_type, 2)])
+    before = save_to_bytes(dest)
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(
+            source, 1, mode="adopt_theme", target_layout=prs.slide_layouts[3]
+        ),
+        AmbiguousTargetError,
+    )
+
+    message = str(error)
+    assert "type OBJECT, idx 1" in message
+    assert tier in message
+    assert "idx 2" in message
+    assert "idx 3" in message
+    assert "placeholder_map" in message
+    assert_changed_parts(before, save_to_bytes(dest))
+    assert zip_member_map(save_to_bytes(source)) == zip_member_map(source_before)
+
+
+def test_adopt_theme_partial_placeholder_map_disambiguates_and_persists():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    source_before = save_to_bytes(source)
+    target = dest.slide_layouts[3]
+    _set_content_slots(
+        target,
+        [(PP_PLACEHOLDER.OBJECT, 3), (PP_PLACEHOLDER.OBJECT, 2)],
+    )
+    before = save_to_bytes(dest)
+
+    report = dest.import_slide(
+        source,
+        1,
+        mode="adopt_theme",
+        target_layout=target,
+        placeholder_map={1: 2},
+    )
+
+    assert report.placeholder_map_used == ((0, 0), (1, 2))
+    after = save_to_bytes(dest)
+    assert_changed_parts(
+        before,
+        after,
+        expect_added=["ppt/slides/_rels/slide4.xml.rels", "ppt/slides/slide4.xml"],
+        expect_changed=[
+            "[Content_Types].xml",
+            "ppt/_rels/presentation.xml.rels",
+            "ppt/presentation.xml",
+        ],
+    )
+    _assert_clean(after)
+    reopened = Presentation(io.BytesIO(after))
+    imported = reopened.slides[-1]
+    assert imported.slide_layout.name == "Two Content"
+    placeholders = {
+        shape.element.ph_idx: shape for shape in imported.shapes if shape.is_placeholder
+    }
+    assert set(placeholders) == {0, 2}
+    assert placeholders[0].text_frame.text == "Beta Content"
+    assert "Beta point one" in placeholders[2].text_frame.text
+    assert zip_member_map(save_to_bytes(source)) == zip_member_map(source_before)
+
+
+def test_adopt_theme_explicit_none_bakes_orphan_and_reports_null_target():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+
+    report = dest.import_slide(
+        source, 1, mode="adopt_theme", placeholder_map={1: None}
+    )
+
+    assert report.placeholder_map_used == ((0, 0), (1, None))
+    assert {"source_idx": 1, "target_idx": None} in report.to_dict()[
+        "placeholder_map_used"
+    ]
+    reopened = save_reopen(dest)
+    imported = reopened.slides[-1]
+    body = next(shape for shape in imported.shapes if shape.name == "Content Placeholder 2")
+    assert not body.is_placeholder
+    assert "Beta point one" in body.text_frame.text
+
+
+def test_adopt_theme_automatic_orphan_reports_null_target():
+    dest = _open(ALPHA)
+
+    report = dest.import_slide(
+        _open(BETA),
+        1,
+        mode="adopt_theme",
+        target_layout=dest.slide_layouts[5],  # -- Title Only has no content slot
+    )
+
+    assert report.placeholder_map_used == ((0, 0), (1, None))
+    assert report.to_dict()["placeholder_map_used"] == [
+        {"source_idx": 0, "target_idx": 0},
+        {"source_idx": 1, "target_idx": None},
+    ]
+
+
+@pytest.mark.parametrize("mode", ["keep_appearance", "bake"])
+def test_placeholder_map_is_rejected_for_non_reconciling_import_modes(mode):
+    dest = _open(ALPHA)
+    source = _open(BETA)
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(source, 0, mode=mode, placeholder_map={0: 0}),
+        ValueError,
+    )
+
+    assert "only to mode='adopt_theme'" in str(error)
+
+
+@pytest.mark.parametrize(
+    ("placeholder_map", "message"),
+    [
+        ({99: 1}, "not a placeholder on this slide"),
+        ({1: 99}, "not a placeholder on the target"),
+        ({0: 2, 1: 2}, "one target"),
+    ],
+)
+def test_adopt_theme_placeholder_map_validation_is_atomic(placeholder_map, message):
+    dest = _open(ALPHA)
+    source = _open(BETA)
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.import_slide(
+            source,
+            1,
+            mode="adopt_theme",
+            target_layout=prs.slide_layouts[3],
+            placeholder_map=placeholder_map,
+        ),
+        ValueError,
+    )
+
+    assert message in str(error)
 
 
 def test_adopt_theme_falls_back_to_type_match_for_renamed_layout():
@@ -548,6 +738,29 @@ def test_append_deck_later_layout_ambiguity_refuses_before_any_slide_is_added():
     assert_changed_parts(before, save_to_bytes(dest))  # -- empty budget
 
 
+def test_append_deck_later_placeholder_ambiguity_refuses_before_any_slide_is_added():
+    dest = _open(ALPHA)
+    source = _open(BETA)
+    target = dest.slide_layouts[1]
+    _duplicate_content_slot(target, 2)
+    _set_content_slots(
+        target,
+        [(PP_PLACEHOLDER.OBJECT, 3), (PP_PLACEHOLDER.OBJECT, 2)],
+    )
+    before = save_to_bytes(dest)
+    slide_count = len(dest.slides)
+
+    error = assert_refusal_atomic(
+        dest,
+        lambda prs: prs.append_deck(source, mode="adopt_theme"),
+        AmbiguousTargetError,
+    )
+
+    assert "placeholder_map" in str(error)
+    assert len(dest.slides) == slide_count
+    assert_changed_parts(before, save_to_bytes(dest))
+
+
 # ------------------------------------------------------------------------------- refusals
 
 
@@ -614,6 +827,15 @@ def test_import_report_matches_frozen_golden():
     actual = (json.dumps(report.to_dict(), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     golden_path = corpus.FIXTURES_DIR.parent / "goldens" / "import_beta_keep.import.json"
     assert actual == golden_path.read_bytes()
+
+
+@pytest.mark.parametrize("mode", ["keep_appearance", "bake"])
+def test_non_reconciling_reports_always_serialize_empty_placeholder_map(mode):
+    report = _open(ALPHA).import_slide(_open(BETA), 0, mode=mode)
+
+    assert report.placeholder_map_used == ()
+    assert report.to_dict()["placeholder_map_used"] == []
+    assert report.to_dict()["version"] == 2
 
 
 def test_import_report_is_deterministic_across_runs():
