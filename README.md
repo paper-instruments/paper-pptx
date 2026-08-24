@@ -56,7 +56,7 @@ print(len(delta.slide_changes), "slides changed")
 ### Perceive: read what the deck renders
 
 - **`pptx.inspect` effective values, with provenance.** `effective_font()`, `effective_paragraph_format()`, and `effective_shape_format()` resolve size, typeface, color, alignment, line spacing, and bullets through the run, paragraph, placeholder, layout, master, and theme chain, and report which rung supplied each value. Bullet typeface and size resolve on their own chains, because the schema inherits them separately from the glyph. Unresolved values are reported as unresolved.
-- **Visibility-complete text inspection.** `inspect_text()` reaches nested groups and table cells, which iterating top-level shapes misses, and returns content-hash anchors that survive an edit. Regions it cannot survey are reported as blind blocks rather than skipped.
+- **Visibility-complete text inspection.** `inspect_text()` reaches nested groups and table cells, which iterating top-level shapes misses, and returns structural anchors that resolve a slide-unique shape or table cell before validating a full content fingerprint. Regions it cannot survey are reported as blind blocks rather than skipped.
 - **A deterministic deck manifest.** `inspect_deck()` emits a versioned, JSON-friendly structural manifest: slides, shapes, z-order, geometry, and placeholder identity.
 
 ### Edit: change one deck without flattening it
@@ -79,7 +79,7 @@ print(len(delta.slide_changes), "slides changed")
 
 ### Verify: prove what changed
 
-- **A semantic deck diff.** `pptx.diff.diff_decks()` matches slides by permanent slide ID and top-level shapes within them by slide-wide shape ID, so slide or shape z-order does not manufacture add/remove or facet changes. Schema v4 shape facets carry `{"shape_id": ..., "name": ...}` references. `detail="text"` adds chart data, text, and notes; `detail="full"` adds per-run and bullet shifts.
+- **A semantic deck diff.** `pptx.diff.diff_decks()` matches slides by permanent slide ID and top-level shapes within them by slide-wide shape ID, so slide or shape z-order does not manufacture add/remove or facet changes. Schema v5 aligns text exactly within stable shape or table containers and reports table-grid changes without ordinal cascades; repeated ambiguous content is reported conservatively. `detail="text"` adds chart data, text, and notes; `detail="full"` adds per-run and bullet shifts.
 - **Byte-minimal saves and a package oracle.** `pptx.package.patch_save()` writes semantically unchanged parts back with their original bytes, so a one-line edit diffs as a few parts rather than all of them, and `diff_package()` reports exactly which parts differ.
 
 ### Package intake and save

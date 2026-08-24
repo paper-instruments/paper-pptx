@@ -254,8 +254,13 @@ def test_walkthrough_self_consistency_against_deck_diff(tmp_path):
     # -- the retitle the anchored replace performed
     retitled = changes[256]
     assert any(
-        c["before"] == "Gauntlet: branded" and c["after"] == "Q4 Business Review"
-        for c in retitled.text_changes
+        c["kind"] == "replacement"
+        and c["shape"]["shape_id"] == 2
+        and c["before_location"] == {"container": "shape", "paragraph_index": 0}
+        and c["after_location"] == {"container": "shape", "paragraph_index": 0}
+        and c["before"] == "Gauntlet: branded"
+        and c["after"] == "Q4 Business Review"
+        for c in retitled.to_dict()["text_changes"]
     )
     # -- the chart update replace_data_safe performed, per series/category
     chart_slide_id = 257  # -- gauntlet slide 2
@@ -337,4 +342,3 @@ def _bytes_of(prs):
     buf = io.BytesIO()
     prs.save(buf)
     return buf.getvalue()
-

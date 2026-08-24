@@ -19,6 +19,7 @@ from pptx import Presentation
 from pptx.diff import ShapeRef, diff_decks
 from pptx.errors import UnsupportedStructureError
 from pptx.oxml.ns import qn
+from pptx.util import Inches
 
 from . import corpus
 
@@ -27,6 +28,8 @@ V2 = "self_generated/lineage_v2.pptx"
 REORDER = "self_generated/lineage_reorder.pptx"
 WALNUT_CHART_NOTES = "other_producers/walnut_chart_notes_absolute_rels.pptx"
 WALNUT_SHARED_MEDIA = "other_producers/walnut_shared_media_absolute_rels.pptx"
+ALIGN_V1 = "self_generated/diff_alignment_v1.pptx"
+ALIGN_V2 = "self_generated/diff_alignment_v2.pptx"
 
 NONCORRUPT_RELPATHS = [
     r for r in corpus.iter_fixture_relpaths() if not corpus.is_corrupt_fixture(r)
@@ -78,15 +81,13 @@ def test_lineage_pair_reports_the_exact_edit_list():
     assert len(report.slides_moved) == 1  # -- one displacement (256<->257 tie, declared)
 
     changes = {change.slide_id: change for change in report.slide_changes}
-    assert changes[256].text_changes == (
-        {
-            "shape_id": 2,
-            "shape_name": "Title 1",
-            "block_ordinal": 0,
-            "before": "Lineage slide one",
-            "after": "Lineage slide one, retitled",
-        },
-    )
+    assert changes[256].text_changes[0]["kind"] == "replacement"
+    assert changes[256].text_changes[0]["shape"] == ShapeRef(2, "Title 1")
+    assert changes[256].text_changes[0]["before_location"] == {
+        "container": "shape",
+        "paragraph_index": 0,
+    }
+    assert changes[256].text_changes[0]["after"] == "Lineage slide one, retitled"
     assert changes[257].notes_change == {
         "before": "Original notes for slide two.",
         "after": "Updated notes for slide two.",
@@ -109,7 +110,7 @@ def test_lineage_pair_reports_the_exact_edit_list():
             "after": 4572000,
         },
     )
-    assert report.to_dict()["version"] == 4
+    assert report.to_dict()["version"] == 5
 
 
 def test_diff_matches_frozen_golden():
@@ -222,7 +223,13 @@ def test_bullet_shift_payload_carries_provenance_for_both_sides(tmp_path):
     shift = _bullet_shifts(before, after)[0]
     payload = shift.to_dict()
     assert sorted(payload) == [
-        "after", "before", "paragraph_index", "part", "shape_id", "text",
+        "after",
+        "after_location",
+        "before",
+        "before_location",
+        "part",
+        "shape",
+        "text",
     ]
     assert payload["part"] == "/ppt/slides/slide1.xml"
     for side in ("before", "after"):
@@ -703,6 +710,338 @@ def test_moving_leaf_into_group_remains_a_top_level_removal():
     assert change.shapes_removed == (ShapeRef(shape_id=leaf.shape_id, name="Leaf"),)
     assert change.shapes_added == ()
     assert change.geometry_changes == ()
+
+
+# ------------------------------------------------------ exact paragraph/table alignment
+
+
+def _alignment_deck(paragraphs, rows=None):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(2))
+    box.name = "alignment_text"
+    box.text_frame.paragraphs[0].text = paragraphs[0]
+    for text in paragraphs[1:]:
+        box.text_frame.add_paragraph().text = text
+    if rows is not None:
+        frame = slide.shapes.add_table(
+            len(rows), len(rows[0]), Inches(1), Inches(3.5), Inches(6), Inches(2)
+        )
+        frame.name = "alignment_table"
+        for row_index, values in enumerate(rows):
+            for column_index, text in enumerate(values):
+                frame.table.cell(row_index, column_index).text = text
+    return prs
+
+
+def _set_cell_paragraphs(cell, paragraphs):
+    text_frame = cell.text_frame
+    text_frame.paragraphs[0].text = paragraphs[0]
+    for text in paragraphs[1:]:
+        text_frame.add_paragraph().text = text
+
+
+def _group_alignment_table(prs):
+    slide = prs.slides[0]
+    table = next(shape for shape in slide.shapes if shape.has_table)
+    group = slide.shapes.add_group_shape()
+    group.name = "table_group"
+    group._element.append(table._element)
+
+
+def _nest_alignment_text(prs, group_names):
+    slide = prs.slides[0]
+    text_box = slide.shapes[0]
+    outer = slide.shapes.add_group_shape()
+    outer.name = group_names[0]
+    inner = outer.shapes.add_group_shape()
+    inner.name = group_names[1]
+    inner._element.append(text_box._element)
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "location"),
+    [
+        (("A", "B"), ("X", "A", "B"), 0),
+        (("A", "B"), ("A", "X", "B"), 1),
+        (("A", "B"), ("A", "B", "X"), 2),
+    ],
+)
+def test_paragraph_insertion_reports_only_the_inserted_block(before, after, location):
+    report = diff_decks(_alignment_deck(before), _alignment_deck(after), detail="text")
+    events = report.slide_changes[0].text_changes
+    assert [(event["kind"], event["after"]) for event in events] == [("insertion", "X")]
+    assert events[0]["before_location"] is None
+    assert events[0]["after_location"]["paragraph_index"] == location
+
+
+def test_paragraph_deletion_and_bounded_replacement_do_not_cascade():
+    deletion = (
+        diff_decks(_alignment_deck(("A", "drop", "B")), _alignment_deck(("A", "B")), detail="text")
+        .slide_changes[0]
+        .text_changes
+    )
+    replacement = (
+        diff_decks(
+            _alignment_deck(("A", "old", "B")),
+            _alignment_deck(("A", "new", "B")),
+            detail="text",
+        )
+        .slide_changes[0]
+        .text_changes
+    )
+    assert [(event["kind"], event["before"]) for event in deletion] == [("deletion", "drop")]
+    assert [(event["kind"], event["before"], event["after"]) for event in replacement] == [
+        ("replacement", "old", "new")
+    ]
+
+
+def test_unique_paragraph_reorder_is_exact_move_evidence():
+    events = (
+        diff_decks(
+            _alignment_deck(("A", "B", "C")),
+            _alignment_deck(("B", "A", "C")),
+            detail="text",
+        )
+        .slide_changes[0]
+        .text_changes
+    )
+    assert {event["kind"] for event in events} == {"move"}
+    assert {event["before"] for event in events} == {"A", "B"}
+
+
+def test_unique_paragraph_at_same_location_is_not_reported_as_moved():
+    events = (
+        diff_decks(
+            _alignment_deck(("A", "B", "C")),
+            _alignment_deck(("C", "B", "A")),
+            detail="text",
+        )
+        .slide_changes[0]
+        .text_changes
+    )
+
+    assert {(event["kind"], event["before"]) for event in events} == {
+        ("move", "A"),
+        ("move", "C"),
+    }
+    assert all(event["before_location"] != event["after_location"] for event in events)
+
+
+def test_nested_group_text_alignment_uses_leaf_id_not_group_path():
+    before = _alignment_deck(("A", "B"))
+    after = _alignment_deck(("X", "A", "B"))
+    _nest_alignment_text(before, ("old outer", "old inner"))
+    _nest_alignment_text(after, ("new outer", "new inner"))
+
+    events = diff_decks(before, after, detail="text").slide_changes[0].text_changes
+    assert len(events) == 1
+    assert events[0]["kind"] == "insertion"
+    assert events[0]["shape"] == ShapeRef(2, "alignment_text")
+    assert events[0]["after_location"] == {"container": "group", "paragraph_index": 0}
+
+
+def test_repeated_region_is_ambiguous_only_when_observably_changed():
+    before = _alignment_deck(("A", "same", "same", "B"))
+    unchanged = _alignment_deck(("A", "same", "same", "B"))
+    changed = _alignment_deck(("A", "same", "changed", "B"))
+    assert diff_decks(before, unchanged, detail="text").slide_changes == ()
+    events = diff_decks(before, changed, detail="text").slide_changes[0].text_changes
+    assert len(events) == 1
+    assert events[0]["kind"] == "ambiguity"
+    assert events[0]["before_location"] is None
+
+
+def test_repeated_exact_boundaries_can_establish_a_replacement():
+    events = (
+        diff_decks(
+            _alignment_deck(("same", "old", "same")),
+            _alignment_deck(("same", "new", "same")),
+            detail="text",
+        )
+        .slide_changes[0]
+        .text_changes
+    )
+    assert [(event["kind"], event["before"], event["after"]) for event in events] == [
+        ("replacement", "old", "new")
+    ]
+
+
+def test_nfc_equivalent_text_aligns_but_whitespace_remains_content():
+    nfc = diff_decks(
+        _alignment_deck(("caf\N{LATIN SMALL LETTER E WITH ACUTE}",)),
+        _alignment_deck(("cafe\N{COMBINING ACUTE ACCENT}",)),
+        detail="text",
+    )
+    assert nfc.slide_changes[0].text_changes[0]["kind"] == "replacement"
+    assert nfc.slide_changes[0].text_changes[0]["before_location"] == {
+        "container": "shape",
+        "paragraph_index": 0,
+    }
+    assert nfc.slide_changes[0].text_changes[0]["after_location"] == {
+        "container": "shape",
+        "paragraph_index": 0,
+    }
+    whitespace = diff_decks(_alignment_deck(("A  B",)), _alignment_deck(("A B",)), detail="text")
+    assert whitespace.slide_changes[0].text_changes[0]["kind"] == "replacement"
+
+
+def test_table_row_insertion_reports_grid_and_only_real_text_insertions():
+    before = _alignment_deck(("stable",), (("Name", "Value"), ("Alpha", "10")))
+    after = _alignment_deck(("stable",), (("Name", "Value"), ("New", "5"), ("Alpha", "10")))
+    structure = diff_decks(before, after, detail="structure").slide_changes[0]
+    assert structure.table_structure_changes[0]["row_change"] == {
+        "kind": "insertion",
+        "count": 1,
+        "index": 1,
+    }
+    assert structure.text_changes == ()
+    text = diff_decks(before, after, detail="text").slide_changes[0]
+    assert {(event["kind"], event["after"]) for event in text.text_changes} == {
+        ("insertion", "New"),
+        ("insertion", "5"),
+    }
+    assert all(event["kind"] != "replacement" for event in text.text_changes)
+
+    deletion = diff_decks(after, before, detail="text").slide_changes[0]
+    assert deletion.table_structure_changes[0]["row_change"] == {
+        "kind": "deletion",
+        "count": 1,
+        "index": 1,
+    }
+    assert {(event["kind"], event["before"]) for event in deletion.text_changes} == {
+        ("deletion", "New"),
+        ("deletion", "5"),
+    }
+
+
+def test_table_column_insertion_and_deletion_keep_exact_cell_coordinates():
+    narrow = _alignment_deck(("stable",), (("A", "B"), ("C", "D")))
+    wide = _alignment_deck(("stable",), (("A", "X", "B"), ("C", "Y", "D")))
+
+    insertion = diff_decks(narrow, wide, detail="text").slide_changes[0]
+    assert insertion.table_structure_changes[0]["column_change"] == {
+        "kind": "insertion",
+        "count": 1,
+        "index": 1,
+    }
+    assert {
+        (event["kind"], event["after"], event["after_location"]["row"],
+         event["after_location"]["column"])
+        for event in insertion.text_changes
+    } == {("insertion", "X", 0, 1), ("insertion", "Y", 1, 1)}
+
+    deletion = diff_decks(wide, narrow, detail="text").slide_changes[0]
+    assert deletion.table_structure_changes[0]["column_change"] == {
+        "kind": "deletion",
+        "count": 1,
+        "index": 1,
+    }
+    assert {(event["kind"], event["before"]) for event in deletion.text_changes} == {
+        ("deletion", "X"),
+        ("deletion", "Y"),
+    }
+    assert all(event["kind"] != "replacement" for event in deletion.text_changes)
+
+
+def test_multiple_paragraphs_in_one_table_cell_do_not_collide_with_other_cells_or_tables():
+    before = _alignment_deck(("stable",), (("left", "right"),))
+    after = _alignment_deck(("stable",), (("left", "right"),))
+    _set_cell_paragraphs(before.slides[0].shapes[1].table.cell(0, 0), ("A", "B"))
+    _set_cell_paragraphs(after.slides[0].shapes[1].table.cell(0, 0), ("A", "new", "B"))
+    for prs in (before, after):
+        second = prs.slides[0].shapes.add_table(
+            1, 1, Inches(7), Inches(3.5), Inches(2), Inches(1)
+        )
+        _set_cell_paragraphs(second.table.cell(0, 0), ("A", "B"))
+
+    events = diff_decks(before, after, detail="text").slide_changes[0].text_changes
+    assert len(events) == 1
+    assert events[0]["kind"] == "insertion"
+    assert events[0]["after"] == "new"
+    assert events[0]["after_location"] == {
+        "container": "table-cell",
+        "paragraph_index": 1,
+        "row": 0,
+        "column": 0,
+    }
+
+
+def test_grouped_table_uses_leaf_shape_identity_for_grid_and_text():
+    before = _alignment_deck(("stable",), (("A", "B"),))
+    after = _alignment_deck(("stable",), (("A", "X", "B"),))
+    _group_alignment_table(before)
+    _group_alignment_table(after)
+
+    change = diff_decks(before, after, detail="text").slide_changes[0]
+    grid = change.table_structure_changes[0]
+    assert grid["table"] == ShapeRef(3, "alignment_table")
+    assert grid["column_change"]["index"] == 1
+    assert [(event["kind"], event["after"]) for event in change.text_changes] == [
+        ("insertion", "X")
+    ]
+    assert change.text_changes[0]["shape"] == ShapeRef(3, "alignment_table")
+
+
+def test_added_or_removed_table_has_no_matched_grid_change():
+    without_table = _alignment_deck(("stable",))
+    with_table = _alignment_deck(("stable",), (("cell",),))
+
+    added = diff_decks(without_table, with_table, detail="structure").slide_changes[0]
+    removed = diff_decks(with_table, without_table, detail="structure").slide_changes[0]
+    assert added.shapes_added == (ShapeRef(3, "alignment_table"),)
+    assert removed.shapes_removed == (ShapeRef(3, "alignment_table"),)
+    assert added.table_structure_changes == ()
+    assert removed.table_structure_changes == ()
+
+
+def test_ambiguous_blank_table_row_does_not_invent_an_index():
+    before = _alignment_deck(("stable",), (("", ""), ("", "")))
+    after = _alignment_deck(("stable",), (("", ""), ("", ""), ("", "")))
+    grid = diff_decks(before, after).slide_changes[0].table_structure_changes[0]
+    assert grid["row_change"]["ambiguous"] is True
+    assert grid["row_change"]["candidate_indexes"] == [0, 1, 2]
+
+
+def test_effective_and_bullet_shifts_follow_exact_alignment_after_insertion():
+    before = _alignment_deck(("A", "target"))
+    before_target = before.slides[0].shapes[0].text_frame.paragraphs[1]
+    before_target.bullet.set_character("•")
+    after = _alignment_deck(("inserted", "A", "target"))
+    after_target = after.slides[0].shapes[0].text_frame.paragraphs[2]
+    after_target.runs[0].font.bold = True
+    after_target.bullet.set_none()
+
+    change = diff_decks(before, after, detail="full").slide_changes[0]
+    shift = next(shift for shift in change.effective_shifts if shift.text == "target")
+    assert shift.before_location["paragraph_index"] == 1
+    assert shift.after_location["paragraph_index"] == 2
+    bullet = next(shift for shift in change.bullet_shifts if shift.text == "target")
+    assert bullet.before_location["paragraph_index"] == 1
+    assert bullet.after_location["paragraph_index"] == 2
+
+
+def test_table_effective_and_bullet_formatting_remain_out_of_scope():
+    before = _alignment_deck(("stable",), (("cell",),))
+    after = _alignment_deck(("stable",), (("cell",),))
+    paragraph = after.slides[0].shapes[1].table.cell(0, 0).text_frame.paragraphs[0]
+    paragraph.runs[0].font.bold = True
+    paragraph.bullet.set_character("•")
+
+    report = diff_decks(before, after, detail="full")
+    assert report.slide_changes == ()
+    assert report.package_changes
+
+
+def test_frozen_alignment_pair_preserves_real_changes_without_cascade():
+    report = diff_decks(_path(ALIGN_V1), _path(ALIGN_V2), detail="text")
+    change = report.slide_changes[0]
+    assert change.table_structure_changes[0]["row_change"]["index"] == 1
+    assert {(event["kind"], event["after"]) for event in change.text_changes} == {
+        ("insertion", "Inserted paragraph"),
+        ("insertion", "New"),
+        ("insertion", "5"),
+    }
 
 
 # ------------------------------------------------------------- regressions
