@@ -616,7 +616,7 @@ def test_incompatible_shape_kind_reuse_is_removal_plus_addition():
     before = Presentation()
     slide = before.slides.add_slide(before.slide_layouts[6])
     box = slide.shapes.add_textbox(0, 0, 914400, 914400)
-    box.name = "Reused"
+    box.name = "Before text box"
     shape_id = box.shape_id
     before_bytes = _serialized(before)
 
@@ -626,19 +626,25 @@ def test_incompatible_shape_kind_reuse_is_removal_plus_addition():
     image = io.BytesIO()
     PILImage.new("RGB", (2, 2), (10, 20, 30)).save(image, format="PNG")
     picture = after_slide.shapes.add_picture(io.BytesIO(image.getvalue()), 0, 0)
-    picture.name = "Reused"
+    picture.name = "After picture"
     assert picture.shape_id == shape_id
 
     report = diff_decks(io.BytesIO(before_bytes), after, detail="text")
     change = report.slide_changes[0]
-    expected = (ShapeRef(shape_id=shape_id, name="Reused"),)
-    assert change.shapes_removed == expected
-    assert change.shapes_added == expected
+    assert change.shapes_removed == (
+        ShapeRef(shape_id=shape_id, name="Before text box"),
+    )
+    assert change.shapes_added == (
+        ShapeRef(shape_id=shape_id, name="After picture"),
+    )
     assert change.geometry_changes == ()
     assert change.images_replaced == ()
     assert change.chart_data_changes == ()
     assert len(change.text_changes) == 1
     assert change.text_changes[0]["kind"] == "deletion"
+    assert change.text_changes[0]["shape"] == ShapeRef(
+        shape_id=shape_id, name="Before text box"
+    )
     assert _event_texts(change.text_changes[0], "before") == [""]
     assert change.text_changes[0]["after"] == []
 

@@ -889,7 +889,7 @@ def _slide_text_hunks(slide_a, slide_b) -> tuple:
             hunks.append(_container_hunk(_shape_ref(shape_a), before, ()))
             hunks.append(_container_hunk(_shape_ref(shape_b), (), after))
             continue
-        reference = shape_b or shape_a
+        reference = shape_b if after else shape_a
         hunks.append(_container_hunk(_shape_ref(reference), before, after))
     return tuple(hunks)
 
