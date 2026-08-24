@@ -437,7 +437,7 @@ def test_bake_uses_unique_blank_only_after_name_and_type_are_absent():
 # ----------------------------------------------------------- unique layout selection
 
 
-def test_strict_layout_name_lookup_refuses_duplicates_without_changing_upstream_lookup():
+def test_strict_layout_name_lookup_refuses_duplicates_without_changing_first_match_lookup():
     dest = _open(ALPHA)
     first = dest.slide_layouts[0]
     duplicate = dest.slide_layouts[1]

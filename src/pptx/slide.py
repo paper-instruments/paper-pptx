@@ -845,8 +845,8 @@ class SlideLayouts(ParentedElementProxy):
     def get_by_name(self, name: str, default: SlideLayout | None = None) -> SlideLayout | None:
         """Return the first layout named `name`, or `default` when none is found.
 
-        This preserves the upstream first-match contract. Use :meth:`get_unique_by_name` when the
-        result will drive an edit and duplicate layout names must be surfaced rather than guessed.
+        Layout names need not be unique, and this method does not detect duplicates. Use
+        :meth:`get_unique_by_name` when selecting a layout for an edit.
         """
         for slide_layout in self:
             if slide_layout.name == name:
@@ -856,9 +856,10 @@ class SlideLayouts(ParentedElementProxy):
     def get_unique_by_name(self, name: str) -> SlideLayout:
         """Return the only layout named `name`; refuse when zero or multiple layouts match.
 
-        Use this for mutation targeting because layout names are not required to be unique. A
-        missing name raises |TargetNotFoundError| and duplicates raise |AmbiguousTargetError|;
-        resolve ambiguity by selecting a layout explicitly by index or partname.
+        Use this when a name selects the layout for creating, importing, or rebinding a slide. A
+        missing name raises |TargetNotFoundError| and duplicate names raise
+        |AmbiguousTargetError|; resolve ambiguity by selecting a layout explicitly by index or
+        partname.
         """
         from pptx.errors import AmbiguousTargetError, TargetNotFoundError
 
