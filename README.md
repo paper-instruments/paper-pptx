@@ -42,6 +42,10 @@ The [Sphinx documentation](https://github.com/paper-instruments/paper-pptx/tree/
 
 See [CONTRIBUTING.md](https://github.com/paper-instruments/paper-pptx/blob/main/CONTRIBUTING.md).
 
+## Acknowledgments
+
+paper-pptx exists because [python-pptx](https://github.com/scanny/python-pptx) is excellent. Steve Canny and the python-pptx contributors built the lossless package layer, the disciplined XML mapping, and a decade of absorbed edge cases that make safe deck editing possible at all. This fork stands on that work and keeps their API intact.
+
 ## Citation
 
 If you reference paper-pptx in research or writing:
@@ -57,6 +61,6 @@ If you reference paper-pptx in research or writing:
 
 Cite it as a fork of *python-pptx* by Steve Canny and contributors.
 
-## License and attribution
+## License
 
-Steve Canny and the python-pptx contributors created the package and XML foundation. Paper Instruments maintains this fork under the inherited MIT license. See [LICENSE](https://github.com/paper-instruments/paper-pptx/blob/main/LICENSE).
+MIT, inherited from python-pptx. Original work © 2013 Steve Canny and the python-pptx contributors; fork additions © 2026 Paper Instruments, Inc. This fork preserves the upstream license and attribution. See [LICENSE](https://github.com/paper-instruments/paper-pptx/blob/main/LICENSE).
