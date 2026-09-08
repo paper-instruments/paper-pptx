@@ -13,9 +13,9 @@
 
 </div>
 
-**An import-compatible, agent-first structure editor that helps prevent silent corruption in existing PowerPoint decks.**
+**An import-compatible, agent-first structure editor that helps prevent silent corruption in PowerPoint files.**
 
-`paper-pptx` is a hard fork of [python-pptx](https://github.com/scanny/python-pptx) `v1.0.2` for programs that inspect and change existing PowerPoint (`.pptx`) presentations. It keeps the `pptx` import name and the upstream object model. The fork adds structure-aware operations and machine-readable results for existing decks.
+`paper-pptx` is a hard fork of [python-pptx](https://github.com/scanny/python-pptx) `v1.0.2` for creating and editing PowerPoint (`.pptx`) presentations. It keeps the `pptx` import name and the upstream object model. The fork adds structure-aware operations and machine-readable results for automated workflows.
 
 Automated editors cannot inspect the rendered result of each change. A deck can open without errors after an edit has flattened formatting or damaged relationships. `paper-pptx` exposes the deck's effective values and package structure. Its added APIs raise typed refusals when they cannot select one target or preserve package consistency.
 
@@ -36,7 +36,7 @@ paper-pptx-doctor
 
 ## Documentation
 
-The [Sphinx documentation](https://github.com/paper-instruments/paper-pptx/tree/main/docs) covers the fork APIs. The [python-pptx documentation](https://python-pptx.readthedocs.io/) covers the inherited API.
+See the [paper-pptx documentation](https://docs.paperinstruments.com/).
 
 ## Contributing
 
