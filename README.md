@@ -13,38 +13,52 @@
 
 </div>
 
-**An import-compatible, agent-first structure editor that helps prevent silent corruption in PowerPoint files.**
+**An import-compatible, agent-safe fork of python-pptx for creating and editing PowerPoint presentations without silent corruption.**
 
-`paper-pptx` is a hard fork of [python-pptx](https://github.com/scanny/python-pptx) `v1.0.2` for creating and editing PowerPoint (`.pptx`) presentations. It keeps the `pptx` import name and the upstream object model. The fork adds structure-aware operations and machine-readable results for automated workflows.
-
-Automated editors cannot inspect the rendered result of each change. A deck can open without errors after an edit has flattened formatting or damaged relationships. `paper-pptx` exposes the deck's effective values and package structure. Its added APIs raise typed refusals when they cannot select one target or preserve package consistency.
+`paper-pptx` is an import-compatible hard fork of [python-pptx](https://github.com/scanny/python-pptx) for creating and editing PowerPoint (`.pptx`) presentations. It keeps the `pptx` import name and upstream object model, and adds structure-aware operations and machine-readable results for automated workflows.
 
 ## Installation
-
-`paper-pptx` requires Python 3.9 or later.
 
 ```bash
 python -m pip uninstall -y python-pptx paper-pptx
 python -m pip install paper-pptx
-```
-
-Uninstall `python-pptx` before installing this fork because both distributions provide the `pptx` import package. Verify the installation with:
-
-```bash
 paper-pptx-doctor
 ```
 
+Both distributions provide the `pptx` import package. Do not install `python-pptx` and `paper-pptx` in the same environment.
+
+## Quick start
+
+Create a presentation and update its text without flattening untouched run formatting:
+
+```python
+from pptx import Presentation
+from pptx.edit import replace_text
+
+prs = Presentation()
+slide = prs.slides.add_slide(prs.slide_layouts[0])
+slide.shapes.title.text = "FY25 plan"
+prs.save("deck.pptx")
+
+prs = Presentation("deck.pptx")
+result = replace_text(prs, "FY25", "FY26")
+prs.save("deck-v2.pptx")
+print(result.replacements)  # 1
+```
+
+`replace_text` returns a machine-readable result and refuses unsupported edits before changing the presentation.
+
 ## Documentation
 
-See the [paper-pptx documentation](https://docs.paperinstruments.com/).
+Read the [paper-pptx documentation](https://docs.paperinstruments.com/).
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/paper-instruments/paper-pptx/blob/main/CONTRIBUTING.md).
+Contributions are welcome. See [CONTRIBUTING.md](https://github.com/paper-instruments/paper-pptx/blob/main/CONTRIBUTING.md).
 
 ## Acknowledgments
 
-paper-pptx exists because [python-pptx](https://github.com/scanny/python-pptx) is excellent. Steve Canny and the python-pptx contributors built the lossless package layer, the disciplined XML mapping, and a decade of absorbed edge cases that make safe deck editing possible at all. This fork stands on that work and keeps their API intact.
+paper-pptx builds on python-pptx by Steve Canny and contributors. This fork preserves their API, license, and attribution.
 
 ## Citation
 
@@ -63,4 +77,4 @@ Cite it as a fork of *python-pptx* by Steve Canny and contributors.
 
 ## License
 
-MIT, inherited from python-pptx. Original work © 2013 Steve Canny and the python-pptx contributors; fork additions © 2026 Paper Instruments, Inc. This fork preserves the upstream license and attribution. See [LICENSE](https://github.com/paper-instruments/paper-pptx/blob/main/LICENSE).
+MIT, inherited from python-pptx. Original work © 2013 Steve Canny and the python-pptx contributors; fork additions © 2026 Paper Instruments, Inc. See [LICENSE](https://github.com/paper-instruments/paper-pptx/blob/main/LICENSE).
