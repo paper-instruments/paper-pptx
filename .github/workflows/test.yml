@@ -77,16 +77,8 @@ jobs:
           python-version: "3.13"
       - name: Install LibreOffice Impress
         run: |
-          # The runner image ships a frozen apt index. Ubuntu removes a .deb
-          # when it publishes the next revision, so install without update
-          # 404s on the version the image still names.
-          install_impress() {
-            sudo apt-get update
-            sudo apt-get install --yes --no-install-recommends libreoffice-impress
-          }
-          if ! install_impress; then
-            install_impress
-          fi
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libreoffice-impress
           command -v soffice
           soffice --version
       - name: Install uv
