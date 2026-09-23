@@ -337,10 +337,6 @@ class OpcPackage(_RelatableMixin):
         os.close(descriptor)
         try:
             PackageWriter.write(temporary, self._rels, parts)
-            # -- Windows maps os.fsync to CRT _commit, which returns EBADF on a
-            # -- read-only handle. POSIX accepts fsync of O_RDONLY, so "rb" only
-            # -- failed on Windows. Flush before chmod: a read-only destination
-            # -- mode would make a later update-mode reopen fail.
             with open(temporary, "r+b") as stream:
                 os.fsync(stream.fileno())
             if existing_mode is not None:
