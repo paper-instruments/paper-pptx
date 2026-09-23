@@ -68,6 +68,10 @@ jobs:
   libreoffice:
     name: LibreOffice contract
     runs-on: ubuntu-latest
+    env:
+      # Runner image 20260920.314.1 checks out with "CAfile: none" and
+      # rejects GitHub's certificate. Point git at the system bundle.
+      GIT_SSL_CAINFO: /etc/ssl/certs/ca-certificates.crt
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
