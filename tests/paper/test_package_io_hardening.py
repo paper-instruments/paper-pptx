@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import io
 import os
 import stat
@@ -10,6 +11,11 @@ import zipfile
 
 import pytest
 from lxml import etree
+
+try:
+    import fcntl
+except ImportError:  # Windows has no fcntl; os.fsync there already rejects read-only handles
+    fcntl = None
 
 from pptx import Presentation
 from pptx.errors import PackageLimitError, PaperRefusal, UnsupportedStructureError
@@ -285,6 +291,46 @@ def test_unsnapshottable_stream_is_written_rather_than_refused():
     written = destination.getvalue()
     assert written.startswith(b"ORIGINA"), "the package was not written at the stream position"
     assert zipfile.ZipFile(io.BytesIO(written[7:])).testzip() is None
+
+
+def _fsync_rejecting_readonly_handles(real_fsync):
+    """Emulate Windows CRT `_commit`: `os.fsync` on a read-only fd raises `EBADF`.
+
+    POSIX `fsync` accepts `O_RDONLY`, so a Linux run would otherwise miss the failure.
+    On Windows the real `os.fsync` already has this requirement.
+    """
+
+    def fsync(fd):
+        if fcntl is not None:
+            access = fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE
+            if access == os.O_RDONLY:
+                raise OSError(errno.EBADF, os.strerror(errno.EBADF))
+        return real_fsync(fd)
+
+    return fsync
+
+
+def test_path_save_fsyncs_a_writable_handle(tmp_path, monkeypatch):
+    """A path save must survive Windows, where `os.fsync` rejects a read-only handle.
+
+    `_save_path_atomically` reopens the finished temp file to flush it before
+    `os.replace`. Opening that handle read-only raises `OSError: [Errno 9]` on
+    Windows and writes nothing. A read-only destination is still replaced: the
+    flush happens while the temp file is writable, then its mode is copied.
+    """
+    presentation = Presentation(_minimal_path())
+    destination = tmp_path / "readonly.pptx"
+    presentation.save(destination)
+    before = len(Presentation(destination).slides)
+    destination.chmod(0o444)
+    monkeypatch.setattr(os, "fsync", _fsync_rejecting_readonly_handles(os.fsync))
+
+    presentation.slides.add_slide(presentation.slide_layouts[6])
+    presentation.save(destination)
+
+    assert stat.S_IMODE(destination.stat().st_mode) == 0o444
+    reopened = Presentation(destination)
+    assert len(reopened.slides) == before + 1
 
 
 def test_successful_path_save_preserves_existing_mode(tmp_path):
