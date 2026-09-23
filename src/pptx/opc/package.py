@@ -337,6 +337,8 @@ class OpcPackage(_RelatableMixin):
         os.close(descriptor)
         try:
             PackageWriter.write(temporary, self._rels, parts)
+            with open(temporary, "r+b") as stream:
+                os.fsync(stream.fileno())
             if existing_mode is not None:
                 os.chmod(temporary, existing_mode)
             else:
@@ -345,8 +347,6 @@ class OpcPackage(_RelatableMixin):
                 active_umask = os.umask(0)
                 os.umask(active_umask)
                 os.chmod(temporary, 0o666 & ~active_umask)
-            with open(temporary, "rb") as stream:
-                os.fsync(stream.fileno())
             os.replace(temporary, destination)
         except BaseException:
             with suppress(FileNotFoundError):
