@@ -315,13 +315,25 @@ def test_path_save_fsyncs_a_writable_handle(tmp_path, monkeypatch):
 
     `_save_path_atomically` reopens the finished temp file to flush it before
     `os.replace`. Opening that handle read-only raises `OSError: [Errno 9]` on
-    Windows and writes nothing. A read-only destination is still replaced: the
-    flush happens while the temp file is writable, then its mode is copied.
+    Windows and writes nothing.
     """
+    presentation = Presentation(_minimal_path())
+    destination = tmp_path / "deck.pptx"
+    monkeypatch.setattr(os, "fsync", _fsync_rejecting_readonly_handles(os.fsync))
+
+    presentation.save(destination)
+    presentation.slides.add_slide(presentation.slide_layouts[6])
+    presentation.save(destination)
+
+    assert len(Presentation(destination).slides) == 2
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows cannot os.replace a read-only file")
+def test_path_save_fsyncs_before_copying_a_read_only_mode(tmp_path, monkeypatch):
+    """The flush happens while the temp file is writable, then its mode is copied."""
     presentation = Presentation(_minimal_path())
     destination = tmp_path / "readonly.pptx"
     presentation.save(destination)
-    before = len(Presentation(destination).slides)
     destination.chmod(0o444)
     monkeypatch.setattr(os, "fsync", _fsync_rejecting_readonly_handles(os.fsync))
 
@@ -329,8 +341,7 @@ def test_path_save_fsyncs_a_writable_handle(tmp_path, monkeypatch):
     presentation.save(destination)
 
     assert stat.S_IMODE(destination.stat().st_mode) == 0o444
-    reopened = Presentation(destination)
-    assert len(reopened.slides) == before + 1
+    assert len(Presentation(destination).slides) == 2
 
 
 def test_successful_path_save_preserves_existing_mode(tmp_path):
