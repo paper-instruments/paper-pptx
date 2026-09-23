@@ -19,13 +19,17 @@
 
 ## Installation
 
+Use an [activated virtual environment](https://docs.python.org/3/library/venv.html).
+
 ```bash
 python -m pip uninstall -y python-pptx paper-pptx
 python -m pip install paper-pptx
-paper-pptx-doctor
+python -m paper_pptx_doctor
 ```
 
 Both distributions provide the `pptx` import package. Do not install `python-pptx` and `paper-pptx` in the same environment.
+
+To return to `python-pptx`, run the uninstall line above again, then `python -m pip install python-pptx`.
 
 ## Quick start
 
