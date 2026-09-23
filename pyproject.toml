@@ -35,7 +35,7 @@ dependencies = [
 description = "Create, read, and update PowerPoint 2007+ (.pptx) files."
 keywords = ["powerpoint", "ppt", "pptx", "openxml", "office"]
 license = { text = "MIT" }
-readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.9"
 
 [project.scripts]
